@@ -56,7 +56,6 @@ cd sanrenjz-tools
 npm install
 ```
 
-<<<<<<< HEAD
 3. **启动开发模式**
 ```powershell
 npm run dev
@@ -280,7 +279,7 @@ sanrenjz-tools-插件名/
   "preload": "preload.js",
   "features": [
     {
-<<<<<<< HEAD
+
       "code": "my-feature",
       "explain": "功能说明",
       "cmds": ["触发关键词1", "触发关键词2"],
@@ -302,7 +301,6 @@ sanrenjz-tools-插件名/
     }
   ],
   "pluginSetting": {
-<<<<<<< HEAD
     "height": 600,
     "width": 800,
     "single": true
@@ -316,7 +314,6 @@ sanrenjz-tools-插件名/
 }
 ```
 
-<<<<<<< HEAD
 ### 超级面板集成（新特性）
 
 插件功能将自动注册到超级面板系统：
@@ -810,4 +807,4 @@ sanrenjz-tools/
 ---
 
 **三人聚智工具** - 让效率工具触手可及 🚀
->>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
+
