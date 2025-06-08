@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>超级面板</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', 'Segoe UI', sans-serif;
+            background: rgba(40, 44, 52, 0.95);
+            color: #ffffff;
+            user-select: none;
+            overflow: hidden;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .super-panel {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            max-height: 400px;
+            width: 100%;
+            max-width: 450px;
+        }
+        
+        .panel-header {
+            padding: 4px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .panel-title {
+            font-size: 10px;
+            font-weight: 300;
+            color: #ffffff;
+            margin: 0;
+        }
+        
+        .panel-subtitle {
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0.7);
+            margin: 0;
+            flex: 1;
+        }
+        
+        .header-buttons {
+            display: flex;
+            gap: 4px;
+        }
+        
+        .header-btn {
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 12px;
+            cursor: pointer;
+            padding: 4px 6px;
+            border-radius: 3px;
+            transition: all 0.2s ease;
+            min-width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .header-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            transform: scale(1.1);
+        }
+        
+        .add-btn:hover {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4CAF50;
+        }
+        
+        .settings-btn:hover {
+            background: rgba(96, 165, 250, 0.2);
+            color: #60a5fa;
+        }
+        
+        .close-btn:hover {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        
+        .selected-text-info {
+            padding: 8px 16px;
+            background: rgba(96, 165, 250, 0.1);
+            border-left: 3px solid #60a5fa;
+            margin: 0;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.9);
+            max-height: 40px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: none; /* 默认隐藏，有选中文本时显示 */
+        }
+        
+        .actions-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+        
+        .actions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(65px, 1fr));
+            gap: 6px;
+            justify-items: center;
+        }
+        
+        .action-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 65px;
+            height: 60px;
+            padding: 6px 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid transparent;
+            position: relative;
+        }
+        
+        .action-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+        
+        .action-item.selected {
+            background: rgba(96, 165, 250, 0.2);
+            border-color: #60a5fa;
+            transform: scale(1.05);
+        }
+        
+        .action-icon {
+            width: 32px;
+            height: 32px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+            margin-bottom: 4px;
+        }
+        
+        .action-item.selected .action-icon {
+            background: rgba(96, 165, 250, 0.3);
+        }
+        
+        .action-title {
+            font-size: 10px;
+            font-weight: 500;
+            color: #ffffff;
+            text-align: center;
+            line-height: 1.2;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+        
+        .empty-icon {
+            font-size: 36px;
+            margin-bottom: 12px;
+            opacity: 0.3;
+        }
+        
+        .empty-title {
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+        
+        .empty-description {
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        .add-action-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 65px;
+            height: 60px;
+            padding: 6px 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: rgba(76, 175, 80, 0.1);
+            border: 2px dashed rgba(76, 175, 80, 0.3);
+            position: relative;
+        }
+        
+        .add-action-item:hover {
+            background: rgba(76, 175, 80, 0.2);
+            border-color: rgba(76, 175, 80, 0.6);
+            transform: scale(1.05);
+        }
+        
+        .add-action-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: #4CAF50;
+            margin-bottom: 4px;
+        }
+        
+        .add-action-title {
+            font-size: 9px;
+            font-weight: 500;
+            color: #4CAF50;
+            text-align: center;
+        }
+        
+        /* 滚动条样式 */
+        .actions-container::-webkit-scrollbar {
+            width: 4px;
+        }
+        
+        .actions-container::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 2px;
+        }
+        
+        .actions-container::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+        }
+        
+        .actions-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        /* 删除按钮样式 */
+        .delete-btn {
+            position: absolute;
+            top: -5px;
+            left: -5px;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: rgba(239, 68, 68, 0.8);
+            color: white;
+            border: none;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            z-index: 10;
+        }
+        
+        .action-item:hover .delete-btn {
+            opacity: 1;
+        }
+        
+        .delete-btn:hover {
+            background: #ef4444;
+            transform: scale(1.1);
+        }
+        
+        /* 动画 */
+        .action-item, .add-action-item {
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* 加载动画 */
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #60a5fa;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="super-panel">
+        <div class="panel-header">
+            <div class="panel-title">超级面板</div>
+            <div class="panel-subtitle">插件快速访问</div>
+            <div class="header-buttons">
+                <button class="header-btn add-btn" id="add-btn" onclick="openAddPluginDialog()" title="添加插件功能">
+                    ➕
+                </button>
+                <button class="header-btn settings-btn" id="settings-btn" onclick="openPanelSettings()" title="面板设置">
+                    ⚙️
+                </button>
+                <button class="header-btn close-btn" onclick="closePanel()" title="关闭面板">
+                    ✕
+                </button>
+            </div>
+        </div>
+        
+        <!-- 选中文本信息区域 -->
+        <div class="selected-text-info" id="selected-text-info"></div>
+        
+        <div class="actions-container" id="actions-container">
+            <div class="empty-state">
+                <div class="loading-spinner"></div>
+                <div class="empty-title">正在加载功能...</div>
+                <div class="empty-description">检测选中内容并加载相关功能</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+
+        let selectedIndex = 0;
+        let actions = [];
+        let currentSelectedText = '';
+
+        // 打开添加插件功能对话框
+        async function openAddPluginDialog() {
+            try {
+                await ipcRenderer.invoke('open-add-plugin-dialog');
+            } catch (error) {
+                console.error('打开添加插件对话框失败:', error);
+                showNotification('打开添加功能对话框失败', 'error');
+            }
+        }
+
+        // 打开面板设置
+        async function openPanelSettings() {
+            try {
+                await ipcRenderer.invoke('open-super-panel-settings');
+            } catch (error) {
+                console.error('打开面板设置失败:', error);
+                showNotification('打开设置失败', 'error');
+            }
+        }
+
+        // 初始化超级面板 - 纯框架版本
+        async function initSuperPanel() {
+            try {
+                console.log('🚀 超级面板框架初始化开始');
+                
+                // 获取当前选中的文本
+                currentSelectedText = await ipcRenderer.invoke('get-selected-text') || '';
+                console.log('📝 选中文本:', currentSelectedText);
+                
+                // 显示选中文本信息
+                updateSelectedTextInfo(currentSelectedText);
+                
+                // 清空现有的功能列表 (防止重复)
+                if (!actions || actions.length === 0) {
+                    console.log('功能列表为空，开始初始化加载');
+                } else {
+                    console.log('功能列表已有数据，将被刷新:', actions.length, '个');
+                    // 保留空数组，不清空
+                }
+                
+                // 从插件API加载所有注册的功能
+                const newActions = await ipcRenderer.invoke('get-super-panel-actions', currentSelectedText);
+                console.log('🔧 重新加载到的功能:', newActions.length, '个');
+                
+                // 更新功能列表
+                actions = newActions;
+                
+                renderActions();
+                
+            } catch (error) {
+                console.error('❌ 初始化超级面板失败:', error);
+                showEmptyState('🚫', '初始化失败', '无法加载功能，请检查插件状态');
+            }
+        }
+        
+        // 更新选中文本信息显示
+        function updateSelectedTextInfo(text) {
+            const infoElement = document.getElementById('selected-text-info');
+            if (text && text.trim()) {
+                const displayText = text.length > 50 ? text.substring(0, 50) + '...' : text;
+                infoElement.textContent = `选中内容: ${displayText}`;
+                infoElement.style.display = 'block';
+            } else {
+                infoElement.style.display = 'none';
+            }
+        }
+        
+        // 渲染功能列表 - 纯动态渲染
+        function renderActions() {
+            const container = document.getElementById('actions-container');
+            
+            if (!actions || actions.length === 0) {
+                showEmptyState('📭', '暂无功能', '点击 ➕ 添加插件功能到面板');
+                return;
+            }
+            
+            container.innerHTML = '';
+            const gridDiv = document.createElement('div');
+            gridDiv.className = 'actions-grid';
+            
+            // 添加所有功能项
+            actions.forEach((action, index) => {
+                const actionDiv = createActionElement(action, index);
+                gridDiv.appendChild(actionDiv);
+            });
+            
+            // 添加"添加功能"按钮
+            const addActionDiv = createAddActionElement();
+            gridDiv.appendChild(addActionDiv);
+            
+            container.appendChild(gridDiv);
+            
+            // 选中第一个功能项
+            updateSelection(0);
+        }
+        
+        // 创建功能元素
+        function createActionElement(action, index) {
+            const actionDiv = document.createElement('div');
+            actionDiv.className = 'action-item';
+            actionDiv.dataset.index = index;
+            actionDiv.onclick = () => executeAction(action);
+            
+            // 添加删除按钮
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'delete-btn';
+            deleteBtn.innerHTML = '✕';
+            deleteBtn.title = '移除此功能';
+            deleteBtn.onclick = (e) => {
+                e.stopPropagation(); // 阻止冒泡，不触发父元素的点击事件
+                removeAction(action, index);
+            };
+            
+            const iconDiv = document.createElement('div');
+            iconDiv.className = 'action-icon';
+            
+            // 检查是否是图片文件路径或数据URL
+            if (action.icon && (action.icon.startsWith('data:') || action.icon.startsWith('file://') || action.icon.includes('.ico') || action.icon.includes('.png') || action.icon.includes('.jpg') || action.icon.includes('.svg'))) {
+                // 创建img元素显示图片
+                const img = document.createElement('img');
+                img.src = action.icon;
+                img.alt = 'icon';
+                img.style.width = '100%';
+                img.style.height = '100%';
+                img.style.objectFit = 'contain';
+                iconDiv.appendChild(img);
+            } else {
+                // 直接显示emoji或文本
+                iconDiv.textContent = action.icon || '🔧';
+            }
+            
+            const titleDiv = document.createElement('div');
+            titleDiv.className = 'action-title';
+            titleDiv.textContent = action.title || '未命名';
+            titleDiv.title = action.description || ''; // 鼠标悬浮显示描述
+            
+            actionDiv.appendChild(deleteBtn);
+            actionDiv.appendChild(iconDiv);
+            actionDiv.appendChild(titleDiv);
+            
+            return actionDiv;
+        }
+        
+        // 创建"添加功能"元素
+        function createAddActionElement() {
+            const addDiv = document.createElement('div');
+            addDiv.className = 'add-action-item';
+            addDiv.onclick = openAddPluginDialog;
+            
+            const iconDiv = document.createElement('div');
+            iconDiv.className = 'add-action-icon';
+            iconDiv.textContent = '➕';
+            
+            const titleDiv = document.createElement('div');
+            titleDiv.className = 'add-action-title';
+            titleDiv.textContent = '添加功能';
+            
+            addDiv.appendChild(iconDiv);
+            addDiv.appendChild(titleDiv);
+            
+            return addDiv;
+        }
+        
+        // 显示空状态
+        function showEmptyState(icon, title, description) {
+            const container = document.getElementById('actions-container');
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">${icon}</div>
+                    <div class="empty-title">${title}</div>
+                    <div class="empty-description">${description}</div>
+                </div>
+            `;
+        }
+        
+        // 更新选择
+        function updateSelection(index) {
+            const items = document.querySelectorAll('.action-item');
+            items.forEach((item, i) => {
+                item.classList.toggle('selected', i === index);
+            });
+            selectedIndex = index;
+            
+            // 滚动到选中项
+            if (items[index]) {
+                items[index].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+        }
+        
+        // 执行功能 - 通过插件API
+        async function executeAction(action) {
+            try {
+                console.log('🎯 执行功能:', action.title);
+                
+                // 关闭面板
+                closePanel();
+                
+                // 通过插件API执行功能
+                const result = await ipcRenderer.invoke('execute-super-panel-action', {
+                    action: action,
+                    selectedText: currentSelectedText
+                });
+                
+                if (!result.success) {
+                    console.error('功能执行失败:', result.error);
+                    showNotification(result.error || '功能执行失败', 'error');
+                }
+                
+            } catch (error) {
+                console.error('❌ 执行功能失败:', error);
+                showNotification(`执行失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 显示通知
+        function showNotification(message, type = 'info') {
+            // 这里可以实现通知显示逻辑
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+        
+        // 关闭面板
+        function closePanel() {
+            ipcRenderer.invoke('close-super-panel');
+        }
+        
+        // 键盘导航
+        document.addEventListener('keydown', (e) => {
+            const items = document.querySelectorAll('.action-item');
+            const gridCols = Math.floor(430 / 70); // 根据容器宽度计算列数
+            
+            switch (e.key) {
+                case 'ArrowUp':
+                    e.preventDefault();
+                    if (selectedIndex >= gridCols) {
+                        updateSelection(selectedIndex - gridCols);
+                    }
+                    break;
+                    
+                case 'ArrowDown':
+                    e.preventDefault();
+                    if (selectedIndex + gridCols < actions.length) {
+                        updateSelection(selectedIndex + gridCols);
+                    }
+                    break;
+                    
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    if (selectedIndex > 0) {
+                        updateSelection(selectedIndex - 1);
+                    }
+                    break;
+                    
+                case 'ArrowRight':
+                    e.preventDefault();
+                    if (selectedIndex < actions.length - 1) {
+                        updateSelection(selectedIndex + 1);
+                    }
+                    break;
+                    
+                case 'Enter':
+                    e.preventDefault();
+                    if (actions[selectedIndex]) {
+                        executeAction(actions[selectedIndex]);
+                    }
+                    break;
+                    
+                case 'Escape':
+                    e.preventDefault();
+                    closePanel();
+                    break;
+                    
+                case '+':
+                case 'Insert':
+                    e.preventDefault();
+                    openAddPluginDialog();
+                    break;
+            }
+        });
+        
+        // 初始化
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('🎉 超级面板框架加载完成');
+            initSuperPanel();
+            
+            // 为所有输入框添加焦点保持逻辑
+            document.addEventListener('mousedown', (e) => {
+                // 检查点击的元素是否是输入框
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                    // 记录调试信息
+                    console.log('🔍 输入框被点击:', e.target.tagName, e.target.id || 'noID');
+                    
+                    // 阻止默认的失焦事件传播
+                    e.stopPropagation();
+                    
+                    // 记录当前被点击的输入框
+                    window.lastClickedInput = e.target;
+                    
+                    // 创建一个专用的事件处理器，确保输入框能保持焦点
+                    const keepFocus = () => {
+                        // 确保当前元素保持焦点
+                        console.log('🔍 保持焦点 - 当前活动元素:', document.activeElement.tagName, document.activeElement === e.target ? '匹配' : '不匹配');
+                        if (document.activeElement !== e.target) {
+                            console.log('🔍 重新设置焦点到输入框');
+                            e.target.focus({preventScroll: true});
+                            console.log('🔍 焦点重设后状态:', document.activeElement === e.target ? '成功' : '失败');
+                        }
+                        // 移除此临时处理器
+                        setTimeout(() => {
+                            document.removeEventListener('mouseup', keepFocus);
+                        }, 100);
+                    };
+                    
+                    // 当鼠标释放时执行
+                    document.addEventListener('mouseup', keepFocus);
+                    
+                    // 设置多重保障焦点监控
+                    setupFocusGuard(e.target);
+                }
+            }, true); // 使用捕获阶段以确保最先处理
+            
+            // 全局焦点变化监控
+            document.addEventListener('focusin', (e) => {
+                console.log('🔍 焦点获取:', e.target.tagName, e.target.id || 'noID');
+            });
+            
+            document.addEventListener('focusout', (e) => {
+                console.log('🔍 焦点丢失:', e.target.tagName, e.target.id || 'noID', '下一个元素:', document.activeElement.tagName);
+                
+                // 如果从输入框失去焦点，并且有记录的最后点击输入框，尝试恢复焦点
+                if ((e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') && 
+                    window.lastClickedInput === e.target &&
+                    document.activeElement !== e.target) {
+                    
+                    // 延迟一小段时间后检查是否仍需要恢复焦点
+                    setTimeout(() => {
+                        if (document.body.contains(e.target) && document.activeElement !== e.target) {
+                            console.log('🔍 恢复输入框焦点');
+                            e.target.focus({preventScroll: true});
+                        }
+                    }, 10);
+                }
+            });
+            
+            // 设置强力的焦点保障机制
+            function setupFocusGuard(inputElement) {
+                if (!inputElement) return;
+                
+                // 清除之前的定时器
+                if (window.focusGuardTimer) {
+                    clearInterval(window.focusGuardTimer);
+                }
+                
+                // 连续检查焦点状态的定时器
+                window.focusGuardTimer = setInterval(() => {
+                    // 如果输入框仍在DOM中但没有焦点
+                    if (document.body.contains(inputElement) && 
+                        document.activeElement !== inputElement &&
+                        window.lastClickedInput === inputElement) {
+                        
+                        console.log('🔍 焦点守卫：恢复输入框焦点');
+                        inputElement.focus({preventScroll: true});
+                        
+                        // 通知主进程当前有活动输入框
+                        ipcRenderer.invoke('notify-input-active', true);
+                    } else if (!document.body.contains(inputElement) || 
+                               window.lastClickedInput !== inputElement) {
+                        // 如果输入框不再是最后点击的或已从DOM中移除，停止监控
+                        clearInterval(window.focusGuardTimer);
+                        window.focusGuardTimer = null;
+                        
+                        // 通知主进程输入框不再活动
+                        ipcRenderer.invoke('notify-input-active', false);
+                    }
+                }, 150); // 减少到150毫秒检查一次
+                
+                // 设置5秒后自动清除监控
+                setTimeout(() => {
+                    if (window.focusGuardTimer) {
+                        clearInterval(window.focusGuardTimer);
+                        window.focusGuardTimer = null;
+                    }
+                }, 5000);
+            }
+        });
+        
+        // 监听面板刷新请求
+        ipcRenderer.on('refresh-super-panel', () => {
+            console.log('🔄 收到刷新超级面板请求');
+            // 确保完全重新初始化面板
+            actions = []; // 清空现有功能列表
+            initSuperPanel();
+        });
+        
+        // 监听功能列表直接更新
+        ipcRenderer.on('super-panel-actions-updated', (event, newActions) => {
+            console.log('🔄 直接接收功能列表更新:', newActions.length, '个');
+            actions = newActions;
+            renderActions();
+        });
+        
+        // 移除功能
+        async function removeAction(action, index) {
+            try {
+                if (confirm(`确定要移除"${action.title}"功能吗？`)) {
+                    const result = await ipcRenderer.invoke('delete-super-panel-action', action.id);
+                    if (result) {
+                        // 从本地数组中移除
+                        actions.splice(index, 1);
+                        renderActions();
+                        showNotification(`已移除"${action.title}"功能`, 'success');
+                    } else {
+                        showNotification('移除功能失败', 'error');
+                    }
+                }
+            } catch (error) {
+                console.error('移除功能失败:', error);
+                showNotification(`移除失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 失焦处理
+        window.addEventListener('blur', () => {
+            // 检查当前是否有活动的输入框
+            const activeElement = document.activeElement;
+            if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+                // 如果有活动的输入框，则不关闭面板
+                return;
+            }
+            
+            setTimeout(() => {
+                if (!document.hasFocus()) {
+                    closePanel();
+                }
+            }, 100);
+        });
+    </script>
+</body>
+</html> 

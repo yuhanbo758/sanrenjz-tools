@@ -1,0 +1,1461 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>三人聚智工具</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+            background-color: #f5f5f5;
+            overflow: hidden;
+        }
+
+        #header {
+            background-color: #fff;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            justify-content: space-between;
+        }
+
+        .search-container {
+            flex: 1;
+            max-width: 800px;
+            margin-right: 20px;
+            display: flex;
+            align-items: center;
+        }
+
+        #search-box {
+            width: 100%;
+            padding: 8px 16px;
+            border: 1px solid #e8e8e8;
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.3s;
+            background-color: #f8f8f8;
+            height: 20px;
+            line-height: 20px;
+        }
+
+        #search-box:focus {
+            border-color: #1890ff;
+            background-color: #fff;
+            box-shadow: 0 0 0 2px rgba(24,144,255,0.2);
+        }
+
+        .header-buttons {
+            display: flex;
+            gap: 12px;
+            margin-left: auto;
+        }
+
+        .header-button {
+            padding: 8px 16px;
+            border: 1px solid #1890ff;
+            border-radius: 6px;
+            background-color: #fff;
+            color: #1890ff;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+            height: 36px;
+            box-sizing: border-box;
+        }
+
+        .header-button:hover {
+            background-color: #1890ff;
+            color: #fff;
+        }
+
+        .header-button i {
+            font-size: 16px;
+        }
+
+        /* 弹窗样式 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            max-width: 90%;
+            max-height: 90%;
+            position: relative;
+        }
+
+        .modal-content img {
+            max-width: 100%;
+            max-height: 80vh;
+            display: block;
+        }
+
+        /* 设置弹窗特殊样式 */
+        .settings-modal-content {
+            width: 700px;
+            max-width: 95vw;
+            max-height: 85vh;
+            overflow-y: auto;
+            padding: 30px;
+        }
+
+        .settings-modal-content h2 {
+            margin-top: 0;
+            margin-bottom: 25px;
+            color: #262626;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 15px;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .setting-item {
+            margin-bottom: 25px;
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+            padding: 20px;
+            background: #fafafa;
+            border-radius: 8px;
+            border: 1px solid #f0f0f0;
+        }
+
+        .setting-item:hover {
+            background: #f5f5f5;
+            border-color: #d9d9d9;
+        }
+
+        .setting-label {
+            min-width: 140px;
+            font-weight: 500;
+            color: #262626;
+            font-size: 14px;
+            padding-top: 8px;
+            line-height: 1.4;
+        }
+
+        .setting-control {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .setting-control-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .setting-item input[type="text"] {
+            padding: 10px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .setting-item input[type="text"]:focus {
+            outline: none;
+            border-color: #1890ff;
+            box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+        }
+
+        .setting-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .setting-item input[type="range"] {
+            width: 200px;
+            height: 6px;
+            background: #ddd;
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .setting-item button {
+            padding: 8px 16px;
+            border: 1px solid #1890ff;
+            background: #fff;
+            color: #1890ff;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .setting-item button:hover {
+            background: #1890ff;
+            color: #fff;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(24, 144, 255, 0.3);
+        }
+
+        .setting-item button.primary {
+            background: #1890ff;
+            color: #fff;
+        }
+
+        .setting-item button.primary:hover {
+            background: #096dd9;
+        }
+
+        .setting-item button.danger {
+            border-color: #ff4d4f;
+            color: #ff4d4f;
+        }
+
+        .setting-item button.danger:hover {
+            background: #ff4d4f;
+            color: #fff;
+        }
+
+        .setting-description {
+            color: #666;
+            font-size: 12px;
+            line-height: 1.4;
+            margin-top: 4px;
+        }
+
+        .delay-value-display {
+            background: #f0f0f0;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 13px;
+            color: #666;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .path-input-group {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .path-input-group input {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .path-input-group button {
+            flex-shrink: 0;
+        }
+
+        .settings-section {
+            margin-top: 30px;
+            padding-top: 25px;
+            border-top: 2px solid #f0f0f0;
+        }
+
+        .settings-section h3 {
+            margin-bottom: 20px;
+            color: #262626;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .settings-section-description {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .settings-footer {
+            text-align: right;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .settings-footer button {
+            background: #1890ff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .settings-footer button:hover {
+            background: #096dd9;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(24, 144, 255, 0.3);
+        }
+
+        .close-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #333;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .close-button:hover {
+            color: #1890ff;
+            background: #f0f0f0;
+        }
+
+        /* 通知样式 */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            min-width: 300px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            padding: 16px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            z-index: 10000;
+            animation: slideIn 0.3s ease-out;
+            border-left: 4px solid #1890ff;
+        }
+
+        .notification.success {
+            border-left-color: #52c41a;
+        }
+
+        .notification.error {
+            border-left-color: #ff4d4f;
+        }
+
+        .notification.warning {
+            border-left-color: #faad14;
+        }
+
+        .notification-icon {
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 2px;
+        }
+
+        .notification.success .notification-icon {
+            color: #52c41a;
+        }
+
+        .notification.error .notification-icon {
+            color: #ff4d4f;
+        }
+
+        .notification.warning .notification-icon {
+            color: #faad14;
+        }
+
+        .notification.info .notification-icon {
+            color: #1890ff;
+        }
+
+        .notification-content {
+            flex: 1;
+        }
+
+        .notification-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 4px;
+            color: #262626;
+        }
+
+        .notification-message {
+            font-size: 13px;
+            color: #666;
+            line-height: 1.4;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+
+        #plugins-container {
+            height: calc(100vh - 80px);
+            padding: 20px;
+            overflow-y: auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+            align-content: start;
+        }
+
+        .plugin-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid #f0f0f0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .plugin-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+            border-color: #1890ff;
+        }
+
+        .plugin-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .plugin-logo {
+            width: 48px;
+            height: 48px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .plugin-logo img {
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
+            object-fit: cover;
+        }
+
+        .plugin-title-section {
+            flex: 1;
+        }
+
+        .plugin-card h3 {
+            margin: 0;
+            color: #262626;
+            font-size: 18px;
+            line-height: 1.3;
+        }
+
+        .plugin-card p {
+            margin: 0 0 16px 0;
+            color: #595959;
+            font-size: 14px;
+            flex: 1;
+            line-height: 1.6;
+            white-space: pre-line;
+        }
+
+        .plugin-info {
+            display: flex;
+            gap: 8px;
+            font-size: 12px;
+            color: #8c8c8c;
+        }
+
+        .plugin-info span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        #output-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #1e1e1e;
+            color: #fff;
+            padding: 10px;
+            font-family: monospace;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        #output-container.show {
+            display: block;
+        }
+
+        .output-line {
+            margin: 0;
+            padding: 2px 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .error-line {
+            color: #ff4d4f;
+        }
+
+        /* 快捷键显示样式 */
+        .hotkey-display {
+            background: #f5f5f5;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #666;
+        }
+
+        /* 插件搜索设置样式 */
+        .plugin-search-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 12px;
+            padding: 16px 20px;
+            border: 1px solid #f0f0f0;
+            border-radius: 8px;
+            background: #fafafa;
+            transition: all 0.3s ease;
+        }
+
+        .plugin-search-item:hover {
+            background: #f5f5f5;
+            border-color: #d9d9d9;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+
+        .plugin-search-item .plugin-name {
+            font-weight: 600;
+            color: #262626;
+            font-size: 16px;
+            line-height: 1.3;
+            min-width: 120px;
+            flex-shrink: 0;
+        }
+
+        .plugin-search-item .keyword-input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .plugin-search-item .keyword-input:focus {
+            outline: none;
+            border-color: #1890ff;
+            box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+        }
+
+        .plugin-search-item .enable-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+            color: #262626;
+            cursor: pointer;
+            user-select: none;
+            flex-shrink: 0;
+        }
+
+        .plugin-search-item .enable-checkbox input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .plugin-search-item .enable-checkbox:hover {
+            color: #1890ff;
+        }
+
+        /* 通知样式 */
+        .notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .notification.success {
+            border-left: 4px solid #52c41a;
+        }
+
+        .notification.error {
+            border-left: 4px solid #ff4d4f;
+        }
+
+        .notification.warning {
+            border-left: 4px solid #faad14;
+        }
+
+        .notification.info {
+            border-left: 4px solid #1890ff;
+        }
+
+        .notification-icon {
+            font-size: 20px;
+            color: #1890ff;
+        }
+
+        .notification-content {
+            flex: 1;
+        }
+
+        .notification-title {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+
+        .notification-message {
+            font-size: 14px;
+        }
+
+        @keyframes slideIn {
+            0% {
+                transform: translateX(100%);
+            }
+            100% {
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes slideOut {
+            0% {
+                transform: translateX(0);
+            }
+            100% {
+                transform: translateX(100%);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <div class="search-container">
+            <input type="text" id="search-box" placeholder="搜索插件...">
+        </div>
+        <div class="header-buttons">
+            <button class="header-button" id="local-file-btn">
+                <i class="fas fa-folder-open"></i>本地插件
+            </button>
+            <button class="header-button" id="store-btn">
+                <i class="fas fa-store"></i>插件商店
+            </button>
+            <button class="header-button" id="contact-btn">
+                <i class="fas fa-comments"></i>联系我们
+            </button>
+            <button class="header-button" id="docs-btn">
+                <i class="fas fa-book"></i>文档
+            </button>
+            <button class="header-button" id="settings-btn">
+                <i class="fas fa-cog"></i>设置
+            </button>
+        </div>
+    </div>
+
+    <div id="plugins-container"></div>
+
+    <div id="output-container">
+        <div id="output-content"></div>
+    </div>
+
+    <!-- 联系我们弹窗 -->
+    <div id="contact-modal" class="modal">
+        <div class="modal-content">
+            <button class="close-button">&times;</button>
+            <img src="https://gdsx.sanrenjz.com/PicGo/%E5%85%A8%E7%A0%81%E5%90%88%E4%B8%80.png" alt="联系我们">
+        </div>
+    </div>
+
+    <!-- 设置弹窗 -->
+    <div id="settings-modal" class="modal">
+        <div class="modal-content settings-modal-content">
+            <button class="close-button">&times;</button>
+            <h2>应用设置</h2>
+            
+            <div class="setting-item">
+                <div class="setting-label">全局快捷键：</div>
+                <div class="setting-control">
+                    <div class="setting-control-row">
+                        <input type="text" id="global-hotkey-input" placeholder="按下组合键..." style="width: 180px;" readonly>
+                        <button id="change-hotkey-btn">修改</button>
+                    </div>
+                    <div class="setting-description">用于快速打开主界面的全局快捷键</div>
+                </div>
+            </div>
+            
+            <div class="setting-item">
+                <div class="setting-label">钉住快捷键：</div>
+                <div class="setting-control">
+                    <div class="setting-control-row">
+                        <input type="text" id="pin-hotkey-input" placeholder="按下组合键..." style="width: 180px;" readonly>
+                        <button id="change-pin-hotkey-btn">修改</button>
+                    </div>
+                    <div class="setting-description">用于钉住/取消钉住窗口的快捷键</div>
+                </div>
+            </div>
+            
+            <div class="setting-item">
+                <div class="setting-label">开机自启动：</div>
+                <div class="setting-control">
+                    <div class="setting-control-row">
+                        <input type="checkbox" id="auto-start-checkbox">
+                        <span>开机时自动启动应用</span>
+                    </div>
+                    <div class="setting-description">启用后将在系统启动时自动运行该应用</div>
+                </div>
+            </div>
+            
+            <div class="setting-item">
+                <div class="setting-label">右键长按超级面板：</div>
+                <div class="setting-control">
+                    <div class="setting-control-row">
+                        <input type="checkbox" id="right-click-panel-checkbox">
+                        <span>启用右键长按功能</span>
+                    </div>
+                    <div class="setting-description">启用后可以长按右键打开超级面板，智能推荐相关功能（仅Windows）</div>
+                </div>
+            </div>
+            
+            <div class="setting-item">
+                <div class="setting-label">右键长按延迟：</div>
+                <div class="setting-control">
+                    <div class="setting-control-row">
+                        <input type="range" id="right-click-delay-slider" min="300" max="1000" step="50">
+                        <span id="delay-value-label" class="delay-value-display">500ms</span>
+                    </div>
+                    <div class="setting-description">调整需要长按多久才触发超级面板</div>
+                </div>
+            </div>
+            
+            <div class="setting-item">
+                <div class="setting-label">插件数据存储位置：</div>
+                <div class="setting-control">
+                    <div class="path-input-group">
+                        <input type="text" id="plugin-data-path-input" placeholder="正在获取..." readonly>
+                        <button id="change-plugin-data-path-btn">修改位置</button>
+                        <button id="open-plugin-data-folder-btn">打开文件夹</button>
+                        <button id="reset-plugin-data-path-btn" class="danger">重置默认</button>
+                    </div>
+                    <div class="setting-description">插件设置和缓存数据存储在此位置，每个插件的设置会保存为独立的JSON文件</div>
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <h3>插件搜索自定义</h3>
+                <div class="settings-section-description">为每个插件设置自定义搜索关键词，方便快速搜索</div>
+                
+                <div id="plugin-search-settings">
+                    <!-- 插件搜索设置将动态生成 -->
+                </div>
+            </div>
+            
+            <div class="settings-footer">
+                <button id="save-settings-btn">保存设置</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { ipcRenderer, shell } = require('electron');
+        const remote = require('@electron/remote');
+        const fs = require('fs');
+        const path = require('path');
+        
+        // 加载Font Awesome图标（改为本地加载）
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = './assets/css/all.min.css';  // 使用本地文件
+        document.head.appendChild(link);
+
+        let currentSearchText = ''; // 保存当前搜索文本
+        let pluginsLoadTimeout = null; // 用于防抖的定时器
+
+        // 应用搜索过滤
+        function applySearch() {
+            const cards = document.querySelectorAll('.plugin-card');
+            cards.forEach(card => {
+                const title = card.querySelector('h3').textContent.toLowerCase();
+                card.style.display = title.includes(currentSearchText) ? 'flex' : 'none';
+            });
+        }
+
+        // 加载插件列表（添加缓存）
+        let cachedPlugins = null;
+        let lastLoadTime = 0;
+        const CACHE_DURATION = 5000; // 5秒缓存
+
+        async function loadPlugins(force = false) {
+            try {
+                const now = Date.now();
+                // 如果有缓存且未过期，直接使用缓存
+                if (!force && cachedPlugins && (now - lastLoadTime < CACHE_DURATION)) {
+                    return;
+                }
+
+                const plugins = await ipcRenderer.invoke('get-plugin-list');
+                lastLoadTime = now;
+                
+                // 比较新旧数据，如果相同则不更新UI
+                if (cachedPlugins && JSON.stringify(plugins) === JSON.stringify(cachedPlugins)) {
+                    return;
+                }
+                
+                cachedPlugins = plugins;
+                const container = document.getElementById('plugins-container');
+                container.innerHTML = '';
+
+                plugins.forEach(plugin => {
+                    const card = document.createElement('div');
+                    card.className = 'plugin-card';
+                    
+                    // 检查logo文件 - 优先使用 logo.ico，否则使用 logo.png
+                    const logoIcoPath = path.join(plugin.path, 'logo.ico');
+                    const logoPngPath = path.join(plugin.path, 'logo.png');
+                    let logoPath = null;
+                    let hasLogo = false;
+                    
+                    if (fs.existsSync(logoIcoPath)) {
+                        logoPath = logoIcoPath;
+                        hasLogo = true;
+                    } else if (fs.existsSync(logoPngPath)) {
+                        logoPath = logoPngPath;
+                        hasLogo = true;
+                    }
+                    
+                    card.innerHTML = `
+                        <div class="plugin-header">
+                            <div class="plugin-logo">
+                                ${hasLogo ? 
+                                    `<img src="file://${logoPath.replace(/\\/g, '/')}" alt="${plugin.name}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                     <span style="display: none;">${plugin.name.charAt(0).toUpperCase()}</span>` :
+                                    `<span>${plugin.name.charAt(0).toUpperCase()}</span>`
+                                }
+                            </div>
+                            <div class="plugin-title-section">
+                                <h3>${plugin.name}</h3>
+                            </div>
+                        </div>
+                        <p>${plugin.description}</p>
+                        ${plugin.version || plugin.author || plugin.category ? `
+                        <div class="plugin-info">
+                            ${plugin.version ? `<span>版本: ${plugin.version}</span>` : ''}
+                            ${plugin.author ? `<span>作者: ${plugin.author}</span>` : ''}
+                            ${plugin.category ? `<span>分类: ${plugin.category}</span>` : ''}
+                        </div>
+                        ` : ''}
+                    `;
+
+                    // 使用事件委托优化事件监听
+                    container.appendChild(card);
+                });
+
+                // 重新应用搜索过滤
+                if (currentSearchText) {
+                    applySearch();
+                }
+            } catch (error) {
+                console.error('加载插件列表失败:', error);
+            }
+        }
+
+        // 使用事件委托处理双击事件
+        document.getElementById('plugins-container').addEventListener('dblclick', async (e) => {
+            const card = e.target.closest('.plugin-card');
+            if (!card) return;
+            
+            const pluginIndex = Array.from(card.parentElement.children).indexOf(card);
+            const plugin = cachedPlugins[pluginIndex];
+            
+            if (plugin) {
+                try {
+                    console.log('正在执行插件:', plugin.path);
+                    console.log('插件信息:', plugin);
+                    // 只传递可序列化的features数据
+                    const serializableFeatures = plugin.features ? plugin.features.map(f => ({
+                        code: f.code,
+                        explain: f.explain,
+                        cmds: f.cmds || []
+                    })) : [];
+                    await ipcRenderer.invoke('run-plugin', plugin.path, serializableFeatures);
+                } catch (error) {
+                    console.error('执行失败:', error);
+                    alert(`执行失败: ${error.message}`);
+                }
+            }
+        });
+
+        // 搜索功能
+        document.getElementById('search-box').addEventListener('input', (e) => {
+            currentSearchText = e.target.value.toLowerCase();
+            applySearch();
+        });
+
+        // 本地插件按钮点击事件
+        document.getElementById('local-file-btn').addEventListener('click', async () => {
+            // 先让用户选择要添加文件还是文件夹
+            const { response } = await remote.dialog.showMessageBox({
+                type: 'question',
+                buttons: ['添加插件文件夹', '添加单个插件', '取消'],
+                defaultId: 0,
+                title: '选择添加类型',
+                message: '请选择要添加的插件类型',
+                detail: '添加插件文件夹：选择一个完整的插件文件夹\n添加单个插件：选择包含plugin.json的插件目录'
+            });
+
+            if (response === 2) { // 用户点击取消
+                return;
+            }
+
+            // 根据用户选择显示不同的文件选择对话框
+            const result = await remote.dialog.showOpenDialog({
+                properties: ['openDirectory', 'multiSelections'],
+                title: '选择插件文件夹'
+            });
+
+            if (!result.canceled && result.filePaths.length > 0) {
+                // 获取插件目录路径
+                const appRoot = path.dirname(__dirname);
+                let pluginDir;
+                
+                // 判断当前环境
+                if (process.env.NODE_ENV === 'development') {
+                    pluginDir = path.join(__dirname, 'app', 'software');
+                } else {
+                    // 生产环境下尝试不同的路径
+                    const possiblePaths = [
+                        path.join(__dirname, 'software'),
+                        path.join(__dirname, 'app', 'software'),
+                        path.join(appRoot, 'app', 'software'),
+                        path.join(appRoot, 'resources', 'app', 'software')
+                    ];
+                    
+                    // 使用第一个存在的路径
+                    pluginDir = possiblePaths.find(p => fs.existsSync(p)) || path.join(__dirname, 'app', 'software');
+                }
+                
+                // 确保目录存在
+                if (!fs.existsSync(pluginDir)) {
+                    fs.mkdirSync(pluginDir, { recursive: true });
+                }
+
+                // 处理选中的插件文件夹
+                for (const srcPath of result.filePaths) {
+                    const stats = fs.statSync(srcPath);
+                    
+                    if (stats.isDirectory()) {
+                        // 检查是否包含plugin.json
+                        const pluginJsonPath = path.join(srcPath, 'plugin.json');
+                        if (fs.existsSync(pluginJsonPath)) {
+                            // 如果是插件文件夹，复制整个文件夹
+                            const folderName = path.basename(srcPath);
+                            const targetDir = path.join(pluginDir, folderName);
+                            
+                            // 如果目标文件夹已存在，添加数字后缀
+                            let finalTargetDir = targetDir;
+                            let counter = 1;
+                            while (fs.existsSync(finalTargetDir)) {
+                                finalTargetDir = `${targetDir}_${counter}`;
+                                counter++;
+                            }
+                            
+                            // 递归复制文件夹
+                            copyFolderRecursive(srcPath, finalTargetDir);
+                        } else {
+                            alert(`选择的文件夹 ${path.basename(srcPath)} 不是有效的插件文件夹（缺少plugin.json）`);
+                        }
+                    }
+                }
+
+                // 刷新插件列表
+                loadPlugins(true);
+            }
+        });
+
+        // 递归复制文件夹的函数
+        function copyFolderRecursive(src, dest) {
+            // 创建目标文件夹
+            if (!fs.existsSync(dest)) {
+                fs.mkdirSync(dest, { recursive: true });
+            }
+
+            // 读取源文件夹内容
+            const entries = fs.readdirSync(src, { withFileTypes: true });
+
+            // 遍历所有文件和子文件夹
+            for (const entry of entries) {
+                const srcPath = path.join(src, entry.name);
+                const destPath = path.join(dest, entry.name);
+
+                if (entry.isDirectory()) {
+                    // 递归复制子文件夹
+                    copyFolderRecursive(srcPath, destPath);
+                } else if (entry.isFile()) {
+                    // 复制文件
+                    fs.copyFileSync(srcPath, destPath);
+                }
+            }
+        }
+
+        // 插件商店按钮点击事件
+        document.getElementById('store-btn').addEventListener('click', () => {
+            shell.openExternal('https://jy.sanrenjz.com');
+        });
+
+        // 联系我们按钮点击事件
+        const contactModal = document.getElementById('contact-modal');
+        document.getElementById('contact-btn').addEventListener('click', () => {
+            contactModal.classList.add('show');
+        });
+
+        // 设置按钮点击事件
+        const settingsModal = document.getElementById('settings-modal');
+        document.getElementById('settings-btn').addEventListener('click', () => {
+            loadSettings();
+            settingsModal.classList.add('show');
+        });
+
+        // 关闭按钮点击事件
+        document.querySelectorAll('.close-button').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const modal = e.target.closest('.modal');
+                modal.classList.remove('show');
+            });
+        });
+
+        // 点击模态框外部关闭
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.classList.remove('show');
+                }
+            });
+        });
+
+        // 文档按钮点击事件
+        document.getElementById('docs-btn').addEventListener('click', () => {
+            shell.openExternal('https://wd.sanrenjz.com');
+        });
+
+
+
+        // 设置相关功能
+        async function loadSettings() {
+            try {
+                const settings = await ipcRenderer.invoke('get-settings');
+                document.getElementById('global-hotkey-input').value = settings.globalHotkey || 'Ctrl+Space';
+                document.getElementById('auto-start-checkbox').checked = settings.autoStart || false;
+                
+                // 加载钉住快捷键设置
+                document.getElementById('pin-hotkey-input').value = settings.pinHotkey || 'Ctrl+D';
+                
+                // 加载右键长按设置
+                document.getElementById('right-click-panel-checkbox').checked = settings.enableRightClickPanel !== false;
+                document.getElementById('right-click-delay-slider').value = settings.rightClickDelay || 500;
+                document.getElementById('delay-value-label').textContent = (settings.rightClickDelay || 500) + 'ms';
+                
+                // 添加延迟滑块的事件监听
+                const delaySlider = document.getElementById('right-click-delay-slider');
+                const delayLabel = document.getElementById('delay-value-label');
+                delaySlider.addEventListener('input', (e) => {
+                    delayLabel.textContent = e.target.value + 'ms';
+                });
+                
+                // 加载插件数据存储位置
+                try {
+                    const pluginDataDir = await ipcRenderer.invoke('get-plugin-data-directory');
+                    document.getElementById('plugin-data-path-input').value = pluginDataDir || '未知位置';
+                } catch (error) {
+                    console.error('获取插件数据目录失败:', error);
+                    document.getElementById('plugin-data-path-input').value = '获取失败';
+                }
+                
+                // 加载插件搜索设置
+                await loadPluginSearchSettings(settings.pluginSearchSettings || {});
+            } catch (error) {
+                console.error('加载设置失败:', error);
+            }
+        }
+
+
+
+        // 加载插件搜索设置
+        async function loadPluginSearchSettings(searchSettings) {
+            try {
+                const plugins = await ipcRenderer.invoke('get-plugin-list');
+                const container = document.getElementById('plugin-search-settings');
+                container.innerHTML = '';
+
+                plugins.forEach(plugin => {
+                    const pluginSettings = searchSettings[plugin.name] || {
+                        enabled: true,
+                        keywords: []
+                    };
+
+                    const item = document.createElement('div');
+                    item.className = 'plugin-search-item';
+                    item.innerHTML = `
+                        <div class="plugin-name">${plugin.name}</div>
+                        <input type="text" 
+                               class="keyword-input" 
+                               placeholder="自定义搜索关键词（用逗号分隔）"
+                               value="${pluginSettings.keywords.join(', ')}"
+                               data-plugin-name="${plugin.name}">
+                        <label class="enable-checkbox">
+                            <input type="checkbox" 
+                                   ${pluginSettings.enabled ? 'checked' : ''}
+                                   data-plugin-name="${plugin.name}">
+                            启用
+                        </label>
+                    `;
+                    container.appendChild(item);
+                });
+            } catch (error) {
+                console.error('加载插件搜索设置失败:', error);
+            }
+        }
+
+        // 快捷键捕获功能
+        let isCapturingHotkey = false;
+        let currentCapturingInput = null;
+
+        function captureHotkey(inputElement, buttonElement) {
+            if (isCapturingHotkey) return;
+            
+            isCapturingHotkey = true;
+            currentCapturingInput = inputElement;
+            
+            // 更新按钮状态
+            buttonElement.textContent = '按下快捷键...';
+            buttonElement.disabled = true;
+            inputElement.placeholder = '按下快捷键组合...';
+            inputElement.focus();
+            
+            // 清空当前值
+            inputElement.value = '';
+            
+            // 添加键盘事件监听
+            document.addEventListener('keydown', handleHotkeyCapture);
+        }
+
+        function handleHotkeyCapture(event) {
+            if (!isCapturingHotkey || !currentCapturingInput) return;
+            
+            event.preventDefault();
+            event.stopPropagation();
+            
+            // 忽略单独的修饰键
+            if (['Control', 'Alt', 'Shift', 'Meta', 'Cmd', 'Command'].includes(event.key)) {
+                return;
+            }
+            
+            // 构建快捷键字符串
+            const keys = [];
+            if (event.ctrlKey || event.metaKey) keys.push('Ctrl');
+            if (event.altKey) keys.push('Alt');
+            if (event.shiftKey) keys.push('Shift');
+            
+            // 添加主键
+            let mainKey = event.key;
+            if (mainKey === ' ') mainKey = 'Space';
+            else if (mainKey.length === 1) mainKey = mainKey.toUpperCase();
+            
+            keys.push(mainKey);
+            
+            const hotkeyString = keys.join('+');
+            
+            // 验证快捷键格式
+            if (keys.length >= 2) { // 至少要有一个修饰键
+                currentCapturingInput.value = hotkeyString;
+                stopCapturingHotkey();
+            } else {
+                // 如果不是有效的快捷键组合，继续等待
+                currentCapturingInput.placeholder = '请按下包含修饰键的组合键...';
+            }
+        }
+
+        function stopCapturingHotkey() {
+            if (!isCapturingHotkey) return;
+            
+            isCapturingHotkey = false;
+            
+            // 移除事件监听
+            document.removeEventListener('keydown', handleHotkeyCapture);
+            
+            // 恢复按钮状态
+            const buttonElement = currentCapturingInput === document.getElementById('global-hotkey-input') ? 
+                document.getElementById('change-hotkey-btn') : document.getElementById('change-pin-hotkey-btn');
+            
+            buttonElement.textContent = '修改';
+            buttonElement.disabled = false;
+            currentCapturingInput.placeholder = '按下组合键...';
+            
+            currentCapturingInput = null;
+        }
+
+        // 修改全局快捷键
+        document.getElementById('change-hotkey-btn').addEventListener('click', () => {
+            const input = document.getElementById('global-hotkey-input');
+            const button = document.getElementById('change-hotkey-btn');
+            captureHotkey(input, button);
+        });
+
+        // 修改钉住快捷键
+        document.getElementById('change-pin-hotkey-btn').addEventListener('click', () => {
+            const input = document.getElementById('pin-hotkey-input');
+            const button = document.getElementById('change-pin-hotkey-btn');
+            captureHotkey(input, button);
+        });
+
+        // 点击其他地方时停止捕获
+        document.addEventListener('click', (event) => {
+            if (isCapturingHotkey && !event.target.closest('.setting-item')) {
+                stopCapturingHotkey();
+            }
+        });
+
+        // ESC键停止捕获
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && isCapturingHotkey) {
+                stopCapturingHotkey();
+            }
+        });
+
+        // 修改插件数据存储路径
+        document.getElementById('change-plugin-data-path-btn').addEventListener('click', async () => {
+            try {
+                const button = document.getElementById('change-plugin-data-path-btn');
+                const originalText = button.textContent;
+                button.textContent = '选择中...';
+                button.disabled = true;
+
+                const result = await ipcRenderer.invoke('set-custom-plugin-data-directory');
+                
+                if (result.success) {
+                    document.getElementById('plugin-data-path-input').value = result.path;
+                    showNotification('成功', '插件数据存储路径已更新', 'success');
+                } else {
+                    showNotification('失败', result.message, 'error');
+                }
+            } catch (error) {
+                console.error('修改插件数据路径失败:', error);
+                showNotification('错误', '修改路径时发生错误: ' + error.message, 'error');
+            } finally {
+                const button = document.getElementById('change-plugin-data-path-btn');
+                button.textContent = '修改位置';
+                button.disabled = false;
+            }
+        });
+
+        // 打开插件数据文件夹
+        document.getElementById('open-plugin-data-folder-btn').addEventListener('click', async () => {
+            try {
+                const dataDir = await ipcRenderer.invoke('get-plugin-data-directory');
+                if (dataDir) {
+                    await shell.openPath(dataDir);
+                } else {
+                    showNotification('错误', '无法获取插件数据目录', 'error');
+                }
+            } catch (error) {
+                console.error('打开插件数据文件夹失败:', error);
+                showNotification('错误', '打开文件夹时发生错误: ' + error.message, 'error');
+            }
+        });
+
+        // 重置插件数据存储路径
+        document.getElementById('reset-plugin-data-path-btn').addEventListener('click', async () => {
+            try {
+                const confirmed = await remote.dialog.showMessageBox({
+                    type: 'question',
+                    buttons: ['确定', '取消'],
+                    defaultId: 1,
+                    title: '确认重置',
+                    message: '确定要重置插件数据存储路径为默认位置吗？',
+                    detail: '这将把插件数据存储路径恢复为默认位置，不会删除现有数据。'
+                });
+
+                if (confirmed.response === 0) { // 用户点击确定
+                    const result = await ipcRenderer.invoke('reset-plugin-data-directory');
+                    
+                    if (result.success) {
+                        document.getElementById('plugin-data-path-input').value = result.path;
+                        showNotification('成功', '插件数据存储路径已重置为默认位置', 'success');
+                    } else {
+                        showNotification('失败', result.message, 'error');
+                    }
+                }
+            } catch (error) {
+                console.error('重置插件数据路径失败:', error);
+                showNotification('错误', '重置路径时发生错误: ' + error.message, 'error');
+            }
+        });
+
+        // 保存设置
+        document.getElementById('save-settings-btn').addEventListener('click', async () => {
+            try {
+                // 收集插件搜索设置
+                const pluginSearchSettings = {};
+                const searchItems = document.querySelectorAll('.plugin-search-item');
+                
+                searchItems.forEach(item => {
+                    const keywordInput = item.querySelector('.keyword-input');
+                    const enableCheckbox = item.querySelector('input[type="checkbox"]');
+                    const pluginName = keywordInput.dataset.pluginName;
+                    
+                    const keywords = keywordInput.value.split(',')
+                        .map(k => k.trim())
+                        .filter(k => k.length > 0);
+                    
+                    pluginSearchSettings[pluginName] = {
+                        enabled: enableCheckbox.checked,
+                        keywords: keywords
+                    };
+                });
+
+                const settings = {
+                    globalHotkey: document.getElementById('global-hotkey-input').value,
+                    autoStart: document.getElementById('auto-start-checkbox').checked,
+                    pinHotkey: document.getElementById('pin-hotkey-input').value,
+                    enableRightClickPanel: document.getElementById('right-click-panel-checkbox').checked,
+                    rightClickDelay: parseInt(document.getElementById('right-click-delay-slider').value),
+                    pluginSearchSettings: pluginSearchSettings
+                };
+                
+                await ipcRenderer.invoke('save-settings', settings);
+                
+                alert('设置已保存！');
+                settingsModal.classList.remove('show');
+            } catch (error) {
+                console.error('保存设置失败:', error);
+                alert('保存设置失败: ' + error.message);
+            }
+        });
+
+        // 初始加载
+        loadPlugins(true);
+
+        // 定期刷新插件列表（改为10秒一次，并添加防抖）
+        setInterval(() => {
+            if (pluginsLoadTimeout) {
+                clearTimeout(pluginsLoadTimeout);
+            }
+            pluginsLoadTimeout = setTimeout(() => loadPlugins(), 10000);
+        }, 10000);
+
+        // 显示通知函数
+        function showNotification(title, message, type = 'info') {
+            // 移除现有通知
+            const existingNotification = document.querySelector('.notification');
+            if (existingNotification) {
+                existingNotification.remove();
+            }
+
+            // 创建通知元素
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            
+            const iconMap = {
+                success: '✓',
+                error: '✕',
+                info: 'ℹ'
+            };
+            
+            notification.innerHTML = `
+                <span class="notification-icon">${iconMap[type] || iconMap.info}</span>
+                <div class="notification-content">
+                    <div class="notification-title">${title}</div>
+                    <div class="notification-message">${message}</div>
+                </div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // 自动移除通知
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => {
+                    notification.remove();
+                }, 300);
+            }, 5000);
+        }
+
+        // IPC处理器：接收通知
+        ipcRenderer.on('notify', (event, data) => {
+            showNotification(data.title, data.message, data.type || 'info');
+        });
+
+        // IPC处理器：接收快捷键回退通知
+        ipcRenderer.on('hotkey-fallback', (event, data) => {
+            showNotification(
+                '快捷键已更改', 
+                `快捷键 ${data.original} 无法注册，已自动切换到 ${data.fallback}。您可以在设置中修改。`, 
+                'warning'
+            );
+        });
+    </script>
+</body>
+</html> 

@@ -1,0 +1,33 @@
+{
+  "pluginName": "余汉波AI助手",
+  "description": "AI对话助手，支持多种模型和API",
+  "version": "1.4.0",
+  "author": "余汉波",
+  "category": "效率工具",
+  "main": "index.html",
+  "logo": "logo.png",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "ai",
+      "explain": "AI助手",
+      "cmds": [
+        "ai",
+        "AI助手",
+        "余汉波AI助手",
+        "GPT",
+        "yuhanbo-ai",
+        {
+          "type": "over",
+          "label": ["AI分析", "余汉波AI助手", "AI助手", "GPT", "yuhanbo-ai"],
+          "minLength": 1,
+          "maxLength": 50000
+        }
+      ]
+    }
+  ],
+  "pluginSetting": {
+    "height": 600,
+    "single": true
+  }
+} 
