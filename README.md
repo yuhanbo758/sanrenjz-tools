@@ -138,9 +138,23 @@ my-plugin/
   "version": "1.0.0",
   "author": "作者姓名",
   "category": "工具分类",
-3. **启动应用**
-```powershell
-npm start
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "feature-code",
+      "explain": "功能说明",
+      "cmds": ["触发关键词1", "触发关键词2"],
+      "icon": "logo.ico",                                 
+    }
+  ],
+  "pluginSetting": {
+    "height": 600,
+    "width": 800,
+    "single": true
+  }
+}
 ```
 
 ### 开发模式
