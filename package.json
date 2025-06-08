@@ -49,6 +49,7 @@
     "directories": {
       "output": "dist"
     },
+<<<<<<< HEAD
     "asar": true,
     "compression": "maximum",
     "files": [
@@ -59,6 +60,26 @@
       "assets/**/*",
       "node_modules/**/*",
       "package.json"
+=======
+    "files": [
+      "**/*",
+      "!node_modules",
+      "!dist",
+      "!build-output",
+      "!*.log",
+      "!*.tmp",
+      "!*.temp",
+      "!settings.json",
+      "!plugin-data",
+      "!user-data"
+    ],
+    "extraResources": [
+      {
+        "from": "app",
+        "to": "app",
+        "filter": ["**/*"]
+      }
+>>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
     ],
     "win": {
       "target": [
@@ -68,6 +89,7 @@
         }
       ],
       "icon": "build/icon.ico",
+<<<<<<< HEAD
       "requestedExecutionLevel": "asInvoker",
       "artifactName": "${productName}-${version}-win-${arch}.${ext}"
     },
@@ -81,12 +103,16 @@
       "uninstallerIcon": "build/icon.ico",
       "installerLanguages": ["zh_CN", "en_US"],
       "language": "2052"
+=======
+      "requestedExecutionLevel": "asInvoker"
+>>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
     },
     "mac": {
       "target": [
         {
           "target": "dmg",
           "arch": ["x64", "arm64"]
+<<<<<<< HEAD
         },
         {
           "target": "zip",
@@ -121,10 +147,19 @@
           "type": "file"
         }
       ]
+=======
+        }
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.productivity",
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+>>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
     },
     "linux": {
       "target": [
         {
+<<<<<<< HEAD
           "target": "tar.gz",
           "arch": ["x64"]
         }
@@ -158,10 +193,62 @@
         ]
       }
     ],
+=======
+          "target": "AppImage",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "Utility"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "三人聚智工具",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "dmg": {
+      "title": "三人聚智工具",
+      "icon": "build/icon.icns",
+      "background": "build/dmg-background.png",
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "window": {
+        "width": 540,
+        "height": 380
+      }
+    },
+>>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
     "publish": {
       "provider": "github",
       "owner": "yuhanbo758",
       "repo": "sanrenjz-tools"
     }
+<<<<<<< HEAD
   }
 }
+=======
+  },
+  "homepage": "https://github.com/yuhanbo758/sanrenjz-tools",
+  "bugs": {
+    "url": "https://github.com/yuhanbo758/sanrenjz-tools/issues"
+  }
+}
+>>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45

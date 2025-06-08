@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 const { app, BrowserWindow, ipcMain, Menu, globalShortcut, dialog, Tray } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -26,6 +27,38 @@ let lastActiveWindow = null; // 记录最后活动的窗口句柄
 let rightClickMonitor = null;
 let isRightClickMonitorRunning = false;
 
+=======
+const { app, BrowserWindow, globalShortcut, Tray, Menu, ipcMain, dialog, shell, screen, clipboard, nativeImage } = require('electron');
+const path = require('path');
+const fs = require('fs');
+const { exec } = require('child_process');
+const remoteMain = require('@electron/remote/main');
+
+// 初始化remote模块
+remoteMain.initialize();
+
+// 导入插件管理器
+const PluginManager = require('./app/software_manager.js');
+
+// 主窗口变量
+let mainWindow;
+let searchWindow;
+let tray;
+let pluginManager;
+
+// 超级面板相关变量
+let superPanelWindow;
+let isSuperPanelGracePeriod = false; // 宽限期标志
+let hasActiveInput = false; // 输入框活动状态
+
+// 右键长按监控相关变量
+let rightClickMonitor = null;
+let isRightClickMonitorRunning = false;
+
+// 钉住状态
+let isPinned = false;
+
+>>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
 // 设置文件路径
 const settingsPath = path.join(app.getPath('userData'), 'settings.json');
 
@@ -33,6 +66,7 @@ const settingsPath = path.join(app.getPath('userData'), 'settings.json');
 const defaultSettings = {
     globalHotkey: 'Ctrl+Space',
     autoStart: false,
+<<<<<<< HEAD
     pinHotkey: 'Ctrl+D', // 钉住快捷键
     enableRightClickPanel: true, // 启用右键长按面板
     rightClickDelay: 500, // 右键长按延迟时间（毫秒）
@@ -40,14 +74,31 @@ const defaultSettings = {
 };
 
 // 读取设置
+=======
+    pinHotkey: 'Ctrl+D',
+    enableRightClickPanel: true,
+    rightClickDelay: 500,
+    customPluginDataPath: ''
+};
+
+// 加载设置
+>>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
 function loadSettings() {
     try {
         if (fs.existsSync(settingsPath)) {
             const data = fs.readFileSync(settingsPath, 'utf8');
+<<<<<<< HEAD
             return { ...defaultSettings, ...JSON.parse(data) };
         }
     } catch (error) {
         console.error('读取设置失败:', error);
+=======
+            const settings = JSON.parse(data);
+            return { ...defaultSettings, ...settings };
+        }
+    } catch (error) {
+        console.error('加载设置失败:', error);
+>>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
     }
     return defaultSettings;
 }
@@ -55,6 +106,7 @@ function loadSettings() {
 // 保存设置
 function saveSettings(settings) {
     try {
+<<<<<<< HEAD
         const currentSettings = loadSettings();
         const newSettings = { ...currentSettings, ...settings };
         fs.writeFileSync(settingsPath, JSON.stringify(newSettings, null, 2));
@@ -187,15 +239,131 @@ async function getTextSnippets(pluginPath) {
         console.error('获取文本片段失败:', error);
         return [];
     }
+=======
+        fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+        console.log('设置已保存');
+    } catch (error) {
+        console.error('保存设置失败:', error);
+    }
+}
+
+// 获取文本片段的函数
+function getTextSnippets(searchPaths) {
+    const snippets = [];
+    
+    // 确保searchPaths是数组
+    const paths = Array.isArray(searchPaths) ? searchPaths : [searchPaths];
+    
+    paths.forEach(searchPath => {
+        if (!searchPath || !fs.existsSync(searchPath)) {
+            console.log(`路径不存在: ${searchPath}`);
+            return;
+        }
+        
+        try {
+            // 如果是插件存储路径，从插件管理器获取数据
+            if (pluginManager && searchPath.includes('plugin-storage')) {
+                const pluginData = pluginManager.getAllPluginData();
+                Object.entries(pluginData).forEach(([pluginName, data]) => {
+                    if (data && typeof data === 'object') {
+                        Object.entries(data).forEach(([key, value]) => {
+                            if (typeof value === 'string' && value.length > 0) {
+                                snippets.push({
+                                    title: `${pluginName} - ${key}`,
+                                    content: value,
+                                    preview: value.substring(0, 100) + (value.length > 100 ? '...' : ''),
+                                    source: 'plugin-data',
+                                    pluginName: pluginName
+                                });
+                            }
+                        });
+                    }
+                });
+                return;
+            }
+            
+            // 递归扫描目录，最大深度为2
+            function scanDirectory(dirPath, currentDepth = 0) {
+                if (currentDepth > 2) return;
+                
+                const items = fs.readdirSync(dirPath);
+                
+                items.forEach(item => {
+                    const itemPath = path.join(dirPath, item);
+                    const stat = fs.statSync(itemPath);
+                    
+                    if (stat.isDirectory()) {
+                        scanDirectory(itemPath, currentDepth + 1);
+                    } else if (stat.isFile() && path.extname(item).toLowerCase() === '.md') {
+                        try {
+                            const content = fs.readFileSync(itemPath, 'utf8');
+                            
+                            // 解析markdown内容
+                            const lines = content.split('\n');
+                            let currentTitle = path.basename(item, '.md');
+                            let currentContent = '';
+                            
+                            lines.forEach(line => {
+                                line = line.trim();
+                                if (line.startsWith('#')) {
+                                    // 如果有之前的内容，保存它
+                                    if (currentContent.trim()) {
+                                        snippets.push({
+                                            title: currentTitle,
+                                            content: currentContent.trim(),
+                                            preview: currentContent.trim().substring(0, 100) + (currentContent.trim().length > 100 ? '...' : ''),
+                                            source: itemPath
+                                        });
+                                    }
+                                    // 开始新的标题
+                                    currentTitle = line.replace(/^#+\s*/, '');
+                                    currentContent = '';
+                                } else if (line) {
+                                    currentContent += line + '\n';
+                                }
+                            });
+                            
+                            // 保存最后一个片段
+                            if (currentContent.trim()) {
+                                snippets.push({
+                                    title: currentTitle,
+                                    content: currentContent.trim(),
+                                    preview: currentContent.trim().substring(0, 100) + (currentContent.trim().length > 100 ? '...' : ''),
+                                    source: itemPath
+                                });
+                            }
+                        } catch (error) {
+                            console.error(`读取文件失败 ${itemPath}:`, error);
+                        }
+                    }
+                });
+            }
+            
+            scanDirectory(searchPath);
+        } catch (error) {
+            console.error(`扫描路径失败 ${searchPath}:`, error);
+        }
+    });
+    
+    // 按标题排序
+    return snippets.sort((a, b) => a.title.localeCompare(b.title));
+>>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
 }
 
 // 注册全局快捷键
 function registerGlobalShortcut(hotkey = 'Ctrl+Space') {
     try {
+<<<<<<< HEAD
         // 先注销现有的全局快捷键，但不要注销所有
         globalShortcut.unregister(hotkey);
         
         // 注册全局快捷键
+=======
+        // 先注销现有的快捷键
+        globalShortcut.unregister(hotkey);
+        
+        // 注册新的快捷键
+>>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
         const ret = globalShortcut.register(hotkey, () => {
             console.log('全局快捷键被触发:', hotkey);
             showSearchWindow();
@@ -482,8 +650,11 @@ while ($true) {
     }
 }
 
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
 // 停止右键长按监听器
 function stopRightClickMonitor() {
     if (rightClickMonitor) {
@@ -802,8 +973,18 @@ function showSearchWindow() {
         createSearchWindow();
     }
 
+<<<<<<< HEAD
     try {
         // 获取鼠标位置并尝试跟随显示
+=======
+    if (!searchWindow) {
+        console.error('❌ 无法创建搜索窗口');
+        return;
+    }
+
+    try {
+        // 获取鼠标位置并在鼠标附近显示
+>>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
         const { screen } = require('electron');
         const cursorPoint = screen.getCursorScreenPoint();
         const currentDisplay = screen.getDisplayNearestPoint(cursorPoint);
@@ -811,6 +992,7 @@ function showSearchWindow() {
         const windowWidth = 600;
         const windowHeight = 400;
         
+<<<<<<< HEAD
         // 计算窗口位置，在鼠标上方显示
         let x = cursorPoint.x - windowWidth / 2;
         let y = cursorPoint.y - 200; // 在鼠标上方200像素
@@ -822,6 +1004,19 @@ function showSearchWindow() {
         if (x + windowWidth > currentDisplay.workArea.x + currentDisplay.workArea.width) {
             x = currentDisplay.workArea.x + currentDisplay.workArea.width - windowWidth - 10;
         }
+=======
+        // 计算窗口位置，在鼠标右侧显示
+        let x = cursorPoint.x + 20;
+        let y = cursorPoint.y - windowHeight / 2;
+        
+        // 边界检查，确保窗口在屏幕内
+        if (x + windowWidth > currentDisplay.workArea.x + currentDisplay.workArea.width) {
+            x = cursorPoint.x - windowWidth - 20; // 显示在鼠标左侧
+        }
+        if (x < currentDisplay.workArea.x) {
+            x = currentDisplay.workArea.x + 10;
+        }
+>>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
         if (y < currentDisplay.workArea.y) {
             y = currentDisplay.workArea.y + 10;
         }
@@ -830,8 +1025,18 @@ function showSearchWindow() {
         }
 
         searchWindow.setBounds({ x, y, width: windowWidth, height: windowHeight });
+<<<<<<< HEAD
     } catch (error) {
         console.error('设置浮窗位置失败，使用默认位置:', error);
+=======
+        searchWindow.show();
+        searchWindow.focus();
+        
+        console.log('✅ 搜索窗口已显示');
+        
+    } catch (error) {
+        console.error('设置搜索窗口位置失败:', error);
+>>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
         
         // 出错时回退到默认位置
         const { screen } = require('electron');
@@ -844,6 +1049,7 @@ function showSearchWindow() {
         const y = Math.round((height - windowHeight) / 3);
 
         searchWindow.setBounds({ x, y, width: windowWidth, height: windowHeight });
+<<<<<<< HEAD
     }
     
     searchWindow.show();
@@ -5365,3 +5571,9 @@ ipcMain.handle('notify-input-active', async (event, isActive) => {
     console.log('🔍 输入框活动状态更新:', isActive ? '活动' : '非活动');
     return true;
 });
+=======
+        searchWindow.show();
+        searchWindow.focus();
+    }
+}
+>>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45

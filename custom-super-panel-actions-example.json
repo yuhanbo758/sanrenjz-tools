@@ -50,6 +50,7 @@
     "description": "生成UUID并复制到剪贴板",
     "icon": "🆔",
     "type": "builtin",
+<<<<<<< HEAD
     "category": "生成工具",
     "priority": 6
   },
@@ -219,3 +220,135 @@
     "priority": 24
   }
 ] 
+=======
+    "category": "工具",
+    "priority": 6
+  },
+  {
+    "id": "calculator",
+    "title": "计算器",
+    "description": "打开系统计算器",
+    "icon": "🧮",
+    "type": "builtin",
+    "category": "系统工具",
+    "priority": 7
+  },
+  {
+    "id": "notepad",
+    "title": "记事本",
+    "description": "打开系统记事本",
+    "icon": "📝",
+    "type": "builtin",
+    "category": "系统工具",
+    "priority": 8
+  },
+  {
+    "id": "file-explorer",
+    "title": "文件管理",
+    "description": "打开文件资源管理器",
+    "icon": "📁",
+    "type": "builtin",
+    "category": "系统工具",
+    "priority": 9
+  },
+  {
+    "id": "cmd",
+    "title": "命令提示符",
+    "description": "打开命令提示符",
+    "icon": "💻",
+    "type": "builtin",
+    "category": "系统工具",
+    "priority": 10
+  },
+  {
+    "id": "powershell",
+    "title": "PowerShell",
+    "description": "打开PowerShell",
+    "icon": "⚡",
+    "type": "builtin",
+    "category": "系统工具",
+    "priority": 11
+  },
+  {
+    "id": "task-manager",
+    "title": "任务管理器",
+    "description": "打开任务管理器",
+    "icon": "📊",
+    "type": "builtin",
+    "category": "系统工具",
+    "priority": 12
+  },
+  {
+    "id": "control-panel",
+    "title": "控制面板",
+    "description": "打开控制面板",
+    "icon": "⚙️",
+    "type": "builtin",
+    "category": "系统工具",
+    "priority": 13
+  },
+  {
+    "id": "settings",
+    "title": "系统设置",
+    "description": "打开Windows设置",
+    "icon": "🔧",
+    "type": "builtin",
+    "category": "系统工具",
+    "priority": 14
+  },
+  {
+    "id": "device-manager",
+    "title": "设备管理器",
+    "description": "打开设备管理器",
+    "icon": "🖥️",
+    "type": "builtin",
+    "category": "系统工具",
+    "priority": 15
+  },
+  {
+    "id": "registry-editor",
+    "title": "注册表编辑器",
+    "description": "打开注册表编辑器",
+    "icon": "📋",
+    "type": "builtin",
+    "category": "系统工具",
+    "priority": 16
+  },
+  {
+    "id": "services",
+    "title": "服务管理",
+    "description": "打开服务管理器",
+    "icon": "🔄",
+    "type": "builtin",
+    "category": "系统工具",
+    "priority": 17
+  },
+  {
+    "id": "event-viewer",
+    "title": "事件查看器",
+    "description": "打开事件查看器",
+    "icon": "📜",
+    "type": "builtin",
+    "category": "系统工具",
+    "priority": 18
+  },
+  {
+    "id": "disk-cleanup",
+    "title": "磁盘清理",
+    "description": "打开磁盘清理工具",
+    "icon": "🧹",
+    "type": "builtin",
+    "category": "系统工具",
+    "priority": 19
+  },
+  {
+    "id": "system-info",
+    "title": "系统信息",
+    "description": "查看系统信息",
+    "icon": "ℹ️",
+    "type": "builtin",
+    "category": "系统工具",
+    "priority": 20
+  }
+]
+>>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
