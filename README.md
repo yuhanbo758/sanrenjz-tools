@@ -138,7 +138,6 @@ my-plugin/
   "version": "1.0.0",
   "author": "作者姓名",
   "category": "工具分类",
-=======
 3. **启动应用**
 ```powershell
 npm start
@@ -273,7 +272,6 @@ sanrenjz-tools-插件名/
   "description": "这是一个示例插件",
   "version": "1.0.0",
   "author": "开发者",
->>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
   "main": "index.html",
   "logo": "logo.ico",
   "preload": "preload.js",
@@ -289,14 +287,12 @@ sanrenjz-tools-插件名/
       "superPanel": true,
       "description": "超级面板中显示的描述",
       "category": "插件功能",
-=======
       "code": "example-feature",
       "explain": "示例功能",
       "cmds": ["示例", "example"],
       "icon": "logo.ico",
       "superPanel": true,
       "category": "工具",
->>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
       "priority": 10
     }
   ],
@@ -304,12 +300,10 @@ sanrenjz-tools-插件名/
     "height": 600,
     "width": 800,
     "single": true
-=======
     "width": 1000,
     "height": 680,
     "single": true,
     "autoHideMenuBar": true
->>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
   }
 }
 ```
@@ -695,7 +689,6 @@ npm run dev
 
 ![余汉波打赏码](https://gdsx.sanrenjz.com/PicGo/%E6%89%93%E8%B5%8F%E7%A0%81500.png)
 
-=======
 ### 超级面板集成
 
 插件功能可以通过以下方式集成到超级面板：
