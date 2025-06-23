@@ -1,12 +1,11 @@
-<<<<<<< HEAD
-const { app, BrowserWindow, ipcMain, Menu, globalShortcut, dialog, Tray } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, Menu, Tray, nativeImage, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { exec } = require('child_process');
 
-// 初始化remote模块
+// 初始化remote模块 - 需要在app ready之后
 const remoteMain = require('@electron/remote/main');
-remoteMain.initialize();
+// 移除这里的初始化，将在app ready事件中初始化
 
 // 导入插件管理器
 const PluginManager = require(app.isPackaged 
@@ -27,38 +26,6 @@ let lastActiveWindow = null; // 记录最后活动的窗口句柄
 let rightClickMonitor = null;
 let isRightClickMonitorRunning = false;
 
-=======
-const { app, BrowserWindow, globalShortcut, Tray, Menu, ipcMain, dialog, shell, screen, clipboard, nativeImage } = require('electron');
-const path = require('path');
-const fs = require('fs');
-const { exec } = require('child_process');
-const remoteMain = require('@electron/remote/main');
-
-// 初始化remote模块
-remoteMain.initialize();
-
-// 导入插件管理器
-const PluginManager = require('./app/software_manager.js');
-
-// 主窗口变量
-let mainWindow;
-let searchWindow;
-let tray;
-let pluginManager;
-
-// 超级面板相关变量
-let superPanelWindow;
-let isSuperPanelGracePeriod = false; // 宽限期标志
-let hasActiveInput = false; // 输入框活动状态
-
-// 右键长按监控相关变量
-let rightClickMonitor = null;
-let isRightClickMonitorRunning = false;
-
-// 钉住状态
-let isPinned = false;
-
->>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
 // 设置文件路径
 const settingsPath = path.join(app.getPath('userData'), 'settings.json');
 
@@ -66,7 +33,6 @@ const settingsPath = path.join(app.getPath('userData'), 'settings.json');
 const defaultSettings = {
     globalHotkey: 'Ctrl+Space',
     autoStart: false,
-<<<<<<< HEAD
     pinHotkey: 'Ctrl+D', // 钉住快捷键
     enableRightClickPanel: true, // 启用右键长按面板
     rightClickDelay: 500, // 右键长按延迟时间（毫秒）
@@ -74,31 +40,14 @@ const defaultSettings = {
 };
 
 // 读取设置
-=======
-    pinHotkey: 'Ctrl+D',
-    enableRightClickPanel: true,
-    rightClickDelay: 500,
-    customPluginDataPath: ''
-};
-
-// 加载设置
->>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
 function loadSettings() {
     try {
         if (fs.existsSync(settingsPath)) {
             const data = fs.readFileSync(settingsPath, 'utf8');
-<<<<<<< HEAD
             return { ...defaultSettings, ...JSON.parse(data) };
         }
     } catch (error) {
         console.error('读取设置失败:', error);
-=======
-            const settings = JSON.parse(data);
-            return { ...defaultSettings, ...settings };
-        }
-    } catch (error) {
-        console.error('加载设置失败:', error);
->>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
     }
     return defaultSettings;
 }
@@ -106,7 +55,6 @@ function loadSettings() {
 // 保存设置
 function saveSettings(settings) {
     try {
-<<<<<<< HEAD
         const currentSettings = loadSettings();
         const newSettings = { ...currentSettings, ...settings };
         fs.writeFileSync(settingsPath, JSON.stringify(newSettings, null, 2));
@@ -239,131 +187,15 @@ async function getTextSnippets(pluginPath) {
         console.error('获取文本片段失败:', error);
         return [];
     }
-=======
-        fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
-        console.log('设置已保存');
-    } catch (error) {
-        console.error('保存设置失败:', error);
-    }
-}
-
-// 获取文本片段的函数
-function getTextSnippets(searchPaths) {
-    const snippets = [];
-    
-    // 确保searchPaths是数组
-    const paths = Array.isArray(searchPaths) ? searchPaths : [searchPaths];
-    
-    paths.forEach(searchPath => {
-        if (!searchPath || !fs.existsSync(searchPath)) {
-            console.log(`路径不存在: ${searchPath}`);
-            return;
-        }
-        
-        try {
-            // 如果是插件存储路径，从插件管理器获取数据
-            if (pluginManager && searchPath.includes('plugin-storage')) {
-                const pluginData = pluginManager.getAllPluginData();
-                Object.entries(pluginData).forEach(([pluginName, data]) => {
-                    if (data && typeof data === 'object') {
-                        Object.entries(data).forEach(([key, value]) => {
-                            if (typeof value === 'string' && value.length > 0) {
-                                snippets.push({
-                                    title: `${pluginName} - ${key}`,
-                                    content: value,
-                                    preview: value.substring(0, 100) + (value.length > 100 ? '...' : ''),
-                                    source: 'plugin-data',
-                                    pluginName: pluginName
-                                });
-                            }
-                        });
-                    }
-                });
-                return;
-            }
-            
-            // 递归扫描目录，最大深度为2
-            function scanDirectory(dirPath, currentDepth = 0) {
-                if (currentDepth > 2) return;
-                
-                const items = fs.readdirSync(dirPath);
-                
-                items.forEach(item => {
-                    const itemPath = path.join(dirPath, item);
-                    const stat = fs.statSync(itemPath);
-                    
-                    if (stat.isDirectory()) {
-                        scanDirectory(itemPath, currentDepth + 1);
-                    } else if (stat.isFile() && path.extname(item).toLowerCase() === '.md') {
-                        try {
-                            const content = fs.readFileSync(itemPath, 'utf8');
-                            
-                            // 解析markdown内容
-                            const lines = content.split('\n');
-                            let currentTitle = path.basename(item, '.md');
-                            let currentContent = '';
-                            
-                            lines.forEach(line => {
-                                line = line.trim();
-                                if (line.startsWith('#')) {
-                                    // 如果有之前的内容，保存它
-                                    if (currentContent.trim()) {
-                                        snippets.push({
-                                            title: currentTitle,
-                                            content: currentContent.trim(),
-                                            preview: currentContent.trim().substring(0, 100) + (currentContent.trim().length > 100 ? '...' : ''),
-                                            source: itemPath
-                                        });
-                                    }
-                                    // 开始新的标题
-                                    currentTitle = line.replace(/^#+\s*/, '');
-                                    currentContent = '';
-                                } else if (line) {
-                                    currentContent += line + '\n';
-                                }
-                            });
-                            
-                            // 保存最后一个片段
-                            if (currentContent.trim()) {
-                                snippets.push({
-                                    title: currentTitle,
-                                    content: currentContent.trim(),
-                                    preview: currentContent.trim().substring(0, 100) + (currentContent.trim().length > 100 ? '...' : ''),
-                                    source: itemPath
-                                });
-                            }
-                        } catch (error) {
-                            console.error(`读取文件失败 ${itemPath}:`, error);
-                        }
-                    }
-                });
-            }
-            
-            scanDirectory(searchPath);
-        } catch (error) {
-            console.error(`扫描路径失败 ${searchPath}:`, error);
-        }
-    });
-    
-    // 按标题排序
-    return snippets.sort((a, b) => a.title.localeCompare(b.title));
->>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
 }
 
 // 注册全局快捷键
 function registerGlobalShortcut(hotkey = 'Ctrl+Space') {
     try {
-<<<<<<< HEAD
         // 先注销现有的全局快捷键，但不要注销所有
         globalShortcut.unregister(hotkey);
         
         // 注册全局快捷键
-=======
-        // 先注销现有的快捷键
-        globalShortcut.unregister(hotkey);
-        
-        // 注册新的快捷键
->>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
         const ret = globalShortcut.register(hotkey, () => {
             console.log('全局快捷键被触发:', hotkey);
             showSearchWindow();
@@ -650,11 +482,8 @@ while ($true) {
     }
 }
 
-<<<<<<< HEAD
 
 
-=======
->>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
 // 停止右键长按监听器
 function stopRightClickMonitor() {
     if (rightClickMonitor) {
@@ -973,18 +802,8 @@ function showSearchWindow() {
         createSearchWindow();
     }
 
-<<<<<<< HEAD
     try {
         // 获取鼠标位置并尝试跟随显示
-=======
-    if (!searchWindow) {
-        console.error('❌ 无法创建搜索窗口');
-        return;
-    }
-
-    try {
-        // 获取鼠标位置并在鼠标附近显示
->>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
         const { screen } = require('electron');
         const cursorPoint = screen.getCursorScreenPoint();
         const currentDisplay = screen.getDisplayNearestPoint(cursorPoint);
@@ -992,7 +811,6 @@ function showSearchWindow() {
         const windowWidth = 600;
         const windowHeight = 400;
         
-<<<<<<< HEAD
         // 计算窗口位置，在鼠标上方显示
         let x = cursorPoint.x - windowWidth / 2;
         let y = cursorPoint.y - 200; // 在鼠标上方200像素
@@ -1004,19 +822,6 @@ function showSearchWindow() {
         if (x + windowWidth > currentDisplay.workArea.x + currentDisplay.workArea.width) {
             x = currentDisplay.workArea.x + currentDisplay.workArea.width - windowWidth - 10;
         }
-=======
-        // 计算窗口位置，在鼠标右侧显示
-        let x = cursorPoint.x + 20;
-        let y = cursorPoint.y - windowHeight / 2;
-        
-        // 边界检查，确保窗口在屏幕内
-        if (x + windowWidth > currentDisplay.workArea.x + currentDisplay.workArea.width) {
-            x = cursorPoint.x - windowWidth - 20; // 显示在鼠标左侧
-        }
-        if (x < currentDisplay.workArea.x) {
-            x = currentDisplay.workArea.x + 10;
-        }
->>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
         if (y < currentDisplay.workArea.y) {
             y = currentDisplay.workArea.y + 10;
         }
@@ -1025,18 +830,8 @@ function showSearchWindow() {
         }
 
         searchWindow.setBounds({ x, y, width: windowWidth, height: windowHeight });
-<<<<<<< HEAD
     } catch (error) {
         console.error('设置浮窗位置失败，使用默认位置:', error);
-=======
-        searchWindow.show();
-        searchWindow.focus();
-        
-        console.log('✅ 搜索窗口已显示');
-        
-    } catch (error) {
-        console.error('设置搜索窗口位置失败:', error);
->>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45
         
         // 出错时回退到默认位置
         const { screen } = require('electron');
@@ -1049,7 +844,6 @@ function showSearchWindow() {
         const y = Math.round((height - windowHeight) / 3);
 
         searchWindow.setBounds({ x, y, width: windowWidth, height: windowHeight });
-<<<<<<< HEAD
     }
     
     searchWindow.show();
@@ -1132,166 +926,11 @@ function recordActiveWindow() {
     }
 }
 
-// 恢复焦点到原窗口
-function restoreFocusToOriginalWindow() {
-    return new Promise((resolve) => {
-        const originalTitle = lastActiveWindow && lastActiveWindow.title;
-        const originalHandle = lastActiveWindow && lastActiveWindow.handle; 
-        
-        const os = require('os'); 
-        const fs = require('fs');   
-        const path = require('path'); 
-        const execSync = require('child_process').execSync;
 
-        // Priority 1: Use SetForegroundWindow if a valid numeric handle is available
-        if (originalHandle && originalHandle !== '0' && /^[1-9][0-9]*$/.test(originalHandle)) {
-            console.log(`尝试恢复焦点: 优先 SetForegroundWindow (句柄: ${originalHandle})`);
-            const tempDir = os.tmpdir();
-            const scriptPathHwnd = path.join(tempDir, `restore_focus_hwnd_${Date.now()}.ps1`);
 
-            const focusScriptByHandleArr = [
-                '$ErrorActionPreference = "Stop"',
-                "Add-Type -Name WindowApi -Namespace Utils -MemberDefinition @'",
-                '    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();',
-                '    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);',
-                '    [DllImport("user32.dll")] public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);',
-                "'@", // Closing delimiter must be at the start of the line
-                `$targetHwnd = New-Object IntPtr(${originalHandle});`,
-                '$activated = $false;',
-                'if ($targetHwnd -ne [IntPtr]::Zero) {',
-                '    Write-Host "Attempting SetForegroundWindow to handle: $targetHwnd";',
-                '    try {',
-                '        $setFocusSuccess = [Utils.WindowApi]::SetForegroundWindow($targetHwnd);',
-                '        Start-Sleep -Milliseconds 100;',
-                '        if ([Utils.WindowApi]::GetForegroundWindow() -eq $targetHwnd) {',
-                '            $activated = $true;',
-                '            Write-Host "SetForegroundWindow successfully focused handle: $targetHwnd";',
-                '        } else {',
-                '            Write-Host "SetForegroundWindow called, but current foreground window handle does not match target.";',
-                '        }',
-                '    } catch {',
-                '        Write-Host "SetForegroundWindow call failed: $($_.Exception.Message)";',
-                '    }',
-                '}',
-                'if ($activated) { Write-Output "true" } else { Write-Output "false" }'
-            ];
-            const focusScriptByHandle = focusScriptByHandleArr.join('\n');
-            
-            try {
-                fs.writeFileSync(scriptPathHwnd, focusScriptByHandle, { encoding: 'utf8' });
-                const commandToRun = `powershell -ExecutionPolicy Bypass -NonInteractive -NoProfile -File "${scriptPathHwnd}"`;
-                console.log('Executing PowerShell SetForegroundWindow script:', commandToRun);
-                const stdout = execSync(commandToRun, { windowsHide: true, timeout: 2000, encoding: 'utf8' }).toString().trim();
-                console.log('SetForegroundWindow PowerShell stdout:', stdout);
-                if (stdout.toLowerCase().includes("true")) {
-                    console.log('SetForegroundWindow 成功。');
-                    resolve(true);
-                    return; 
-                }
-                console.warn('SetForegroundWindow 失败，尝试 AppActivate。');
-            } catch (error) {
-                console.error('SetForegroundWindow PowerShell 脚本执行失败:', error.message);
-                if (error.stderr) console.error('SetForegroundWindow PowerShell stderr:', error.stderr.toString());
-                if (error.stdout) console.error('SetForegroundWindow PowerShell stdout (on error):', error.stdout.toString());
-                console.warn('SetForegroundWindow 异常，尝试 AppActivate。');
-            } finally {
-                try { if (fs.existsSync(scriptPathHwnd)) fs.unlinkSync(scriptPathHwnd); } catch (e) { console.error('清理SetForegroundWindow脚本失败:',e.message); }
-            }
-        }
 
-        // Priority 2: Use AppActivate if title is valid
-        if (originalTitle && originalTitle !== 'Unknown') {
-            console.log(`尝试恢复焦点: AppActivate (标题: \"${originalTitle}\")`);
-            const tempDir = os.tmpdir(); 
-            const scriptPathAppActivate = path.join(tempDir, `restore_focus_title_${Date.now()}.ps1`);
-            
-            // Escape for JS template literal, then for PS single-quoted string
-            const jsEscapedOriginalTitle = originalTitle.replace(/`/g, '\\\\`').replace(/\\$\{/g, '\\\\${');
-            const psSafeTitleForAppActivate = jsEscapedOriginalTitle.replace(/\'/g, "''"); 
 
-            const focusScriptByTitleArr = [
-                '$ErrorActionPreference = "Stop"',
-                "Add-Type -Name WindowApi -Namespace Utils -MemberDefinition @'",
-                '    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();',
-                '    [DllImport("user32.dll")] public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);',
-                "'@", // Closing delimiter must be at the start of the line
-                `$originalTitleForComparison = '${psSafeTitleForAppActivate}';`,
-                '$activated = $false;',
-                '$shell = New-Object -ComObject WScript.Shell;',
-                'try {',
-                `    $appActivateSuccess = $shell.AppActivate('${psSafeTitleForAppActivate}');`,
-                '    Start-Sleep -Milliseconds 150;',
-                '    if ($appActivateSuccess) {',
-                `        Write-Host "AppActivate('${psSafeTitleForAppActivate}') returned true. Validating focus...";`,
-                '        $focusedHwndAfterAppActivate = [Utils.WindowApi]::GetForegroundWindow();',
-                '        $sb = New-Object System.Text.StringBuilder(256);',
-                '        [Utils.WindowApi]::GetWindowText($focusedHwndAfterAppActivate, $sb, $sb.Capacity) | Out-Null;',
-                '        $currentTitle = $sb.ToString();',
-                '        if ($currentTitle -eq $originalTitleForComparison) {',
-                '            $activated = $true;',
-                `            Write-Host "AppActivate successfully matched title: '$currentTitle'";`,
-                '        } elseif ($currentTitle.Contains($originalTitleForComparison) -or $originalTitleForComparison.Contains($currentTitle)) {',
-                '            $activated = $true;',
-                `            Write-Host "AppActivate succeeded with partial title match. Target: '$originalTitleForComparison', Actual: '$currentTitle'";`,
-                '        } else {',
-                `            Write-Host "AppActivate called, but title does not match. Target: '$originalTitleForComparison', Actual: '$currentTitle'";`,
-                '        }',
-                '    } else {',
-                `        Write-Host "AppActivate('${psSafeTitleForAppActivate}') returned false.";`,
-                '    }',
-                '} catch {',
-                '    Write-Host "AppActivate call failed: $($_.Exception.Message)";',
-                '}',
-                'if ($activated) { Write-Output "true" } else { Write-Output "false" }'
-            ];
-            const focusScriptByTitle = focusScriptByTitleArr.join('\n');
 
-            try {
-                fs.writeFileSync(scriptPathAppActivate, focusScriptByTitle, { encoding: 'utf8' });
-                const commandToRunAppActivate = `powershell -ExecutionPolicy Bypass -NonInteractive -NoProfile -File "${scriptPathAppActivate}"`;
-                console.log('执行 PowerShell AppActivate 脚本:', commandToRunAppActivate);
-                const stdoutAppActivate = execSync(commandToRunAppActivate, { windowsHide: true, timeout: 2500, encoding: 'utf8' }).toString().trim();
-                console.log('AppActivate PowerShell stdout:', stdoutAppActivate);
-
-                if (stdoutAppActivate.toLowerCase().includes("true")) {
-                    console.log('AppActivate 成功。');
-                    resolve(true);
-                    return; 
-                }
-                console.warn('AppActivate 失败，尝试 ESC 兜底。');
-            } catch (error) {
-                console.error('AppActivate PowerShell 脚本执行失败:', error.message);
-                if (error.stderr) console.error('AppActivate PowerShell stderr:', error.stderr.toString());
-                if (error.stdout) console.error('AppActivate PowerShell stdout (on error):', error.stdout.toString());
-                console.warn('AppActivate 异常，尝试 ESC 兜底。');
-            } finally {
-                 try { if (fs.existsSync(scriptPathAppActivate)) fs.unlinkSync(scriptPathAppActivate); } catch (e) { console.error('清理AppActivate脚本失败:', e.message); }
-            }
-        }
-
-        // Priority 3: Fallback to ESC 
-        console.log('无效或缺失窗口信息，或 SetForegroundWindow/AppActivate 失败，尝试 ESC 兜底...');
-        try {
-            const tempDir = os.tmpdir();
-            const scriptPathEsc = path.join(tempDir, `restore_focus_esc_${Date.now()}.ps1`);
-            const escScriptContent = "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('{ESC}')";
-            
-            fs.writeFileSync(scriptPathEsc, escScriptContent, { encoding: 'utf8' });
-            const commandToRunEsc = `powershell -ExecutionPolicy Bypass -NonInteractive -NoProfile -File "${scriptPathEsc}"`;
-            
-            console.log('Executing PowerShell for ESC (兜底, via .ps1):', commandToRunEsc);
-            execSync(commandToRunEsc, { windowsHide: true, timeout: 1500, encoding: 'utf8' });
-            console.log('ESC 命令已发送 (兜底, via .ps1)');
-            resolve(true); 
-            try { if (fs.existsSync(scriptPathEsc)) fs.unlinkSync(scriptPathEsc); } catch (e) { console.error('清理ESC脚本失败:', e.message); }
-        } catch (e) {
-            console.error('ESC 兜底失败 (via .ps1):', e.message);
-            if (e.stderr) console.error('ESC stderr (via .ps1):', e.stderr.toString());
-            if (e.stdout) console.error('ESC stdout (on ESC error, via .ps1):', e.stdout.toString());
-            resolve(false);
-        }
-    });
-}
 
 // 创建主窗口
 function createWindow() {
@@ -1624,144 +1263,45 @@ ipcMain.handle('get-plugin-contents', async (event, pluginPath) => {
 // 插入内容（文本片段等）
 ipcMain.handle('insert-content', async (event, content) => {
     try {
-        console.log('准备插入内容:', content.title);
+        console.log('准备复制内容:', content.title, '类型:', content.contentType || content.type);
+        
+        // 只处理文本片段类型的内容
+        if (content.contentType !== 'text-snippet' && content.type !== 'text-snippet') {
+            console.log('非文本片段类型，跳过复制操作');
+            return { success: false, message: '不支持的内容类型' };
+        }
         
         const { clipboard } = require('electron');
         
+        // 复制内容到剪贴板
         clipboard.writeText(content.content);
-        console.log('内容已复制到剪贴板:', content.title);
+        console.log('文本片段已复制到剪贴板:', content.title);
         
+        // 隐藏搜索窗口
         if (searchWindow && !searchWindow.isDestroyed() && searchWindow.isVisible()) {
             searchWindow.hide();
             console.log('搜索窗口已隐藏');
         }
         
-        setTimeout(async () => {
-            try {
-                const focusPromise = restoreFocusToOriginalWindow();
-                // Give a bit more time for focus restoration before timeout
-                const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(false), 700)); 
-                
-                console.log('开始恢复焦点并设置超时...');
-                const focusRestored = await Promise.race([focusPromise, timeoutPromise]);
-                console.log('焦点恢复结果 (insert-content):', focusRestored);
-                
-                // Increased delay before pasting to allow focus to settle
-                setTimeout(() => {
-                    tryPasteWithRetry(content, 0);
-                }, focusRestored ? 80 : 150); // Shorter delay if focus known to be restored
-                
-            } catch (error) {
-                console.error('焦点恢复过程中出错 (insert-content):', error.message, error.stack);
-                setTimeout(() => {
-                    tryPasteWithRetry(content, 0);
-                }, 150);
-            }
-        }, 100); // Increased initial delay before attempting focus restoration
+        // 显示复制成功通知
+        const { Notification } = require('electron');
+        if (Notification.isSupported()) {
+            new Notification({
+                title: '复制成功',
+                body: `"${content.title}" 已复制到剪贴板`,
+                silent: true
+            }).show();
+        }
         
-        return { success: true, message: '内容已处理' };
+        return { success: true, message: '文本片段已复制到剪贴板' };
     } catch (error) {
-        console.error('插入内容处理失败:', error);
+        console.error('复制内容失败:', error);
         return { success: false, error: error.message };
     }
 });
 
 // 带重试机制的粘贴函数
-function tryPasteWithRetry(content, retryCount) {
-    const maxRetries = 2;
-    
-    if (retryCount >= maxRetries) {
-        console.log('已达到最大重试次数，显示手动粘贴提示');
-        showPasteNotification(content);
-        return;
-    }
-    
-    console.log(`尝试粘贴 (第${retryCount + 1}次)`);
-    
-    try {
-        // 使用修复后的 PowerShell SendKeys 方法
-        const powershellCommand = `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')`;
-        
-        exec(`powershell -Command "${powershellCommand}"`, { 
-            windowsHide: true,
-            timeout: 3000
-        }, (error, stdout, stderr) => {
-            if (error) {
-                console.error(`第${retryCount + 1}次粘贴失败:`, error.message);
-                
-                // 如果是第一次失败，尝试使用备用方法
-                if (retryCount === 0) {
-                    setTimeout(() => {
-                        tryVBScriptPaste(content, retryCount + 1);
-                    }, 100);
-                } else {
-                    // 如果备用方法也失败，显示手动提示
-                    showPasteNotification(content);
-                }
-            } else {
-                console.log(`第${retryCount + 1}次粘贴成功`);
-            }
-        });
-        
-    } catch (error) {
-        console.error('执行粘贴操作时出错:', error);
-        if (retryCount < maxRetries - 1) {
-            setTimeout(() => {
-                tryVBScriptPaste(content, retryCount + 1);
-            }, 100);
-        } else {
-            showPasteNotification(content);
-        }
-    }
-}
 
-// 使用 VBScript 作为备用方案
-function tryVBScriptPaste(content, retryCount = 0) {
-    try {
-        console.log(`尝试使用 VBScript 粘贴 (重试${retryCount})`);
-        
-        // 创建临时 VBScript 文件
-        const tempPath = path.join(require('os').tmpdir(), `paste_${Date.now()}.vbs`);
-        const vbScript = `
-            Set shell = CreateObject("WScript.Shell")
-            WScript.Sleep 100
-            shell.SendKeys "^v"
-        `;
-        
-        fs.writeFileSync(tempPath, vbScript);
-        
-        // 执行 VBScript
-        exec(`cscript //nologo "${tempPath}"`, { 
-            windowsHide: true,
-            timeout: 3000
-        }, (error) => {
-            // 清理临时文件
-            try {
-                fs.unlinkSync(tempPath);
-            } catch (e) {
-                console.log('清理临时文件失败:', e.message);
-            }
-            
-            if (error) {
-                console.error('VBScript粘贴失败:', error.message);
-                if (retryCount < 1) {
-                    // 最后一次重试
-                    setTimeout(() => {
-                        tryPasteWithRetry(content, retryCount + 1);
-                    }, 200);
-                } else {
-                    showPasteNotification(content);
-                }
-            } else {
-                console.log('使用 VBScript 粘贴成功');
-            }
-        });
-        
-    } catch (error) {
-        console.error('VBScript 粘贴失败:', error);
-        showPasteNotification(content);
-    }
-}
 
 // 辅助函数：显示粘贴提示
 function showPasteNotification(content) {
@@ -1834,29 +1374,30 @@ ipcMain.handle('save-settings', (event, settings) => {
 });
 
 // 隐藏搜索窗口
-ipcMain.handle('hide-search-window', async () => {
+ipcMain.handle('hide-search-window', async (event, options = {}) => {
     if (searchWindow && !searchWindow.isDestroyed()) {
         searchWindow.hide();
         
-        try {
-            console.log('搜索窗口被手动隐藏，开始恢复焦点');
-            
-            // Using a slightly longer delay here as well
-            setTimeout(async () => {
-                try {
-                    const focusPromise = restoreFocusToOriginalWindow();
-                    const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(false), 400)); 
-                    
-                    const focusRestored = await Promise.race([focusPromise, timeoutPromise]);
-                    console.log('手动隐藏后焦点恢复结果:', focusRestored);
-                    
-                } catch (error) {
-                    console.error('手动隐藏后焦点恢复失败:', error.message, error.stack);
-                }
-            }, 80); // Consistent delay
-            
-        } catch (error) {
-            console.error('搜索窗口隐藏后处理失败:', error);
+        // 只有在需要恢复焦点时才执行焦点恢复逻辑
+        if (options.restoreFocus !== false) {
+            try {
+                console.log('搜索窗口被隐藏，开始恢复焦点');
+                
+                // Using a slightly longer delay here as well
+                setTimeout(async () => {
+                    try {
+                        console.log('窗口已隐藏，无需焦点恢复');
+                        
+                    } catch (error) {
+                        console.error('隐藏后焦点恢复失败:', error.message, error.stack);
+                    }
+                }, 80); // Consistent delay
+                
+            } catch (error) {
+                console.error('搜索窗口隐藏后处理失败:', error);
+            }
+        } else {
+            console.log('搜索窗口被隐藏，跳过焦点恢复');
         }
     }
 });
@@ -1937,9 +1478,8 @@ ipcMain.handle('maximize-plugin-window', (event, pluginName) => {
 ipcMain.handle('restore-previous-focus', async (event) => {
     console.log('收到恢复焦点请求');
     try {
-        const result = await restoreFocusToOriginalWindow();
-        console.log('恢复焦点结果:', result);
-        return { success: result };
+        console.log('焦点恢复功能已移除');
+        return { success: true };
     } catch (error) {
         console.error('恢复焦点失败:', error);
         return { success: false, error: error.message };
@@ -2215,7 +1755,7 @@ ipcMain.handle('close-super-panel', () => {
         // 恢复焦点到原窗口
         setTimeout(async () => {
             try {
-                await restoreFocusToOriginalWindow();
+                console.log('超级面板已关闭，无需焦点恢复');
             } catch (error) {
                 console.error('关闭超级面板后焦点恢复失败:', error);
             }
@@ -2706,10 +2246,8 @@ ipcMain.handle('handle-content-insertion', async (event, { content, type }) => {
         // 1. 等待一小段时间确保窗口关闭完成
         await new Promise(resolve => setTimeout(resolve, 300));
         
-        // 2. 恢复焦点到原窗口
-        console.log('尝试恢复焦点到原窗口');
-        const focusResult = await restoreFocusToOriginalWindow();
-        console.log('焦点恢复结果:', focusResult);
+        // 2. 焦点恢复功能已移除
+        console.log('焦点恢复功能已移除');
         
         // 3. 等待焦点稳定
         await new Promise(resolve => setTimeout(resolve, 200));
@@ -2916,6 +2454,9 @@ ipcMain.handle('reset-plugin-data-directory', () => {
 // 当Electron完成初始化时创建窗口
 app.whenReady().then(async () => {
     try {
+        // 初始化remote模块
+        remoteMain.initialize();
+        
         // 在应用准备就绪时就设置空菜单，确保所有平台都生效
         Menu.setApplicationMenu(null);
         
@@ -3056,8 +2597,8 @@ ipcMain.handle('open-plugin-manager', () => {
 // 添加 IPC 处理：打开添加插件功能对话框
 ipcMain.handle('open-add-plugin-dialog', async () => {
     try {
-        // 创建添加插件功能的对话框窗口
-        const addPluginWindow = new BrowserWindow({
+        // 获取鼠标位置并计算窗口显示位置
+        let windowOptions = {
             width: 600,
             height: 500,
             modal: true,
@@ -3071,7 +2612,36 @@ ipcMain.handle('open-add-plugin-dialog', async () => {
             resizable: false,
             transparent: true,
             alwaysOnTop: true
-        });
+        };
+        
+        try {
+            // 获取鼠标位置并在鼠标所在的屏幕显示窗口
+            const cursorPoint = screen.getCursorScreenPoint();
+            const currentDisplay = screen.getDisplayNearestPoint(cursorPoint);
+            
+            // 计算窗口位置，在屏幕中央显示
+            let x = currentDisplay.workArea.x + Math.round((currentDisplay.workArea.width - 600) / 2);
+            let y = currentDisplay.workArea.y + Math.round((currentDisplay.workArea.height - 500) / 2);
+            
+            // 边界检查
+            if (x < currentDisplay.workArea.x) x = currentDisplay.workArea.x + 10;
+            if (x + 600 > currentDisplay.workArea.x + currentDisplay.workArea.width) {
+                x = currentDisplay.workArea.x + currentDisplay.workArea.width - 600 - 10;
+            }
+            if (y < currentDisplay.workArea.y) y = currentDisplay.workArea.y + 10;
+            if (y + 500 > currentDisplay.workArea.y + currentDisplay.workArea.height) {
+                y = currentDisplay.workArea.y + currentDisplay.workArea.height - 500 - 10;
+            }
+            
+            windowOptions.x = x;
+            windowOptions.y = y;
+            console.log(`添加插件对话框将在屏幕 ${currentDisplay.id} 显示，位置: (${x}, ${y})`);
+        } catch (error) {
+            console.error('设置添加插件对话框位置失败，使用默认位置:', error);
+        }
+        
+        // 创建添加插件功能的对话框窗口
+        const addPluginWindow = new BrowserWindow(windowOptions);
 
         // 启用remote模块
         remoteMain.enable(addPluginWindow.webContents);
@@ -4155,7 +3725,8 @@ async function executeSystemCommand(command, args, selectedText) {
 
 // 创建超级面板管理器窗口
 function createSuperPanelManagerWindow() {
-    const managerWindow = new BrowserWindow({
+    // 获取鼠标位置并计算窗口显示位置
+    let windowOptions = {
         width: 800,
         height: 600,
         modal: false,
@@ -4170,7 +3741,35 @@ function createSuperPanelManagerWindow() {
         transparent: true,
         alwaysOnTop: false,
         movable: true
-    });
+    };
+    
+    try {
+        // 获取鼠标位置并在鼠标所在的屏幕显示窗口
+        const cursorPoint = screen.getCursorScreenPoint();
+        const currentDisplay = screen.getDisplayNearestPoint(cursorPoint);
+        
+        // 计算窗口位置，在屏幕中央显示
+        let x = currentDisplay.workArea.x + Math.round((currentDisplay.workArea.width - 800) / 2);
+        let y = currentDisplay.workArea.y + Math.round((currentDisplay.workArea.height - 600) / 2);
+        
+        // 边界检查
+        if (x < currentDisplay.workArea.x) x = currentDisplay.workArea.x + 10;
+        if (x + 800 > currentDisplay.workArea.x + currentDisplay.workArea.width) {
+            x = currentDisplay.workArea.x + currentDisplay.workArea.width - 800 - 10;
+        }
+        if (y < currentDisplay.workArea.y) y = currentDisplay.workArea.y + 10;
+        if (y + 600 > currentDisplay.workArea.y + currentDisplay.workArea.height) {
+            y = currentDisplay.workArea.y + currentDisplay.workArea.height - 600 - 10;
+        }
+        
+        windowOptions.x = x;
+        windowOptions.y = y;
+        console.log(`管理器窗口将在屏幕 ${currentDisplay.id} 显示，位置: (${x}, ${y})`);
+    } catch (error) {
+        console.error('设置管理器窗口位置失败，使用默认位置:', error);
+    }
+    
+    const managerWindow = new BrowserWindow(windowOptions);
 
     // 启用remote模块
     remoteMain.enable(managerWindow.webContents);
@@ -4188,7 +3787,8 @@ function createSuperPanelManagerWindow() {
 
 // 创建超级面板设置窗口
 function createSuperPanelSettingsWindow() {
-    const settingsWindow = new BrowserWindow({
+    // 获取鼠标位置并计算窗口显示位置
+    let windowOptions = {
         width: 600,
         height: 500,
         modal: false,
@@ -4203,7 +3803,35 @@ function createSuperPanelSettingsWindow() {
         transparent: true,
         alwaysOnTop: false,
         movable: true
-    });
+    };
+    
+    try {
+        // 获取鼠标位置并在鼠标所在的屏幕显示窗口
+        const cursorPoint = screen.getCursorScreenPoint();
+        const currentDisplay = screen.getDisplayNearestPoint(cursorPoint);
+        
+        // 计算窗口位置，在屏幕中央显示
+        let x = currentDisplay.workArea.x + Math.round((currentDisplay.workArea.width - 600) / 2);
+        let y = currentDisplay.workArea.y + Math.round((currentDisplay.workArea.height - 500) / 2);
+        
+        // 边界检查
+        if (x < currentDisplay.workArea.x) x = currentDisplay.workArea.x + 10;
+        if (x + 600 > currentDisplay.workArea.x + currentDisplay.workArea.width) {
+            x = currentDisplay.workArea.x + currentDisplay.workArea.width - 600 - 10;
+        }
+        if (y < currentDisplay.workArea.y) y = currentDisplay.workArea.y + 10;
+        if (y + 500 > currentDisplay.workArea.y + currentDisplay.workArea.height) {
+            y = currentDisplay.workArea.y + currentDisplay.workArea.height - 500 - 10;
+        }
+        
+        windowOptions.x = x;
+        windowOptions.y = y;
+        console.log(`设置窗口将在屏幕 ${currentDisplay.id} 显示，位置: (${x}, ${y})`);
+    } catch (error) {
+        console.error('设置窗口位置失败，使用默认位置:', error);
+    }
+    
+    const settingsWindow = new BrowserWindow(windowOptions);
 
     // 启用remote模块
     remoteMain.enable(settingsWindow.webContents);
@@ -5571,9 +5199,3 @@ ipcMain.handle('notify-input-active', async (event, isActive) => {
     console.log('🔍 输入框活动状态更新:', isActive ? '活动' : '非活动');
     return true;
 });
-=======
-        searchWindow.show();
-        searchWindow.focus();
-    }
-}
->>>>>>> 1e496283fea0ca958cc9fa10b800b56996f77a45

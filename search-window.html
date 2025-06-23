@@ -623,10 +623,16 @@
             }
         }
 
+        // 防重复执行标志
+        let isExecuting = false;
+
         // 选择结果
         async function selectResult() {
-            if (filteredResults.length === 0) return;
-
+            if (filteredResults.length === 0 || isExecuting) return;
+            
+            // 设置执行标志，防止重复执行
+            isExecuting = true;
+            
             const selectedResult = filteredResults[selectedIndex];
             
             try {
@@ -641,35 +647,36 @@
                     })) : [];
                     await ipcRenderer.invoke('run-plugin', selectedResult.path, serializableFeatures);
                     if (!isPinned) {
-                        await ipcRenderer.invoke('hide-search-window');
+                        // 打开插件时不恢复焦点
+                        await ipcRenderer.invoke('hide-search-window', { restoreFocus: false });
                     }
                 } else if (selectedResult.type === RESULT_TYPES.CONTENT) {
                     // 处理不同类型的内容
-                    if (selectedResult.contentType === 'command') {
-                        // 插件命令：打开对应的插件
-                        console.log('正在执行插件命令:', selectedResult.command);
-                        await ipcRenderer.invoke('run-plugin', selectedResult.pluginPath, []);
-                        if (!isPinned) {
-                            await ipcRenderer.invoke('hide-search-window');
-                        }
-                    } else if (selectedResult.contentType === 'text-snippet') {
-                        // 文本片段：直接插入内容
+                    if (selectedResult.contentType === 'text-snippet') {
+                        // 文本片段：复制内容并插入到原文本输入框
                         console.log('正在插入文本片段:', selectedResult.title);
                         await ipcRenderer.invoke('insert-content', selectedResult);
                         if (!isPinned) {
-                            await ipcRenderer.invoke('hide-search-window');
+                            // 文本片段插入时需要恢复焦点（在insert-content中已处理）
+                            await ipcRenderer.invoke('hide-search-window', { restoreFocus: false });
                         }
                     } else {
-                        // 其他类型内容：默认插入
-                        console.log('正在插入内容:', selectedResult.title);
-                        await ipcRenderer.invoke('insert-content', selectedResult);
+                        // 其他类型内容（包括命令）：直接打开对应的插件窗口
+                        console.log('正在打开插件:', selectedResult.pluginName || '未知插件');
+                        await ipcRenderer.invoke('run-plugin', selectedResult.pluginPath, []);
                         if (!isPinned) {
-                            await ipcRenderer.invoke('hide-search-window');
+                            // 打开插件时不恢复焦点
+                            await ipcRenderer.invoke('hide-search-window', { restoreFocus: false });
                         }
                     }
                 }
             } catch (error) {
                 console.error('操作失败:', error);
+            } finally {
+                // 重置执行标志，允许下次操作
+                setTimeout(() => {
+                    isExecuting = false;
+                }, 100); // 100ms后重置，快速允许下次操作
             }
         }
 
@@ -821,4 +828,4 @@
         updatePinStatus(); // 初始化时更新钉住状态
     </script>
 </body>
-</html> 
+</html>

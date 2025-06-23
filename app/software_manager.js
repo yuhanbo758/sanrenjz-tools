@@ -906,9 +906,48 @@ class PluginManager {
         // 加载插件主页面
         pluginWindow.loadFile(mainFilePath);
 
-        // 窗口准备显示时显示窗口
+        // 窗口准备显示时显示窗口，但不立即获取焦点
         pluginWindow.once('ready-to-show', () => {
+            try {
+                // 获取鼠标位置并在鼠标所在的屏幕显示插件窗口
+                const { screen } = require('electron');
+                const cursorPoint = screen.getCursorScreenPoint();
+                const currentDisplay = screen.getDisplayNearestPoint(cursorPoint);
+                
+                const windowWidth = pluginConfig.pluginSetting?.width || 800;
+                const windowHeight = pluginConfig.pluginSetting?.height || 600;
+                
+                // 计算窗口位置，在屏幕中央显示
+                let x = currentDisplay.workArea.x + Math.round((currentDisplay.workArea.width - windowWidth) / 2);
+                let y = currentDisplay.workArea.y + Math.round((currentDisplay.workArea.height - windowHeight) / 2);
+                
+                // 边界检查，确保窗口在屏幕内
+                if (x < currentDisplay.workArea.x) {
+                    x = currentDisplay.workArea.x + 10;
+                }
+                if (x + windowWidth > currentDisplay.workArea.x + currentDisplay.workArea.width) {
+                    x = currentDisplay.workArea.x + currentDisplay.workArea.width - windowWidth - 10;
+                }
+                if (y < currentDisplay.workArea.y) {
+                    y = currentDisplay.workArea.y + 10;
+                }
+                if (y + windowHeight > currentDisplay.workArea.y + currentDisplay.workArea.height) {
+                    y = currentDisplay.workArea.y + currentDisplay.workArea.height - windowHeight - 10;
+                }
+                
+                pluginWindow.setBounds({ x, y, width: windowWidth, height: windowHeight });
+                console.log(`插件窗口 ${pluginName} 将在屏幕 ${currentDisplay.id} 显示，位置: (${x}, ${y})`);
+            } catch (error) {
+                console.error('设置插件窗口位置失败，使用默认位置:', error);
+            }
+            
             pluginWindow.show();
+            // 延迟获取焦点，避免与搜索窗口的焦点恢复冲突
+            setTimeout(() => {
+                if (pluginWindow && !pluginWindow.isDestroyed()) {
+                    pluginWindow.focus();
+                }
+            }, 800); // 增加延迟到800ms，确保搜索窗口焦点恢复完成
         });
 
         // 存储窗口引用
@@ -1321,8 +1360,12 @@ class PluginManager {
                 pluginWindow.show();
             }
             
-            // 聚焦窗口
-            pluginWindow.focus();
+            // 延迟聚焦窗口，避免焦点冲突
+            setTimeout(() => {
+                if (pluginWindow && !pluginWindow.isDestroyed()) {
+                    pluginWindow.focus();
+                }
+            }, 800); // 增加延迟到800ms，确保搜索窗口焦点恢复完成
 
             // 发送功能执行请求到插件
             try {
@@ -1403,4 +1446,4 @@ class PluginManager {
     }
 }
 
-module.exports = PluginManager; 
+module.exports = PluginManager;

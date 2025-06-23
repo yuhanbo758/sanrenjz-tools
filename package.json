@@ -1,6 +1,6 @@
 {
   "name": "sanrenjz-tools",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "三人聚智效率工具 - 基于JavaScript的插件平台",
   "main": "main.js",
   "scripts": {
