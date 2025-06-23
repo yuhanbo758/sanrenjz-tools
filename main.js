@@ -4,13 +4,21 @@ const fs = require('fs');
 const { exec } = require('child_process');
 
 // 初始化remote模块 - 需要在app ready之后
-const remoteMain = require('@electron/remote/main');
-// 移除这里的初始化，将在app ready事件中初始化
+let remoteMain;
+try {
+    remoteMain = require('@electron/remote/main');
+} catch (error) {
+    console.error('加载@electron/remote/main失败:', error);
+    // 在打包环境中尝试其他路径
+    try {
+        remoteMain = require(path.join(process.resourcesPath, 'node_modules', '@electron', 'remote', 'main'));
+    } catch (fallbackError) {
+        console.error('备用路径加载@electron/remote/main也失败:', fallbackError);
+    }
+}
 
-// 导入插件管理器
-const PluginManager = require(app.isPackaged 
-  ? path.join(process.resourcesPath, 'app', 'software_manager.js')
-  : './app/software_manager.js');
+// 插件管理器将在app ready后初始化
+let PluginManager;
 
 let mainWindow;
 let searchWindow;
@@ -527,7 +535,9 @@ function createSuperPanelWindow() {
     });
 
     // 启用remote模块
-    remoteMain.enable(superPanelWindow.webContents);
+    if (remoteMain) {
+            remoteMain.enable(superPanelWindow.webContents);
+        }
 
     // 加载超级面板页面
     const superPanelPath = getResourcePath('super-panel.html');
@@ -721,7 +731,9 @@ function createSearchWindow() {
     });
 
     // 启用remote模块
-    remoteMain.enable(searchWindow.webContents);
+    if (remoteMain) {
+            remoteMain.enable(searchWindow.webContents);
+        }
 
     // 加载搜索窗口页面 - 修复打包后的路径问题
     const searchWindowPath = getResourcePath('search-window.html');
@@ -950,7 +962,9 @@ function createWindow() {
         });
 
         // 启用remote模块
+        if (remoteMain) {
         remoteMain.enable(mainWindow.webContents);
+    }
 
         // 移除菜单栏 - 多平台兼容
         if (process.platform === 'darwin') {
@@ -2455,7 +2469,17 @@ ipcMain.handle('reset-plugin-data-directory', () => {
 app.whenReady().then(async () => {
     try {
         // 初始化remote模块
-        remoteMain.initialize();
+        if (remoteMain) {
+            remoteMain.initialize();
+            console.log('✅ @electron/remote模块初始化成功');
+        } else {
+            console.warn('⚠️ @electron/remote模块未加载，某些功能可能受限');
+        }
+        
+        // 初始化插件管理器
+        PluginManager = require(app.isPackaged 
+            ? path.join(process.resourcesPath, 'app', 'software_manager.js')
+            : './app/software_manager.js');
         
         // 在应用准备就绪时就设置空菜单，确保所有平台都生效
         Menu.setApplicationMenu(null);
@@ -2594,6 +2618,30 @@ ipcMain.handle('open-plugin-manager', () => {
     }
 });
 
+// 添加 IPC 处理：显示消息框
+ipcMain.handle('show-message-box', async (event, options) => {
+    const { dialog } = require('electron');
+    try {
+        const result = await dialog.showMessageBox(mainWindow, options);
+        return result;
+    } catch (error) {
+        console.error('显示消息框失败:', error);
+        throw error;
+    }
+});
+
+// 添加 IPC 处理：显示打开对话框
+ipcMain.handle('show-open-dialog', async (event, options) => {
+    const { dialog } = require('electron');
+    try {
+        const result = await dialog.showOpenDialog(mainWindow, options);
+        return result;
+    } catch (error) {
+        console.error('显示打开对话框失败:', error);
+        throw error;
+    }
+});
+
 // 添加 IPC 处理：打开添加插件功能对话框
 ipcMain.handle('open-add-plugin-dialog', async () => {
     try {
@@ -2644,7 +2692,9 @@ ipcMain.handle('open-add-plugin-dialog', async () => {
         const addPluginWindow = new BrowserWindow(windowOptions);
 
         // 启用remote模块
-        remoteMain.enable(addPluginWindow.webContents);
+        if (remoteMain) {
+            remoteMain.enable(addPluginWindow.webContents);
+        }
 
         // 创建添加插件功能的HTML内容
         const addPluginHtml = createAddPluginDialogHtml();
@@ -3772,7 +3822,9 @@ function createSuperPanelManagerWindow() {
     const managerWindow = new BrowserWindow(windowOptions);
 
     // 启用remote模块
-    remoteMain.enable(managerWindow.webContents);
+    if (remoteMain) {
+            remoteMain.enable(managerWindow.webContents);
+        }
 
     // 创建管理器的HTML内容
     const managerHtml = createSuperPanelManagerHtml();
@@ -3834,7 +3886,9 @@ function createSuperPanelSettingsWindow() {
     const settingsWindow = new BrowserWindow(windowOptions);
 
     // 启用remote模块
-    remoteMain.enable(settingsWindow.webContents);
+    if (remoteMain) {
+            remoteMain.enable(settingsWindow.webContents);
+        }
 
     // 创建设置界面的HTML内容
     const settingsHtml = createSuperPanelSettingsHtml();

@@ -822,9 +822,25 @@
 
     <script>
         const { ipcRenderer, shell } = require('electron');
-        const remote = require('@electron/remote');
         const fs = require('fs');
         const path = require('path');
+        
+        // 安全加载remote模块
+        let remote;
+        try {
+            remote = require('@electron/remote');
+        } catch (error) {
+            console.warn('无法加载@electron/remote模块:', error);
+            // 创建一个模拟的remote对象，避免代码报错
+            remote = {
+                dialog: {
+                    showMessageBox: async (options) => {
+                        // 使用IPC作为备选方案
+                        return await ipcRenderer.invoke('show-message-box', options);
+                    }
+                }
+            };
+        }
         
         // 加载Font Awesome图标（改为本地加载）
         const link = document.createElement('link');
@@ -958,7 +974,7 @@
         // 本地插件按钮点击事件
         document.getElementById('local-file-btn').addEventListener('click', async () => {
             // 先让用户选择要添加文件还是文件夹
-            const { response } = await remote.dialog.showMessageBox({
+            const { response } = await ipcRenderer.invoke('show-message-box', {
                 type: 'question',
                 buttons: ['添加插件文件夹', '添加单个插件', '取消'],
                 defaultId: 0,
@@ -972,7 +988,7 @@
             }
 
             // 根据用户选择显示不同的文件选择对话框
-            const result = await remote.dialog.showOpenDialog({
+            const result = await ipcRenderer.invoke('show-open-dialog', {
                 properties: ['openDirectory', 'multiSelections'],
                 title: '选择插件文件夹'
             });
@@ -1458,4 +1474,4 @@
         });
     </script>
 </body>
-</html> 
+</html>

@@ -713,12 +713,26 @@ class PluginManager {
                     
                     // 隐藏主窗口
                     hideMainWindow: () => {
-                        require('electron').remote.getCurrentWindow().hide();
+                        try {
+                            const remote = require('@electron/remote');
+                            remote.getCurrentWindow().hide();
+                        } catch (error) {
+                            console.warn('无法使用remote模块隐藏窗口:', error);
+                            // 使用IPC作为备选方案
+                            require('electron').ipcRenderer.invoke('hide-main-window');
+                        }
                     },
                     
                     // 显示主窗口
                     showMainWindow: () => {
-                        require('electron').remote.getCurrentWindow().show();
+                        try {
+                            const remote = require('@electron/remote');
+                            remote.getCurrentWindow().show();
+                        } catch (error) {
+                            console.warn('无法使用remote模块显示窗口:', error);
+                            // 使用IPC作为备选方案
+                            require('electron').ipcRenderer.invoke('show-main-window');
+                        }
                     },
                     
                     // 复制文本到剪贴板
