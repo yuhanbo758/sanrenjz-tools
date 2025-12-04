@@ -1,0 +1,183 @@
+{
+  "name": "sanrenjz-tools",
+  "version": "2.0.0",
+  "description": "三人聚智效率工具 - 基于JavaScript的插件平台",
+  "main": "main.js",
+  "scripts": {
+    "start": "chcp 65001 && electron .",
+    "dev": "electron . --inspect=9229",
+    "build": "electron-builder",
+    "build-all": "electron-builder --win --mac --linux",
+    "build-win": "electron-builder --win --x64",
+    "build-mac": "electron-builder --mac",
+    "build-linux": "electron-builder --linux",
+    "dist": "npm run build-all",
+    "clean": "rimraf dist build-output *.log *.tmp *.temp settings.json plugin-data user-data",
+    "rebuild": "npm run clean && npm install && npm start",
+    "test": "echo \"启动应用进行测试...\" && npm start",
+    "preinstall": "echo \"检查Node.js环境...\"",
+    "postinstall": "echo \"依赖安装完成，可以运行 npm start 启动应用\""
+  },
+  "author": {
+    "name": "余汉波",
+    "email": "yuhanbo758@sanrenjz.com"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yuhanbo758/sanrenjz-tools.git"
+  },
+  "keywords": [
+    "electron",
+    "plugins",
+    "utools",
+    "efficiency",
+    "javascript"
+  ],
+  "dependencies": {
+    "@electron/remote": "^2.1.2",
+    "axios": "^1.6.5"
+  },
+  "devDependencies": {
+    "electron": "^25.9.8",
+    "electron-builder": "23.6.0",
+    "rimraf": "^5.0.5"
+  },
+  "build": {
+    "appId": "com.sanrenjz.tools",
+    "productName": "三人聚智-效率工具",
+    "directories": {
+      "output": "dist"
+    },
+    "asar": true,
+    "compression": "maximum",
+    "files": [
+      "**/*",
+      "!node_modules/**/*",
+      "node_modules/@electron/remote/**/*",
+      "!dist",
+      "!build-output",
+      "!*.log",
+      "!*.tmp",
+      "!*.temp",
+      "!settings.json",
+      "!plugin-data",
+      "!user-data"
+    ],
+    "asarUnpack": [
+      "node_modules/@electron/remote/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "app",
+        "to": "app",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "build",
+        "to": "build",
+        "filter": [
+          "icon.ico",
+          "icon.icns",
+          "icon.png"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "requestedExecutionLevel": "asInvoker",
+      "artifactName": "${productName}-${version}-win-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "allowElevation": false,
+      "shortcutName": "三人聚智效率工具",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "installerLanguages": ["zh_CN", "en_US"],
+      "language": "2052",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "icon": "build/icon.icns",
+      "artifactName": "${productName}-${version}-mac-${arch}.${ext}"
+    },
+    "dmg": {
+      "title": "三人聚智效率工具",
+      "icon": "build/icon.icns",
+      "background": "build/dmg-background.png",
+      "window": {
+        "width": 540,
+        "height": 380
+      },
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        },
+        {
+          "target": "tar.gz",
+          "arch": ["x64"]
+        }
+      ],
+      "category": "Utility",
+      "icon": "build/icon.png",
+      "artifactName": "${productName}-${version}-linux-${arch}.${ext}",
+      "desktop": {
+        "Name": "三人聚智效率工具",
+        "Comment": "基于JavaScript的插件平台",
+        "Categories": "Utility;Development;"
+      }
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "yuhanbo758",
+      "repo": "sanrenjz-tools"
+    }
+  },
+  "homepage": "https://github.com/yuhanbo758/sanrenjz-tools",
+  "bugs": {
+    "url": "https://github.com/yuhanbo758/sanrenjz-tools/issues"
+  }
+}

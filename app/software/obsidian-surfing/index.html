@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>网页浏览</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            overflow: hidden;
+        }
+        
+        .container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            background-color: #fff;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+            margin-right: 10px;
+        }
+        
+        .nav-btn {
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            color: #666;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .nav-btn:hover {
+            background-color: #f0f0f0;
+        }
+        
+        .address-bar {
+            flex: 1;
+            height: 36px;
+            border: 1px solid #e0e0e0;
+            border-radius: 18px;
+            padding: 0 15px;
+            font-size: 14px;
+            outline: none;
+        }
+        
+        .address-bar:focus {
+            border-color: #1890ff;
+            box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+        }
+        
+        .bookmark-btn {
+            margin-left: 10px;
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            color: #666;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .bookmark-btn:hover {
+            background-color: #f0f0f0;
+        }
+        
+        .browser-container {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .browser-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        
+        .error-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            text-align: center;
+            display: none;
+        }
+        
+        .error-message.show {
+            display: block;
+        }
+        
+        .bookmark-bar {
+            display: flex;
+            align-items: center;
+            padding: 5px 10px;
+            background-color: #f9f9f9;
+            border-bottom: 1px solid #e0e0e0;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+        
+        .bookmark-bar::-webkit-scrollbar {
+            height: 4px;
+        }
+        
+        .bookmark-bar::-webkit-scrollbar-thumb {
+            background-color: #ccc;
+            border-radius: 2px;
+        }
+        
+        .bookmark-item {
+            display: flex;
+            align-items: center;
+            padding: 5px 10px;
+            margin-right: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .bookmark-item:hover {
+            background-color: #f0f0f0;
+        }
+        
+        .bookmark-icon {
+            margin-right: 5px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="nav-buttons">
+                <button class="nav-btn" id="backBtn" title="后退">←</button>
+                <button class="nav-btn" id="forwardBtn" title="前进">→</button>
+                <button class="nav-btn" id="refreshBtn" title="刷新">↻</button>
+                <button class="nav-btn" id="homeBtn" title="主页">⌂</button>
+            </div>
+            <input type="text" class="address-bar" id="addressBar" placeholder="输入网址或搜索内容">
+            <button class="bookmark-btn" id="addBookmarkBtn" title="添加书签">★</button>
+            <button class="bookmark-btn" id="settingsBtn" title="设置">⚙</button>
+        </div>
+        
+        <div class="bookmark-bar" id="bookmarkBar">
+            <!-- 书签将通过 JavaScript 动态添加 -->
+        </div>
+        
+        <div class="browser-container">
+            <iframe id="browserFrame" class="browser-frame" src="https://www.baidu.com/" sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-top-navigation allow-navigation"></iframe>
+            <div id="errorMessage" class="error-message">
+                <h3>⚠️ 页面加载失败</h3>
+                <p>某些网站可能由于安全策略无法在此环境中显示。</p>
+                <p>建议尝试访问其他网站或使用系统默认浏览器。</p>
+                <button onclick="hideError()" class="btn">关闭</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 获取元素引用
+            const backBtn = document.getElementById('backBtn');
+            const forwardBtn = document.getElementById('forwardBtn');
+            const refreshBtn = document.getElementById('refreshBtn');
+            const homeBtn = document.getElementById('homeBtn');
+            const addressBar = document.getElementById('addressBar');
+            const addBookmarkBtn = document.getElementById('addBookmarkBtn');
+            const settingsBtn = document.getElementById('settingsBtn');
+            const bookmarkBar = document.getElementById('bookmarkBar');
+            const browserFrame = document.getElementById('browserFrame');
+            const errorMessage = document.getElementById('errorMessage');
+            
+            // 浏览历史记录
+            let browserHistory = [];
+            let currentHistoryIndex = -1;
+            
+            // 初始化
+            function initialize() {
+                // 加载书签
+                loadBookmarks();
+                
+                // 设置事件监听器
+                setupEventListeners();
+                
+                // 初始化历史记录和导航按钮
+                const initialUrl = browserFrame.src || 'https://www.baidu.com/';
+                addToHistory(initialUrl);
+                addressBar.value = initialUrl;
+                
+                // 设置初始URL状态
+                window.history.replaceState({url: initialUrl}, '', initialUrl);
+                
+                // 监听浏览器前进后退事件
+                window.addEventListener('popstate', (event) => {
+                    if (event.state && event.state.url) {
+                        const url = event.state.url;
+                        browserFrame.src = url;
+                        addressBar.value = url;
+                        
+                        // 更新内部历史记录索引
+                        const historyIndex = browserHistory.indexOf(url);
+                        if (historyIndex !== -1) {
+                            currentHistoryIndex = historyIndex;
+                            updateNavigationButtons();
+                        }
+                    }
+                });
+            }
+            
+            // 加载书签
+            function loadBookmarks() {
+                const bookmarks = window.services.getStorageItem('bookmarks') || [];
+                
+                bookmarkBar.innerHTML = '';
+                
+                bookmarks.forEach(bookmark => {
+                    const bookmarkElement = document.createElement('div');
+                    bookmarkElement.className = 'bookmark-item';
+                    bookmarkElement.title = bookmark.url;
+                    bookmarkElement.innerHTML = `
+                        <span class="bookmark-icon">🔖</span>
+                        <span>${bookmark.title}</span>
+                    `;
+                    
+                    bookmarkElement.addEventListener('click', () => {
+                        navigateTo(bookmark.url);
+                    });
+                    
+                    bookmarkBar.appendChild(bookmarkElement);
+                });
+            }
+            
+            // 设置事件监听器
+            function setupEventListeners() {
+                // 导航按钮
+                backBtn.addEventListener('click', () => {
+                    if (currentHistoryIndex > 0) {
+                        currentHistoryIndex--;
+                        const url = browserHistory[currentHistoryIndex];
+                        browserFrame.src = url;
+                        addressBar.value = url;
+                        // 同步浏览器URL历史
+                        window.history.pushState({url: url}, '', url);
+                        updateNavigationButtons();
+                    }
+                });
+                
+                forwardBtn.addEventListener('click', () => {
+                    if (currentHistoryIndex < browserHistory.length - 1) {
+                        currentHistoryIndex++;
+                        const url = browserHistory[currentHistoryIndex];
+                        browserFrame.src = url;
+                        addressBar.value = url;
+                        // 同步浏览器URL历史
+                        window.history.pushState({url: url}, '', url);
+                        updateNavigationButtons();
+                    }
+                });
+                
+                refreshBtn.addEventListener('click', () => {
+                    // 使用地址栏中的URL进行刷新，而不是iframe的src
+                    const currentUrl = addressBar.value || browserFrame.src;
+                    browserFrame.src = currentUrl;
+                    refreshBtn.textContent = '⟳';
+                    setTimeout(() => {
+                        refreshBtn.textContent = '↻';
+                    }, 1000);
+                });
+                
+                homeBtn.addEventListener('click', () => {
+                    const homePage = window.services.getStorageItem('homePage') || 'https://www.baidu.com/';
+                    navigateTo(homePage);
+                });
+                
+                // 地址栏
+                addressBar.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        let url = addressBar.value.trim();
+                        
+                        // 简单的 URL 格式化
+                        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                            // 检查是否是有效的域名格式
+                            if (url.includes('.') && !url.includes(' ')) {
+                                url = 'https://' + url;
+                            } else {
+                                // 否则作为搜索词处理
+                                const searchEngine = window.services.getStorageItem('searchEngine') || 'https://www.baidu.com/s?wd=';
+                                url = searchEngine + encodeURIComponent(url);
+                            }
+                        }
+                        
+                        navigateTo(url);
+                    }
+                });
+                
+                // 添加书签按钮
+                addBookmarkBtn.addEventListener('click', () => {
+                    const url = browserFrame.src || addressBar.value;
+                    const title = document.title || url;
+                    
+                    const bookmarks = window.services.getStorageItem('bookmarks') || [];
+                    
+                    // 检查是否已经存在相同 URL 的书签
+                    const exists = bookmarks.some(bookmark => bookmark.url === url);
+                    
+                    if (!exists) {
+                        bookmarks.push({ url, title });
+                        window.services.setStorageItem('bookmarks', bookmarks);
+                        loadBookmarks();
+                        alert('书签已添加');
+                    } else {
+                        alert('书签已存在');
+                    }
+                });
+                
+                // 设置按钮
+                settingsBtn.addEventListener('click', () => {
+                    // 显示设置面板（简化版）
+                    alert('设置功能将在后续版本中提供');
+                });
+                
+                // iframe 事件监听
+                browserFrame.addEventListener('load', () => {
+                    refreshBtn.textContent = '↻';
+                    // 更新地址栏为当前iframe的src
+                    updateAddressBar();
+                });
+                
+                // 监听iframe内容变化
+                let lastUrl = browserFrame.src;
+                let urlCheckInterval = setInterval(() => {
+                    try {
+                        // 检查iframe的contentWindow.location（可能受跨域限制）
+                        let currentUrl = browserFrame.contentWindow.location.href;
+                        if (currentUrl !== lastUrl && currentUrl !== 'about:blank') {
+                            lastUrl = currentUrl;
+                            addressBar.value = currentUrl;
+                        }
+                    } catch (e) {
+                        // 跨域限制时，使用src属性
+                        if (browserFrame.src !== lastUrl) {
+                            lastUrl = browserFrame.src;
+                            addressBar.value = browserFrame.src;
+                        }
+                    }
+                }, 500);
+                
+                // 监听iframe的beforeunload事件（页面即将跳转）
+                try {
+                    browserFrame.contentWindow.addEventListener('beforeunload', () => {
+                        setTimeout(updateAddressBar, 100);
+                    });
+                } catch (e) {
+                    console.log('无法监听iframe内部事件（跨域限制）');
+                }
+            }
+            
+            // 更新导航按钮状态
+            function updateNavigationButtons() {
+                backBtn.disabled = currentHistoryIndex <= 0;
+                forwardBtn.disabled = currentHistoryIndex >= browserHistory.length - 1;
+                
+                // 更新按钮样式
+                backBtn.style.opacity = backBtn.disabled ? '0.5' : '1';
+                forwardBtn.style.opacity = forwardBtn.disabled ? '0.5' : '1';
+            }
+            
+            // 添加到历史记录
+            function addToHistory(url) {
+                // 如果当前不在历史记录末尾，删除后面的记录
+                if (currentHistoryIndex < browserHistory.length - 1) {
+                    browserHistory = browserHistory.slice(0, currentHistoryIndex + 1);
+                }
+                
+                // 避免重复添加相同URL
+                if (browserHistory[browserHistory.length - 1] !== url) {
+                    browserHistory.push(url);
+                    currentHistoryIndex = browserHistory.length - 1;
+                    
+                    // 限制历史记录长度
+                    if (browserHistory.length > 50) {
+                        browserHistory.shift();
+                        currentHistoryIndex--;
+                    }
+                }
+                
+                updateNavigationButtons();
+            }
+            
+            // 更新地址栏
+            function updateAddressBar() {
+                try {
+                    // 尝试获取iframe内部的真实URL
+                    let currentUrl = browserFrame.contentWindow.location.href;
+                    if (currentUrl && currentUrl !== 'about:blank') {
+                        addressBar.value = currentUrl;
+                        addToHistory(currentUrl);
+                        // 同步浏览器URL历史
+                        if (window.location.href !== currentUrl) {
+                            window.history.pushState({url: currentUrl}, '', currentUrl);
+                        }
+                        return;
+                    }
+                } catch (e) {
+                    // 跨域限制，使用src属性
+                }
+                
+                // 回退到使用src属性
+                if (browserFrame.src) {
+                    addressBar.value = browserFrame.src;
+                    addToHistory(browserFrame.src);
+                    // 同步浏览器URL历史
+                    if (window.location.href !== browserFrame.src) {
+                        window.history.pushState({url: browserFrame.src}, '', browserFrame.src);
+                    }
+                }
+            }
+            
+            // 导航到指定 URL
+            function navigateTo(url) {
+                try {
+                    browserFrame.src = url;
+                    addressBar.value = url;
+                    addToHistory(url);
+                    // 同步浏览器URL历史
+                    window.history.pushState({url: url}, '', url);
+                    errorMessage.classList.remove('show');
+                } catch (e) {
+                    console.error('导航失败:', e);
+                    showError();
+                }
+            }
+            
+            // 显示错误信息
+            function showError() {
+                errorMessage.classList.add('show');
+            }
+            
+            // 隐藏错误信息
+            window.hideError = function() {
+                errorMessage.classList.remove('show');
+            }
+            
+            // 监听iframe错误
+            browserFrame.addEventListener('error', () => {
+                showError();
+            });
+            
+            // 初始化应用
+             initialize();
+        });
+    </script>
+</body>
+</html>

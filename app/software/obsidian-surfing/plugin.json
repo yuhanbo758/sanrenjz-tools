@@ -1,0 +1,31 @@
+{
+  "pluginName": "网页浏览",
+  "description": "在三人聚智工具平台中浏览网页，支持超级面板集成",
+  "version": "1.0.0",
+  "author": "余汉波",
+  "category": "效率工具",
+  "main": "index.html",
+  "logo": "logo.svg",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "main-feature",
+      "explain": "在工具平台中浏览网页",
+      "description": "在三人聚智工具平台中浏览网页，支持书签管理和历史记录",
+      "cmds": ["网页浏览", "浏览器", "surfing"],
+      "icon": "logo.svg",
+      "platform": ["win32", "darwin", "linux"],
+      "mode": "none",
+      "superPanel": true,
+      "category": "效率工具",
+      "priority": 10
+    }
+  ],
+  "pluginSetting": {
+    "width": 1000,
+    "height": 680,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}
