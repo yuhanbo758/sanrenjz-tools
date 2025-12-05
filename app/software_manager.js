@@ -21,6 +21,7 @@ class PluginManager {
             this.pluginWindows = new Map(); // 存储插件窗口
             this.pluginPinnedMap = new Map(); // 存储插件窗口的钉住状态
             this.pluginProcesses = new Map(); // 存储插件进程
+            this.dynamicFeatures = new Map(); // 存储插件动态注册的功能
 
             console.log('PluginManager 初始化成功');
             console.log('插件目录:', this.pluginDir);
@@ -191,6 +192,18 @@ class PluginManager {
         }
     }
 
+    // 注册插件动态功能
+    registerDynamicFeatures(pluginName, features) {
+        try {
+            console.log(`注册插件动态功能: ${pluginName}, 数量: ${features.length}`);
+            this.dynamicFeatures.set(pluginName, features);
+            return true;
+        } catch (error) {
+            console.error(`注册插件动态功能失败 ${pluginName}:`, error);
+            return false;
+        }
+    }
+
     // 扫描并获取所有插件列表
     async getPluginList() {
         try {
@@ -211,22 +224,33 @@ class PluginManager {
                     if (fs.existsSync(pluginJsonPath)) {
                         try {
                             const pluginConfig = JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8'));
+                            const pluginName = pluginConfig.pluginName || item.name;
+                            
+                            // 获取静态 features
+                            let features = Array.isArray(pluginConfig.features) ? pluginConfig.features.map(f => ({
+                                code: f.code,
+                                explain: f.explain,
+                                cmds: Array.isArray(f.cmds) ? f.cmds : []
+                            })) : [];
+
+                            // 合并动态注册的 features
+                            if (this.dynamicFeatures.has(pluginName)) {
+                                const dynamic = this.dynamicFeatures.get(pluginName);
+                                if (Array.isArray(dynamic)) {
+                                    features = features.concat(dynamic);
+                                }
+                            }
                             
                             // 只返回可序列化的基本信息
                             plugins.push({
-                                name: pluginConfig.pluginName || item.name,
+                                name: pluginName,
                                 description: pluginConfig.description || '暂无描述',
                                 version: pluginConfig.version || '1.0.0',
                                 author: pluginConfig.author || '未知',
                                 category: pluginConfig.category || '工具',
                                 path: pluginPath,
                                 main: pluginConfig.main || 'index.html',
-                                // 移除可能导致序列化问题的复杂对象
-                                features: Array.isArray(pluginConfig.features) ? pluginConfig.features.map(f => ({
-                                    code: f.code,
-                                    explain: f.explain,
-                                    cmds: Array.isArray(f.cmds) ? f.cmds : []
-                                })) : []
+                                features: features
                             });
                         } catch (error) {
                             console.error(`解析插件配置失败 ${item.name}:`, error);
@@ -265,8 +289,16 @@ class PluginManager {
             const fileExt = path.extname(mainFile).toLowerCase();
             
             if (fileExt === '.html') {
-                // HTML插件，创建新窗口显示
-                await this.createPluginWindow(pluginPath, pluginConfig);
+                // HTML插件
+                // 如果有指定要运行的功能，直接使用 runPluginAction 执行
+                if (features && Array.isArray(features) && features.length > 0 && features[0].code) {
+                    console.log('插件启动时执行指定功能:', features[0].code);
+                    // runPluginAction 会自动处理窗口创建和等待
+                    await this.runPluginAction(pluginPath, features[0], '');
+                } else {
+                    // 否则只创建新窗口显示
+                    await this.createPluginWindow(pluginPath, pluginConfig);
+                }
             } else if (fileExt === '.js') {
                 // JavaScript插件，在Node.js环境中执行
                 await this.executeJavaScriptPlugin(pluginPath, pluginConfig);

@@ -46,16 +46,16 @@
         }
         
         .panel-header {
-            padding: 12px 20px;
+            padding: 6px 12px;
             border-bottom: 1px solid var(--border-color);
             background: rgba(255, 255, 255, 0.02);
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 6px;
         }
         
         .panel-title {
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 600;
             color: #ffffff;
             margin: 0;
@@ -63,7 +63,7 @@
         }
         
         .panel-subtitle {
-            font-size: 12px;
+            font-size: 11px;
             color: rgba(255, 255, 255, 0.5);
             margin: 0;
             flex: 1;
@@ -71,20 +71,20 @@
         
         .header-buttons {
             display: flex;
-            gap: 8px;
+            gap: 6px;
         }
         
         .header-btn {
             background: transparent;
             border: none;
             color: rgba(255, 255, 255, 0.6);
-            font-size: 14px;
+            font-size: 12px;
             cursor: pointer;
-            padding: 6px;
-            border-radius: 6px;
+            padding: 4px;
+            border-radius: 4px;
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            width: 32px;
-            height: 32px;
+            width: 24px;
+            height: 24px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -396,10 +396,71 @@
 
     <script>
         const { ipcRenderer } = require('electron');
+        const fs = require('fs');
+        const path = require('path');
 
         let selectedIndex = 0;
         let actions = [];
         let currentSelectedText = '';
+        let contextType = 'text'; // 'text', 'file', 'image', 'url'
+
+        // 检测上下文类型
+        function detectContextType(text) {
+            if (!text) return 'text';
+            const trimmed = text.trim();
+            
+            // URL 检测
+            if (/^https?:\/\//i.test(trimmed)) return 'url';
+            
+            // 文件路径检测
+            // 简单判断：如果是绝对路径且存在
+            try {
+                // 移除可能的引号
+                const cleanPath = trimmed.replace(/^"|"$/g, '');
+                if (path.isAbsolute(cleanPath) && fs.existsSync(cleanPath)) {
+                    const stat = fs.statSync(cleanPath);
+                    return stat.isDirectory() ? 'directory' : 'file';
+                }
+            } catch (e) {}
+            
+            return 'text';
+        }
+
+        // 根据上下文排序功能
+        function sortActionsByContext(actions, type) {
+            return actions.sort((a, b) => {
+                let scoreA = 0;
+                let scoreB = 0;
+                
+                // 根据上下文类型给予加分
+                const getScore = (action) => {
+                    let score = 0;
+                    const keywords = (action.title + ' ' + (action.description || '') + ' ' + (action.category || '')).toLowerCase();
+                    
+                    if (type === 'file' || type === 'directory') {
+                        if (keywords.includes('文件') || keywords.includes('file')) score += 10;
+                        if (keywords.includes('图片') && type === 'file') score += 5; // 图片文件
+                    } else if (type === 'url') {
+                        if (keywords.includes('链接') || keywords.includes('url') || keywords.includes('网页')) score += 10;
+                    } else if (type === 'text') {
+                        if (keywords.includes('文本') || keywords.includes('翻译') || keywords.includes('text') || keywords.includes('搜索')) score += 5;
+                        // 翻译插件优先级更高
+                        if (keywords.includes('翻译') && /[\u4e00-\u9fa5]/.test(currentSelectedText) === false) score += 5; // 非中文优先翻译
+                    }
+                    
+                    // 保持原有的优先级 (priority 越小越前)
+                    // 这里我们将 priority 转换为分数，priority 1 = 100分, 10 = 10分
+                    score += (20 - (action.priority || 10)) * 2;
+                    
+                    return score;
+                };
+                
+                scoreA = getScore(a);
+                scoreB = getScore(b);
+                
+                return scoreB - scoreA; // 降序排列
+            });
+        }
 
         // 打开添加插件功能对话框
         async function openAddPluginDialog() {
@@ -430,20 +491,19 @@
                 currentSelectedText = await ipcRenderer.invoke('get-selected-text') || '';
                 console.log('📝 选中文本:', currentSelectedText);
                 
-                // 显示选中文本信息
-                updateSelectedTextInfo(currentSelectedText);
+                // 检测上下文类型
+                contextType = detectContextType(currentSelectedText);
+                console.log('🔍 上下文类型:', contextType);
                 
-                // 清空现有的功能列表 (防止重复)
-                if (!actions || actions.length === 0) {
-                    console.log('功能列表为空，开始初始化加载');
-                } else {
-                    console.log('功能列表已有数据，将被刷新:', actions.length, '个');
-                    // 保留空数组，不清空
-                }
+                // 显示选中文本信息
+                updateSelectedTextInfo(currentSelectedText, contextType);
                 
                 // 从插件API加载所有注册的功能
-                const newActions = await ipcRenderer.invoke('get-super-panel-actions', currentSelectedText);
+                let newActions = await ipcRenderer.invoke('get-super-panel-actions', currentSelectedText);
                 console.log('🔧 重新加载到的功能:', newActions.length, '个');
+                
+                // 根据上下文排序
+                newActions = sortActionsByContext(newActions, contextType);
                 
                 // 更新功能列表
                 actions = newActions;
@@ -457,17 +517,25 @@
         }
         
         // 更新选中文本信息显示
-        function updateSelectedTextInfo(text) {
+        function updateSelectedTextInfo(text, type) {
             const infoElement = document.getElementById('selected-text-info');
             if (text && text.trim()) {
                 const displayText = text.length > 50 ? text.substring(0, 50) + '...' : text;
-                infoElement.textContent = `选中内容: ${displayText}`;
+                let typeText = '文本';
+                if (type === 'file') typeText = '文件';
+                if (type === 'directory') typeText = '文件夹';
+                if (type === 'url') typeText = '链接';
+                
+                infoElement.textContent = `[${typeText}] ${displayText}`;
                 infoElement.style.display = 'block';
             } else {
                 infoElement.style.display = 'none';
             }
         }
         
+        // 拖拽相关变量
+        let draggedItemIndex = -1;
+
         // 渲染功能列表 - 纯动态渲染
         function renderActions() {
             const container = document.getElementById('actions-container');
@@ -502,6 +570,45 @@
             const actionDiv = document.createElement('div');
             actionDiv.className = 'action-item';
             actionDiv.dataset.index = index;
+            actionDiv.draggable = true; // 启用拖拽
+            
+            // 拖拽事件处理
+            actionDiv.ondragstart = (e) => {
+                draggedItemIndex = index;
+                e.dataTransfer.effectAllowed = 'move';
+                actionDiv.style.opacity = '0.5';
+            };
+            
+            actionDiv.ondragend = (e) => {
+                actionDiv.style.opacity = '1';
+                document.querySelectorAll('.action-item').forEach(item => {
+                    item.classList.remove('drag-over');
+                });
+            };
+            
+            actionDiv.ondragover = (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                actionDiv.classList.add('drag-over');
+            };
+            
+            actionDiv.ondragleave = (e) => {
+                actionDiv.classList.remove('drag-over');
+            };
+            
+            actionDiv.ondrop = (e) => {
+                e.preventDefault();
+                actionDiv.classList.remove('drag-over');
+                if (draggedItemIndex !== -1 && draggedItemIndex !== index) {
+                    // 交换位置
+                    const item = actions.splice(draggedItemIndex, 1)[0];
+                    actions.splice(index, 0, item);
+                    renderActions();
+                    // 保存新顺序（可选，如果需要持久化）
+                    // saveActionOrder(); 
+                }
+            };
+
             actionDiv.onclick = () => executeAction(action);
             
             // 添加删除按钮
@@ -621,8 +728,13 @@
             console.log(`[${type.toUpperCase()}] ${message}`);
         }
         
-        // 关闭面板
+        /**
+         * 关闭超级面板
+         * - 同步输入框活动状态为非活动，避免主进程阻止隐藏
+         * - 调用主进程关闭面板
+         */
         function closePanel() {
+            ipcRenderer.invoke('notify-input-active', false);
             ipcRenderer.invoke('close-super-panel');
         }
         
@@ -821,16 +933,10 @@
             }
         }
         
-        // 失焦处理
+        // 失焦处理：一旦窗口失去焦点，延迟后强制关闭
         window.addEventListener('blur', () => {
-            // 检查当前是否有活动的输入框
-            const activeElement = document.activeElement;
-            if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
-                // 如果有活动的输入框，则不关闭面板
-                return;
-            }
-            
             setTimeout(() => {
+                ipcRenderer.invoke('notify-input-active', false);
                 if (!document.hasFocus()) {
                     closePanel();
                 }

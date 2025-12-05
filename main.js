@@ -34,6 +34,9 @@ let lastActiveWindow = null; // 记录最后活动的窗口句柄
 // 右键长按相关变量
 let rightClickMonitor = null;
 let isRightClickMonitorRunning = false;
+// 中键长按相关变量
+let middleClickMonitor = null;
+let isMiddleClickMonitorRunning = false;
 
 // 设置文件路径
 const settingsPath = path.join(app.getPath('userData'), 'settings.json');
@@ -46,6 +49,11 @@ const defaultSettings = {
     pinHotkey: 'Ctrl+D', // 钉住快捷键
     enableRightClickPanel: true, // 启用右键长按面板
     rightClickDelay: 100, // 右键长按延迟时间（毫秒）
+    // 超级面板快捷键（为空则不注册）
+    superPanelHotkey: '',
+    // 启用中键长按面板与延迟
+    enableMiddleClickPanel: false,
+    middleClickDelay: 100,
     customPluginDataPath: null // 自定义插件数据存储路径
 };
 
@@ -532,6 +540,137 @@ function stopRightClickMonitor() {
         }
     }
     isRightClickMonitorRunning = false;
+}
+
+/**
+ * 注册超级面板快捷键
+ * 函数级注释：根据设置注册全局快捷键，按下后直接调用 showSuperPanel()
+ */
+function registerSuperPanelShortcut(hotkey = '') {
+    try {
+        if (!hotkey || typeof hotkey !== 'string' || hotkey.trim() === '') {
+            return false;
+        }
+        globalShortcut.unregister(hotkey);
+        const ret = globalShortcut.register(hotkey, () => {
+            showSuperPanel();
+        });
+        return !!ret;
+    } catch (error) {
+        return false;
+    }
+}
+
+/**
+ * 启动中键长按监听器
+ * 函数级注释：在 Windows 平台通过 PowerShell 轮询 VK_MBUTTON 状态，按下超过设定延迟触发超级面板
+ */
+function startMiddleClickMonitor() {
+    if (isMiddleClickMonitorRunning || process.platform !== 'win32') {
+        return;
+    }
+    const settings = loadSettings();
+    if (!settings.enableMiddleClickPanel) {
+        return;
+    }
+    isMiddleClickMonitorRunning = true;
+    startOptimizedMiddleClickMonitor(settings);
+}
+
+/**
+ * 优化的中键长按监控实现
+ * 函数级注释：与右键实现一致，但键码改为 0x04（中键），输出仅在满足长按时产生，降低 CPU 占用
+ */
+function startOptimizedMiddleClickMonitor(settings) {
+    const os = require('os');
+    const tempDir = os.tmpdir();
+    const scriptPath = path.join(tempDir, `optimized_middle_click_${Date.now()}.ps1`);
+
+    const psScript = `
+$ErrorActionPreference = "SilentlyContinue"
+$VK_MBUTTON = 0x04
+$DELAY = ${settings.middleClickDelay || 500}
+
+$signature = @'
+[DllImport("user32.dll")]
+public static extern short GetAsyncKeyState(int vKey);
+'@
+
+try {
+    Add-Type -MemberDefinition $signature -Name 'Win32API' -Namespace 'Win32'
+} catch {
+}
+
+$pressed = $false
+$startTime = 0
+$longPressTriggered = $false
+
+while ($true) {
+    try {
+        $state = [Win32.Win32API]::GetAsyncKeyState($VK_MBUTTON)
+        $now = [Environment]::TickCount
+        $isDown = ($state -band 0x8000) -ne 0
+        if ($isDown -and -not $pressed) {
+            $pressed = $true; $startTime = $now; $longPressTriggered = $false
+        } elseif ($isDown -and $pressed -and -not $longPressTriggered) {
+            if (($now - $startTime) -ge $DELAY) {
+                $longPressTriggered = $true
+                Write-Output "LONG_PRESS"
+            }
+        } elseif (-not $isDown -and $pressed) {
+            $pressed = $false; $longPressTriggered = $false
+        }
+        Start-Sleep -Milliseconds 20
+    } catch {
+        Start-Sleep -Milliseconds 200
+    }
+}
+`;
+
+    try {
+        fs.writeFileSync(scriptPath, psScript, { encoding: 'utf8' });
+        const command = `powershell -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File "${scriptPath}"`;
+        middleClickMonitor = exec(command, { windowsHide: true });
+        middleClickMonitor.stdout.on('data', (data) => {
+            const output = data.toString().trim();
+            if (output.includes('LONG_PRESS')) {
+                showSuperPanel();
+            }
+        });
+        middleClickMonitor.stderr.on('data', () => {});
+        middleClickMonitor.on('exit', (code) => {
+            isMiddleClickMonitorRunning = false;
+            try { if (fs.existsSync(scriptPath)) fs.unlinkSync(scriptPath); } catch {}
+            if (code !== 0 && loadSettings().enableMiddleClickPanel) {
+                setTimeout(() => {
+                    if (loadSettings().enableMiddleClickPanel && !isMiddleClickMonitorRunning) {
+                        startMiddleClickMonitor();
+                    }
+                }, 10000);
+            }
+        });
+        middleClickMonitor.on('error', () => {
+            isMiddleClickMonitorRunning = false;
+        });
+    } catch (error) {
+        isMiddleClickMonitorRunning = false;
+    }
+}
+
+/**
+ * 停止中键长按监听器
+ * 函数级注释：安全终止中键监控子进程并重置运行标记
+ */
+function stopMiddleClickMonitor() {
+    if (middleClickMonitor) {
+        try {
+            if (typeof middleClickMonitor.kill === 'function') {
+                middleClickMonitor.kill();
+            }
+            middleClickMonitor = null;
+        } catch (error) {}
+    }
+    isMiddleClickMonitorRunning = false;
 }
 
 // 创建超级面板窗口
@@ -1352,6 +1491,19 @@ ipcMain.handle('get-plugin-list', async () => {
     return [];
 });
 
+// 注册插件动态功能
+ipcMain.handle('register-plugin-features', async (event, pluginName, features) => {
+    try {
+        if (pluginManager) {
+            return pluginManager.registerDynamicFeatures(pluginName, features);
+        }
+        return false;
+    } catch (error) {
+        console.error('注册插件动态功能失败:', error);
+        return false;
+    }
+});
+
 // 运行插件
 ipcMain.handle('run-plugin', async (event, pluginPath, features) => {
     try {
@@ -1429,23 +1581,164 @@ ipcMain.handle('get-plugin-contents', async (event, pluginPath) => {
         
         console.log(`正在处理插件: ${pluginConfig.pluginName}`);
         
-        // 1. 添加插件的cmds作为可搜索内容
+        // 1. 添加插件的 cmds 作为可搜索内容（支持对象型命令并去重）
+        /**
+         * 收集命令的文本标签
+         * - 字符串命令：直接作为标签
+         * - 对象命令：优先使用 `label` 字段；若为数组则展开所有标签
+         * - 过滤空值并去重
+         * @param {string|object} cmd
+         * @returns {string[]}
+         */
+        function collectCommandLabels(cmd) {
+            const labels = [];
+            if (typeof cmd === 'string') {
+                labels.push(cmd.trim());
+            } else if (cmd && typeof cmd === 'object') {
+                const raw = cmd.label;
+                if (Array.isArray(raw)) {
+                    raw.forEach(v => {
+                        if (typeof v === 'string' && v.trim()) labels.push(v.trim());
+                    });
+                } else if (typeof raw === 'string' && raw.trim()) {
+                    labels.push(raw.trim());
+                }
+            }
+            return Array.from(new Set(labels));
+        }
+
         if (pluginConfig.features && Array.isArray(pluginConfig.features)) {
+            const seen = new Set(); // featureCode|label 去重
             pluginConfig.features.forEach(feature => {
                 if (feature.cmds && Array.isArray(feature.cmds)) {
-                    console.log(`添加命令: ${feature.cmds.join(', ')}`);
-                    feature.cmds.forEach(cmd => {
-                        allContents.push({
-                            title: String(cmd),
-                            content: String(feature.explain || '插件功能'),
-                            preview: String(feature.explain || '插件功能') + ' - 点击回车打开插件',
-                            type: 'command',
-                            featureCode: String(feature.code || ''),
-                            command: String(cmd)
+                    try {
+                        const allLabels = feature.cmds.flatMap(collectCommandLabels);
+                        if (allLabels.length > 0) {
+                            console.log(`添加命令: ${allLabels.join(', ')}`);
+                        }
+                        allLabels.forEach(label => {
+                            const key = `${String(feature.code || '')}|${label}`;
+                            if (seen.has(key)) return;
+                            seen.add(key);
+                            allContents.push({
+                                title: String(label),
+                                content: String(feature.explain || '插件功能'),
+                                preview: String(feature.explain || '插件功能') + ' - 点击回车打开插件',
+                                type: 'command',
+                                featureCode: String(feature.code || ''),
+                                command: String(label)
+                            });
                         });
-                    });
+                    } catch (e) {
+                        console.error('处理 cmds 时出错:', e);
+                    }
                 }
             });
+        }
+        
+        // 1.5 添加动态注册的功能 (如 AI 助手的快捷指令)
+        if (pluginManager && pluginConfig.pluginName) {
+            try {
+                const dynamicFeatures = pluginManager.dynamicFeatures.get(pluginConfig.pluginName);
+                if (dynamicFeatures && Array.isArray(dynamicFeatures)) {
+                    console.log(`发现动态功能: ${pluginConfig.pluginName}, 数量: ${dynamicFeatures.length}`);
+                    dynamicFeatures.forEach(feature => {
+                        if (feature.cmds && Array.isArray(feature.cmds)) {
+                            try {
+                                const labels = feature.cmds.flatMap(collectCommandLabels);
+                                if (labels.length > 0) {
+                                    console.log(`添加动态命令: ${labels.join(', ')}`);
+                                }
+                                labels.forEach(label => {
+                                    const exists = allContents.some(item =>
+                                        item.type === 'command' &&
+                                        item.title === String(label) &&
+                                        item.featureCode === String(feature.code || '')
+                                    );
+                                    if (!exists) {
+                                        allContents.push({
+                                            title: String(label),
+                                            content: String(feature.explain || '插件动态功能'),
+                                            preview: String(feature.explain || '插件动态功能') + ' - 点击回车打开插件',
+                                            type: 'command',
+                                            featureCode: String(feature.code || ''),
+                                            command: String(label)
+                                        });
+                                    }
+                                });
+                            } catch (e) {
+                                console.error('处理动态 cmds 时出错:', e);
+                            }
+                        }
+                    });
+                }
+
+                // 1.6 从持久化存储中加载动态功能 (通用配置实现，支持点路径)
+                if (pluginConfig.storageFeatures && Array.isArray(pluginConfig.storageFeatures)) {
+                    /**
+                     * 解析存储点路径并返回目标数组
+                     * 函数级注释：
+                     * - 支持如 'ai-settings.quickCommands' 的路径表示，先读取顶层键，再按层级取子属性
+                     * - 若任一层级不存在或类型不匹配，返回 null，调用方需做空值检查
+                     */
+                    function resolveStorageArrayByPath(pluginName, keyPath) {
+                        try {
+                            const parts = String(keyPath || '').split('.').filter(Boolean);
+                            if (parts.length === 0) return null;
+                            let current = pluginManager.getPluginStorageItem(pluginName, parts[0]);
+                            for (let i = 1; i < parts.length; i++) {
+                                if (!current || typeof current !== 'object') return null;
+                                current = current[parts[i]];
+                            }
+                            return Array.isArray(current) ? current : null;
+                        } catch (err) {
+                            console.error('解析存储路径失败:', err);
+                            return null;
+                        }
+                    }
+
+                    pluginConfig.storageFeatures.forEach(config => {
+                        try {
+                            const items = resolveStorageArrayByPath(pluginConfig.pluginName, config.storageKey);
+                            if (items && Array.isArray(items)) {
+                                console.log(`从存储中发现动态功能: ${pluginConfig.pluginName} - ${config.storageKey}, 数量: ${items.length}`);
+                                
+                                items.forEach((item, index) => {
+                                    const titleKey = String(config.itemTitleKey || 'title');
+                                    const label = item[titleKey] || `项目-${index + 1}`;
+                                    
+                                    // 生成唯一代码，与插件内部逻辑保持一致
+                                    const slug = String(label).replace(/[^\w\u4e00-\u9fa5]+/g, '-').toLowerCase();
+                                    const featureCode = `${String(config.codePrefix || '')}${slug}`;
+                                    
+                                    // 检查是否已存在
+                                    const exists = allContents.some(c =>
+                                        c.type === 'command' &&
+                                        c.title === label &&
+                                        c.featureCode === featureCode
+                                    );
+                                    
+                                    if (!exists) {
+                                        allContents.push({
+                                            title: String(label),
+                                            content: String(config.description || '插件动态功能'),
+                                            preview: `${String(config.description || '插件动态功能')} - 点击回车执行`,
+                                            type: 'command',
+                                            featureCode: String(featureCode),
+                                            command: String(label),
+                                            isDynamic: true
+                                        });
+                                    }
+                                });
+                            }
+                        } catch (e) {
+                            console.error(`处理存储动态功能失败 ${pluginConfig.pluginName}:`, e);
+                        }
+                    });
+                }
+            } catch (dynError) {
+                console.error('处理动态功能失败:', dynError);
+            }
         }
         
         // 2. 根据插件类型加载具体的内容
@@ -1564,6 +1857,16 @@ ipcMain.handle('save-settings', (event, settings) => {
             console.log('重新注册钉住快捷键:', settings.pinHotkey);
             registerPinShortcut(settings.pinHotkey);
         }
+
+        // 如果超级面板快捷键发生变化，重新注册
+        if (settings.superPanelHotkey !== undefined && settings.superPanelHotkey !== currentSettings.superPanelHotkey) {
+            console.log('重新注册超级面板快捷键:', settings.superPanelHotkey);
+            // 先尝试注销旧的
+            if (currentSettings.superPanelHotkey) {
+                try { globalShortcut.unregister(currentSettings.superPanelHotkey); } catch {}
+            }
+            registerSuperPanelShortcut(settings.superPanelHotkey);
+        }
         
         // 如果右键设置发生变化，重新启动监听器
         if (process.platform === 'win32' && 
@@ -1574,6 +1877,19 @@ ipcMain.handle('save-settings', (event, settings) => {
             if (settings.enableRightClickPanel) {
                 setTimeout(() => {
                     startRightClickMonitor();
+                }, 1000);
+            }
+        }
+
+        // 如果中键设置发生变化，重新启动监听器
+        if (process.platform === 'win32' &&
+            (settings.enableMiddleClickPanel !== currentSettings.enableMiddleClickPanel ||
+             settings.middleClickDelay !== currentSettings.middleClickDelay)) {
+            console.log('中键设置已更改，重新启动监听器');
+            stopMiddleClickMonitor();
+            if (settings.enableMiddleClickPanel) {
+                setTimeout(() => {
+                    startMiddleClickMonitor();
                 }, 1000);
             }
         }
@@ -2764,6 +3080,9 @@ app.whenReady().then(async () => {
         // 启动右键长按监听器
         if (process.platform === 'win32') {
             startRightClickMonitor();
+            if (settings.enableMiddleClickPanel) {
+                startMiddleClickMonitor();
+            }
         }
         
         // 设置开机自启动
@@ -2783,15 +3102,12 @@ app.whenReady().then(async () => {
             }
         });
         
-        // 注册超级面板测试快捷键
-        try {
-            globalShortcut.register('Ctrl+Alt+P', () => {
-                console.log('🧪 快捷键触发超级面板测试 (Ctrl+Alt+P)');
-                showSuperPanel();
-            });
-            console.log('超级面板测试快捷键注册成功: Ctrl+Alt+P');
-        } catch (error) {
-            console.error('超级面板测试快捷键注册失败:', error);
+        // 注册超级面板快捷键
+        if (settings.superPanelHotkey && settings.superPanelHotkey.trim() !== '') {
+            const ok = registerSuperPanelShortcut(settings.superPanelHotkey);
+            if (!ok) {
+                console.log('超级面板快捷键注册失败:', settings.superPanelHotkey);
+            }
         }
         
         // 初始化超级面板默认功能
@@ -2834,6 +3150,8 @@ app.on('before-quit', () => {
     
     // 停止右键监听器
     stopRightClickMonitor();
+    // 停止中键监听器
+    stopMiddleClickMonitor();
     
     // 停止所有插件
     if (pluginManager) {
@@ -3324,7 +3642,7 @@ function createAddPluginDialogHtml() {
         }
         
         .dialog-header {
-            padding: 16px 20px;
+            padding: 8px 12px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             background: rgba(255, 255, 255, 0.05);
             display: flex;
@@ -3333,7 +3651,7 @@ function createAddPluginDialogHtml() {
         }
         
         .dialog-title {
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 500;
             color: #ffffff;
         }
@@ -3361,10 +3679,10 @@ function createAddPluginDialogHtml() {
         }
         
         .tab {
-            padding: 10px 16px;
+            padding: 6px 12px;
             cursor: pointer;
             transition: all 0.2s ease;
-            font-size: 13px;
+            font-size: 12px;
             color: rgba(255, 255, 255, 0.7);
             border-bottom: 2px solid transparent;
         }
@@ -3664,6 +3982,8 @@ function createAddPluginDialogHtml() {
         }
         
         // 渲染插件列表
+        // 函数级注释：为避免在内联事件参数中使用 Windows 路径时出现反斜杠转义问题，
+        // 在渲染阶段对插件路径进行 URL 编码，事件处理函数内部再解码。
         function renderPluginsList() {
             const container = document.getElementById('plugins-list');
             
@@ -3676,6 +3996,7 @@ function createAddPluginDialogHtml() {
             
             plugins.forEach(plugin => {
                 const features = Array.isArray(plugin.features) ? plugin.features : [];
+                const safePath = encodeURIComponent(plugin.path);
                 
                 const pluginDiv = document.createElement('div');
                 pluginDiv.className = 'plugin-card';
@@ -3687,8 +4008,8 @@ function createAddPluginDialogHtml() {
                         \${features.map(feature => \`
                             <div class="feature-item" style="padding: 6px; display: flex; align-items: center;">
                             <input type="checkbox" class="feature-checkbox" 
-                                       id="feature-\${plugin.path}-\${feature.code}" 
-                                       onchange="togglePluginFeature('\${plugin.path}', '\${feature.code}')">
+                                       id="feature-\${safePath}-\${feature.code}" 
+                                       onchange="togglePluginFeature('\${safePath}', '\${feature.code}')">
                             <span style="font-size: 12px;">\${feature.explain || feature.code}</span>
                             </div>
                         \`).join('')}
@@ -3783,9 +4104,12 @@ function createAddPluginDialogHtml() {
         }
         
         // 切换插件功能选择状态
-        function togglePluginFeature(pluginPath, featureCode) {
+        // 函数级注释：接收已编码的插件路径，避免反斜杠在内联事件中被错误转义；
+        // 在此函数内对路径进行解码后再写入选择集合，同时用编码值定位复选框。
+        function togglePluginFeature(encodedPluginPath, featureCode) {
+            const pluginPath = decodeURIComponent(encodedPluginPath);
             const featureId = \`plugin|\${pluginPath}|\${featureCode}\`;
-            const checkbox = document.getElementById(\`feature-\${pluginPath}-\${featureCode}\`);
+            const checkbox = document.getElementById(\`feature-\${encodedPluginPath}-\${featureCode}\`);
             if (!checkbox) return;
             if (checkbox.checked) {
                 selectedFeatures.add(featureId);
@@ -3943,14 +4267,77 @@ ipcMain.handle('close-current-window', (event) => {
 
 
 // 运行插件功能
+// 函数级注释：
+// - 将选中的文本以 actionContext 传递给插件，从而支持 "over" 模式
+// - 当 feature.args.quickCommand 存在时，向插件窗口注入 pendingQuickCommand 与 pendingText，
+//   以便 AI 插件在打开后自动应用指定快捷指令
+// - 保持对其它插件通用的执行路径；若插件管理器不可用则返回错误
 async function runPluginAction(pluginPath, feature, selectedText) {
     try {
-        if (pluginManager) {
-            return await pluginManager.runPluginAction(pluginPath, feature, selectedText);
-        } else {
+        if (!pluginManager) {
             console.error('插件管理器未初始化');
             return { success: false, error: '插件管理器未初始化' };
         }
+
+        // 先确保插件窗口已创建
+        const pluginJsonPath = path.join(pluginPath, 'plugin.json');
+        if (!fs.existsSync(pluginJsonPath)) {
+            return { success: false, error: `插件配置文件不存在: ${pluginJsonPath}` };
+        }
+        const pluginConfig = JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8'));
+        const pluginWindow = await pluginManager.createPluginWindow(pluginPath, pluginConfig);
+        // 等待窗口加载完成，保证插件已初始化
+        await new Promise((resolve) => {
+            try {
+                pluginWindow.webContents.once('dom-ready', resolve);
+            } catch (_) { resolve(); }
+        });
+        await new Promise(res => setTimeout(res, 300));
+
+        // 构造上下文对象并安全序列化
+        const actionContext = {
+            type: 'over',
+            payload: selectedText || '',
+            featureArgs: feature?.args || null
+        };
+        const ctxJson = JSON.stringify(actionContext);
+
+        // 在插件窗口中执行功能
+        const execScript = `(() => {
+            try {
+                const actionCtx = ${ctxJson};
+                // 注入待处理文本和快捷指令（供 AI 插件使用）
+                try {
+                    if (actionCtx && typeof actionCtx.payload === 'string') {
+                        window.pendingText = actionCtx.payload;
+                    }
+                    if (actionCtx && actionCtx.featureArgs && actionCtx.featureArgs.quickCommand) {
+                        window.pendingQuickCommand = actionCtx.featureArgs.quickCommand;
+                    }
+                } catch (_) {}
+
+                if (typeof window.exports === 'object' && window.exports && window.exports['${feature.code}']) {
+                    const featureHandler = window.exports['${feature.code}'];
+                    if (featureHandler && featureHandler.args && typeof featureHandler.args.enter === 'function') {
+                        if (featureHandler.mode === 'list') {
+                            featureHandler.args.enter(actionCtx, function(items){
+                                console.log('列表项数量:', Array.isArray(items) ? items.length : 0);
+                            });
+                            return { success: true, message: '插件功能已启动(列表模式)' };
+                        }
+                        featureHandler.args.enter(actionCtx);
+                        return { success: true, message: '插件功能已执行' };
+                    }
+                    return { success: false, error: '未找到可执行的功能入口' };
+                }
+                return { success: false, error: '插件未导出指定功能: ${feature.code}' };
+            } catch (e) {
+                return { success: false, error: e.message };
+            }
+        })();`;
+
+        const result = await pluginWindow.webContents.executeJavaScript(execScript);
+        return result || { success: true };
     } catch (error) {
         console.error('运行插件功能失败:', error);
         return { success: false, error: error.message };
@@ -4096,6 +4483,7 @@ function createSuperPanelSettingsWindow() {
     
     try {
         // 获取鼠标位置并在鼠标所在的屏幕显示窗口
+        const { screen } = require('electron');
         const cursorPoint = screen.getCursorScreenPoint();
         const currentDisplay = screen.getDisplayNearestPoint(cursorPoint);
         
@@ -4877,44 +5265,52 @@ ipcMain.handle('get-active-action-ids', async () => {
 
 // 添加 IPC 处理：批量添加功能到超级面板
 ipcMain.handle('add-features-to-super-panel', async (event, features) => {
+    /**
+     * 批量添加超级面板功能
+     * 函数级注释：将用户在“添加功能”对话框中选择的功能批量写入设置；
+     * - 去重：按 `id` 去重，已存在的功能不重复写入；
+     * - 成功判定：只要没有异常，即使全是已存在的功能也返回 true，避免前端误报“保存失败”。
+     */
     try {
         console.log(`批量添加功能到超级面板: ${features.length}个`);
-        
-        // 获取当前设置
+
         const settings = loadSettings();
         if (!settings.superPanelActions) {
             settings.superPanelActions = [];
         }
-        
+
         let addedCount = 0;
-        
+
         // 遍历要添加的功能
         for (const feature of features) {
-            // 检查功能是否已存在
+            // 规范化对象，确保包含 id 和 title
+            if (!feature || !feature.id) {
+                console.warn('跳过无效功能条目:', feature);
+                continue;
+            }
+
             const exists = settings.superPanelActions.some(action => action.id === feature.id);
             if (!exists) {
                 settings.superPanelActions.push(feature);
                 addedCount++;
-                console.log(`添加功能: ${feature.title} (${feature.id})`);
+                console.log(`添加功能: ${feature.title || feature.id} (${feature.id})`);
             } else {
-                console.log(`功能已存在: ${feature.title} (${feature.id})`);
+                console.log(`功能已存在: ${feature.title || feature.id} (${feature.id})`);
             }
         }
-        
-        if (addedCount > 0) {
-            // 保存设置
-            saveSettings(settings);
-            console.log(`成功添加 ${addedCount} 个功能到超级面板`);
-            
-            // 通知超级面板更新
-            if (superPanelWindow && !superPanelWindow.isDestroyed()) {
-                console.log('向超级面板发送批量添加更新通知');
-                superPanelWindow.webContents.send('refresh-super-panel');
-                superPanelWindow.webContents.send('super-panel-actions-updated', settings.superPanelActions);
-            }
+
+        // 无论是否新增，只要流程正常即视为成功，避免 UI 误报失败
+        saveSettings(settings);
+        const existedCount = Math.max(0, (features || []).length - addedCount);
+        console.log(`批量添加完成，新增: ${addedCount}，已存在: ${existedCount}，总计: ${settings.superPanelActions.length}`);
+
+        // 通知超级面板更新
+        if (superPanelWindow && !superPanelWindow.isDestroyed()) {
+            superPanelWindow.webContents.send('refresh-super-panel');
+            superPanelWindow.webContents.send('super-panel-actions-updated', settings.superPanelActions);
         }
-        
-        return addedCount > 0;
+
+        return { success: true, addedCount, existedCount };
     } catch (error) {
         console.error('批量添加功能到超级面板失败:', error);
         return false;
@@ -4951,7 +5347,7 @@ function createSuperPanelSettingsHtml() {
         }
         
         .settings-header {
-            padding: 16px 20px;
+            padding: 8px 12px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             background: rgba(255, 255, 255, 0.05);
             display: flex;
@@ -4960,7 +5356,7 @@ function createSuperPanelSettingsHtml() {
         }
         
         .settings-title {
-            font-size: 16px;
+            font-size: 12px;
             font-weight: 500;
             color: #ffffff;
         }
@@ -4983,19 +5379,19 @@ function createSuperPanelSettingsHtml() {
         
         .settings-content {
             flex: 1;
-            padding: 20px;
+            padding: 16px;
             overflow-y: auto;
         }
         
         .settings-section {
-            margin-bottom: 24px;
+            margin-bottom: 16px;
         }
         
         .section-title {
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 500;
             color: #60a5fa;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
             border-bottom: 1px solid rgba(96, 165, 250, 0.3);
             padding-bottom: 4px;
         }
@@ -5004,7 +5400,7 @@ function createSuperPanelSettingsHtml() {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 12px 0;
+            padding: 8px 0;
             border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         }
         
@@ -5013,12 +5409,12 @@ function createSuperPanelSettingsHtml() {
         }
         
         .setting-label {
-            font-size: 13px;
+            font-size: 12px;
             color: rgba(255, 255, 255, 0.9);
         }
         
         .setting-description {
-            font-size: 11px;
+            font-size: 10px;
             color: rgba(255, 255, 255, 0.6);
             margin-top: 2px;
         }
@@ -5026,14 +5422,14 @@ function createSuperPanelSettingsHtml() {
         .setting-control {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
         }
         
         .toggle {
             position: relative;
             display: inline-block;
-            width: 44px;
-            height: 24px;
+            width: 38px;
+            height: 20px;
         }
         
         .toggle input {
@@ -5057,10 +5453,10 @@ function createSuperPanelSettingsHtml() {
         .slider:before {
             position: absolute;
             content: "";
-            height: 18px;
-            width: 18px;
-            left: 3px;
-            bottom: 3px;
+            height: 16px;
+            width: 16px;
+            left: 2px;
+            bottom: 2px;
             background-color: white;
             transition: .4s;
             border-radius: 50%;
@@ -5071,7 +5467,7 @@ function createSuperPanelSettingsHtml() {
         }
         
         input:checked + .slider:before {
-            transform: translateX(20px);
+            transform: translateX(18px);
         }
         
         .btn {
@@ -5102,7 +5498,7 @@ function createSuperPanelSettingsHtml() {
         }
         
         .plugin-list {
-            max-height: 200px;
+            max-height: 160px;
             overflow-y: auto;
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 6px;
@@ -5113,7 +5509,7 @@ function createSuperPanelSettingsHtml() {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 8px 12px;
+            padding: 6px 10px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         }
         

@@ -699,6 +699,17 @@
             </div>
             
             <div class="setting-item">
+                <div class="setting-label">超级面板快捷键：</div>
+                <div class="setting-control">
+                    <div class="setting-control-row">
+                        <input type="text" id="super-panel-hotkey-input" placeholder="按下组合键..." style="width: 180px;" readonly>
+                        <button id="change-super-panel-hotkey-btn">修改</button>
+                    </div>
+                    <div class="setting-description">设置快捷键以唤出超级面板</div>
+                </div>
+            </div>
+            
+            <div class="setting-item">
                 <div class="setting-label">开机自启动：</div>
                 <div class="setting-control">
                     <div class="setting-control-row">
@@ -728,6 +739,28 @@
                             <span id="delay-value-label" class="delay-value-display">500ms</span>
                         </div>
                         <div class="setting-description">调整需要长按多久才触发超级面板</div>
+                    </div>
+                </div>
+            
+            <div class="setting-item">
+                <div class="setting-label">中键长按超级面板：</div>
+                <div class="setting-control">
+                    <div class="setting-control-row">
+                        <input type="checkbox" id="middle-click-panel-checkbox">
+                        <span>启用中键长按功能</span>
+                    </div>
+                    <div class="setting-description">启用后可长按鼠标中键打开超级面板（仅Windows）</div>
+                </div>
+            </div>
+            
+            <div class="setting-item">
+                <div class="setting-label">中键长按延迟：</div>
+                <div class="setting-control">
+                    <div class="setting-control-row">
+                            <input type="range" id="middle-click-delay-slider" min="10" max="1000" step="10">
+                            <span id="middle-delay-value-label" class="delay-value-display">100ms</span>
+                        </div>
+                        <div class="setting-description">调整中键长按触发超级面板的延迟</div>
                     </div>
                 </div>
             
@@ -1096,15 +1129,18 @@
         async function loadSettings() {
             try {
                 const settings = await ipcRenderer.invoke('get-settings');
-        // 函数级注释：设置页面初始化时的全局快捷键默认值展示（改为 Alt+Space）
+// 函数级注释：设置页面初始化时的全局快捷键默认值展示（改为 Alt+Space）
         document.getElementById('global-hotkey-input').value = settings.globalHotkey || 'Alt+Space';
                 document.getElementById('auto-start-checkbox').checked = settings.autoStart || false;
                 
                 // 加载钉住快捷键设置
-                document.getElementById('pin-hotkey-input').value = settings.pinHotkey || 'Ctrl+D';
+        document.getElementById('pin-hotkey-input').value = settings.pinHotkey || 'Ctrl+D';
+                
+                // 加载超级面板快捷键设置
+                document.getElementById('super-panel-hotkey-input').value = settings.superPanelHotkey || '';
                 
                 // 加载右键长按设置
-                document.getElementById('right-click-panel-checkbox').checked = settings.enableRightClickPanel !== false;
+        document.getElementById('right-click-panel-checkbox').checked = settings.enableRightClickPanel !== false;
                 const initialDelay = typeof settings.rightClickDelay === 'number' ? settings.rightClickDelay : 100;
                 document.getElementById('right-click-delay-slider').value = initialDelay;
                 document.getElementById('delay-value-label').textContent = initialDelay + 'ms';
@@ -1114,6 +1150,17 @@
                 const delayLabel = document.getElementById('delay-value-label');
                 delaySlider.addEventListener('input', (e) => {
                     delayLabel.textContent = e.target.value + 'ms';
+                });
+
+                // 加载中键长按设置
+                document.getElementById('middle-click-panel-checkbox').checked = settings.enableMiddleClickPanel || false;
+                const middleDelay = typeof settings.middleClickDelay === 'number' ? settings.middleClickDelay : 100;
+                document.getElementById('middle-click-delay-slider').value = middleDelay;
+                document.getElementById('middle-delay-value-label').textContent = middleDelay + 'ms';
+                const middleDelaySlider = document.getElementById('middle-click-delay-slider');
+                const middleDelayLabel = document.getElementById('middle-delay-value-label');
+                middleDelaySlider.addEventListener('input', (e) => {
+                    middleDelayLabel.textContent = e.target.value + 'ms';
                 });
                 
                 // 加载插件数据存储位置
@@ -1173,6 +1220,7 @@
         // 快捷键捕获功能
         let isCapturingHotkey = false;
         let currentCapturingInput = null;
+        let currentCapturingButton = null;
 
         function captureHotkey(inputElement, buttonElement) {
             if (isCapturingHotkey) return;
@@ -1191,6 +1239,7 @@
             
             // 添加键盘事件监听
             document.addEventListener('keydown', handleHotkeyCapture);
+            currentCapturingButton = buttonElement;
         }
 
         function handleHotkeyCapture(event) {
@@ -1238,14 +1287,13 @@
             document.removeEventListener('keydown', handleHotkeyCapture);
             
             // 恢复按钮状态
-            const buttonElement = currentCapturingInput === document.getElementById('global-hotkey-input') ? 
-                document.getElementById('change-hotkey-btn') : document.getElementById('change-pin-hotkey-btn');
-            
+            const buttonElement = currentCapturingButton || document.getElementById('change-hotkey-btn');
             buttonElement.textContent = '修改';
             buttonElement.disabled = false;
             currentCapturingInput.placeholder = '按下组合键...';
             
             currentCapturingInput = null;
+            currentCapturingButton = null;
         }
 
         // 修改全局快捷键
@@ -1259,6 +1307,13 @@
         document.getElementById('change-pin-hotkey-btn').addEventListener('click', () => {
             const input = document.getElementById('pin-hotkey-input');
             const button = document.getElementById('change-pin-hotkey-btn');
+            captureHotkey(input, button);
+        });
+
+        // 修改超级面板快捷键
+        document.getElementById('change-super-panel-hotkey-btn').addEventListener('click', () => {
+            const input = document.getElementById('super-panel-hotkey-input');
+            const button = document.getElementById('change-super-panel-hotkey-btn');
             captureHotkey(input, button);
         });
 
@@ -1371,8 +1426,11 @@
                     globalHotkey: document.getElementById('global-hotkey-input').value,
                     autoStart: document.getElementById('auto-start-checkbox').checked,
                     pinHotkey: document.getElementById('pin-hotkey-input').value,
+                    superPanelHotkey: document.getElementById('super-panel-hotkey-input').value,
                     enableRightClickPanel: document.getElementById('right-click-panel-checkbox').checked,
                     rightClickDelay: parseInt(document.getElementById('right-click-delay-slider').value),
+                    enableMiddleClickPanel: document.getElementById('middle-click-panel-checkbox').checked,
+                    middleClickDelay: parseInt(document.getElementById('middle-click-delay-slider').value),
                     pluginSearchSettings: pluginSearchSettings
                 };
                 

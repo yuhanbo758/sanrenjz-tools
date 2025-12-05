@@ -755,7 +755,7 @@
             </div>
             <div class="settings-buttons">
                 <button onclick="closeQuickCommandModal()" class="settings-button">取消</button>
-                <button onclick="addQuickCommand()" class="settings-button primary">添加</button>
+                <button onclick="saveQuickCommand()" class="settings-button primary">添加</button>
             </div>
         </div>
     </div>
@@ -789,7 +789,7 @@
             // 聚焦输入框
             document.getElementById('promptInput').focus();
             
-            // 检查是否有等待的快捷指令（从超级面板进入）
+            // 检查是否有等待的快捷指令
             if (window.pendingQuickCommand) {
                 applyQuickCommand(window.pendingQuickCommand);
                 window.pendingQuickCommand = null;
@@ -847,9 +847,36 @@
             }
         };
 
+        // 同步快捷指令到超级面板特性
+        /**
+         * 同步快捷指令为可序列化的特性并注册到主程序
+         * 函数级注释：
+         * - 仅传递 code/explain/cmds，避免把复杂对象（如函数/DOM）通过 IPC 发送
+         * - cmds 包含指令标题与一个通用标签，便于搜索索引
+         */
+        function syncQuickCommandsToFeatures(settings) {
+            const commands = settings.quickCommands || [];
+            const features = commands.map((cmd, index) => {
+                const slug = (cmd.title || `cmd-${index}`).replace(/[^\w\u4e00-\u9fa5]+/g, '-').toLowerCase();
+                return {
+                    code: `quick-${slug}`,
+                    explain: cmd.title,
+                    cmds: [cmd.title, 'AI']
+                };
+            });
+            
+            if (window.services.registerFeatures) {
+                window.services.registerFeatures(features);
+            }
+        }
+
         // 加载设置
         async function loadSettings() {
             const settings = window.services.getSettings();
+            
+            // 同步快捷指令到超级面板
+            syncQuickCommandsToFeatures(settings);
+            
             const models = window.services.getBuiltInModels();
             
             // 填充默认模型选择器
@@ -1090,27 +1117,71 @@
                             <span style="font-weight:500;font-size:14px;">${cmd.title}</span>
                             <span style="font-size:12px;color:#666;">${cmd.modelLabel}</span>
                         </div>
-                        <button onclick="removeQuickCommand(${index})" class="settings-button" style="padding: 4px 8px; font-size: 12px; color: #dc2626; border-color: #fca5a5;">删除</button>
+                        <div style="display:flex;gap:8px;">
+                            <button onclick="editQuickCommand(${index})" class="settings-button" style="padding: 4px 8px; font-size: 12px;">修改</button>
+                            <button onclick="removeQuickCommand(${index})" class="settings-button" style="padding: 4px 8px; font-size: 12px; color: #dc2626; border-color: #fca5a5;">删除</button>
+                        </div>
                     `;
                     list.appendChild(div);
                 });
             }
         }
 
+        let currentEditingIndex = -1; // 当前编辑的指令索引，-1 表示新增
+
         function showQuickCommandModal() {
+            currentEditingIndex = -1;
             document.getElementById('quickCommandModal').style.display = 'block';
             document.getElementById('qcTitle').value = '';
             document.getElementById('qcPrompt').value = '';
+            
+            // Default select first model if available
+            const modelSelect = document.getElementById('qcModel');
+            if (modelSelect.options.length > 0 && modelSelect.selectedIndex === -1) {
+                modelSelect.selectedIndex = 0;
+            }
+
+            // 重置按钮文本
+            const confirmBtn = document.querySelector('#quickCommandModal .settings-button:last-child');
+            if (confirmBtn) confirmBtn.textContent = '添加';
+        }
+
+        function editQuickCommand(index) {
+            const settings = window.services.getSettings();
+            const cmd = settings.quickCommands[index];
+            if (!cmd) return;
+
+            currentEditingIndex = index;
+            document.getElementById('quickCommandModal').style.display = 'block';
+            document.getElementById('qcTitle').value = cmd.title;
+            document.getElementById('qcPrompt').value = cmd.prompt;
+            
+            // 设置模型选择
+            const modelSelect = document.getElementById('qcModel');
+            if (cmd.modelValue) {
+                modelSelect.value = cmd.modelValue;
+            }
+
+            // 更改按钮文本为“保存”
+            const confirmBtn = document.querySelector('#quickCommandModal .settings-button:last-child');
+            if (confirmBtn) confirmBtn.textContent = '保存';
         }
 
         function closeQuickCommandModal() {
             document.getElementById('quickCommandModal').style.display = 'none';
+            currentEditingIndex = -1;
         }
 
-        function addQuickCommand() {
+        function saveQuickCommand() {
             const title = document.getElementById('qcTitle').value.trim();
             const prompt = document.getElementById('qcPrompt').value.trim();
             const modelSelect = document.getElementById('qcModel');
+            
+            if (modelSelect.selectedIndex === -1) {
+                window.services.showNotification('请选择一个模型');
+                return;
+            }
+
             const modelValue = modelSelect.value;
             const modelLabel = modelSelect.options[modelSelect.selectedIndex].text;
             const modelProvider = modelSelect.options[modelSelect.selectedIndex].dataset.provider;
@@ -1123,15 +1194,24 @@
             const settings = window.services.getSettings();
             if (!settings.quickCommands) settings.quickCommands = [];
             
-            settings.quickCommands.push({
+            const commandData = {
                 title,
                 prompt,
                 modelValue,
                 modelLabel,
                 modelProvider
-            });
+            };
+
+            if (currentEditingIndex >= 0) {
+                // 编辑模式：更新现有指令
+                settings.quickCommands[currentEditingIndex] = commandData;
+            } else {
+                // 新增模式：添加到末尾
+                settings.quickCommands.push(commandData);
+            }
             
             window.services.saveSettings(settings);
+            syncQuickCommandsToFeatures(settings); // 同步更新
             updateQuickCommandList();
             closeQuickCommandModal();
         }
@@ -1140,6 +1220,7 @@
             const settings = window.services.getSettings();
             settings.quickCommands.splice(index, 1);
             window.services.saveSettings(settings);
+            syncQuickCommandsToFeatures(settings); // 同步更新
             updateQuickCommandList();
         }
 

@@ -530,8 +530,18 @@
 
             // 按分数排序，同分数时优先考虑匹配关键词数量最多的结果
             filteredResults = results.sort((a, b) => {
-                if (b.score !== a.score) {
-                    return b.score - a.score; // 先按分数排序
+                // 插件类型和命令类型给予额外权重，使其排在前面
+                const getTypeWeight = (item) => {
+                    if (item.type === RESULT_TYPES.PLUGIN) return 2000;
+                    if (item.contentType === 'command') return 1000;
+                    return 0;
+                };
+                
+                const scoreA = a.score + getTypeWeight(a);
+                const scoreB = b.score + getTypeWeight(b);
+                
+                if (scoreB !== scoreA) {
+                    return scoreB - scoreA; // 先按总分数排序
                 }
                 // 分数相同时，按匹配的关键词数量排序
                 return b.matchedKeywordsCount - a.matchedKeywordsCount;
@@ -701,7 +711,12 @@
                     } else {
                         // 其他类型内容（包括命令）：直接打开对应的插件窗口
                         console.log('正在打开插件:', selectedResult.pluginName || '未知插件');
-                        await ipcRenderer.invoke('run-plugin', selectedResult.pluginPath, []);
+                        // 如果是具体的功能命令，传递功能代码
+                        const features = selectedResult.featureCode ? [{
+                            code: selectedResult.featureCode,
+                            cmd: selectedResult.command
+                        }] : [];
+                        await ipcRenderer.invoke('run-plugin', selectedResult.pluginPath, features);
                         if (!isPinned) {
                             // 打开插件时不恢复焦点
                             await ipcRenderer.invoke('hide-search-window', { restoreFocus: false });

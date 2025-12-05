@@ -14,47 +14,23 @@
       "icon": "logo.ico",
       "superPanel": true,
       "cmds": [
-        "ai",
         "AI助手",
-        "余汉波AI助手",
         "GPT",
-        "yuhanbo-ai",
         {
           "type": "over",
-          "label": ["AI分析", "余汉波AI助手", "AI助手", "GPT", "yuhanbo-ai"],
+          "label": [ "AI助手", "GPT"],
           "minLength": 1,
           "maxLength": 50000
         }
       ]
-    },
+    }
+  ],
+  "storageFeatures": [
     {
-      "code": "ai-quick",
-      "explain": "AI 快捷指令",
-      "icon": "logo.ico",
-      "superPanel": true,
-      "cmds": [
-        {
-          "type": "over",
-          "label": "AI 快捷指令",
-          "minLength": 1
-        },
-        {
-          "type": "img",
-          "label": "AI 快捷指令"
-        },
-        {
-          "type": "files",
-          "label": "AI 快捷指令",
-          "minLength": 1
-        },
-        {
-          "type": "window",
-          "label": "AI 快捷指令",
-          "match": {
-            "app": ["*"]
-          }
-        }
-      ]
+      "storageKey": "ai-settings.quickCommands",
+      "itemTitleKey": "title",
+      "codePrefix": "quick-",
+      "description": "AI 助手快捷指令"
     }
   ],
   "pluginSetting": {

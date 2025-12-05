@@ -37,43 +37,36 @@ window.exports = {
         mode: "none",
         args: {
             enter: (action) => {
-                // 获取要填入的文本
+                // 1. 设置待处理指令 (如果有)
+                // window.pendingQuickCommand = cmd; // 这通常在 select 中设置
+
+                // 2. 获取输入文本
+                // 用户要求：不自动粘贴剪贴板内容，仅处理选中文本
                 let textToFill = '';
                 if (action.type === 'over' && action.payload) {
-                    // 如果是选中文本调用
                     textToFill = action.payload;
-                } else {
-                    // 如果是快捷键调用，尝试获取剪贴板内容
-                    textToFill = clipboard.readText();
-                }
+                } 
+                // 移除自动读取剪贴板的逻辑
                 
-                // 将文本存储到全局变量，供页面加载完成后使用
+                // 将文本存储到全局变量
                 window.pendingText = textToFill;
                 
-                // 创建新对话并填充文本
-                if (window.newChat) {
-                    window.newChat();
-                }
+                // 3. 跳转到主界面 (如果已经在主界面，这一步可能没效果，但在 electron SPA 中通常意味着显示窗口)
+                if (window.newChat) window.newChat();
                 
-                // 确保文本被填入输入框
+                // 4. 填充文本逻辑
                 const fillText = () => {
                     const textarea = document.getElementById('promptInput');
                     if (textarea && window.pendingText) {
                         textarea.value = window.pendingText;
-                        // 触发 input 事件以调整高度
                         textarea.dispatchEvent(new Event('input'));
-                        // 聚焦并将光标移到末尾
                         textarea.focus();
                         textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
-                        // 清除待填充文本
                         window.pendingText = null;
                     }
                 };
-
-                // 立即尝试填充一次
-                fillText();
                 
-                // 如果页面还没加载完，等待页面加载后再次尝试
+                fillText();
                 if (document.readyState !== 'complete') {
                     document.addEventListener('DOMContentLoaded', fillText);
                 }
@@ -120,22 +113,27 @@ window.exports = {
                 window.pendingQuickCommand = cmd;
                 if (action.type === 'over' && action.payload) {
                     window.pendingText = action.payload;
-                } else {
-                    window.pendingText = clipboard.readText();
-                }
-
-                // 跳转到插件主功能或显示主窗口
+                } 
+                // 移除自动读取剪贴板
+                
+                // 尝试跳转到插件主功能或显示主窗口
+                // 优先尝试显示主窗口，如果支持的话
                 try {
-                    if (typeof utools.redirect === 'function') {
-                        utools.redirect('ai');
-                    } else if (typeof utools.showMainWindow === 'function') {
+                    if (typeof utools.showMainWindow === 'function') {
                         utools.showMainWindow();
+                    } else if (typeof utools.redirect === 'function') {
+                        utools.redirect('ai');
                     }
                 } catch (e) {}
 
                 // 若主界面已加载，立即应用
                 if (window.applyQuickCommand) {
                     window.applyQuickCommand(cmd);
+                } else {
+                    // 如果主界面还没加载完，等待加载
+                    // 注意：如果重定向导致页面刷新，window对象会重置，pendingQuickCommand 会丢失
+                    // 但如果是单页应用切换视图，window对象通常保留
+                    // 为了保险，可以在这里不做额外处理，依赖 window.onload 中的检查
                 }
             }
         }
@@ -304,6 +302,46 @@ window.services = {
             content: content,
             type: type
         });
+    },
+
+    // 注册插件特性（快捷指令）到主程序
+    /**
+     * 将快捷指令特性以可序列化的形式注册到主进程
+     * 函数级注释：
+     * - 仅保留 code/explain/cmds 三个字段，剔除函数、复杂对象，避免“An object could not be cloned”
+     * - 确保 cmds 内部元素为字符串或简单对象（仅保留常用字段）
+     */
+    registerFeatures: (features) => {
+        try {
+            const sanitizeCmd = (c) => {
+                if (typeof c === 'string') return c;
+                if (c && typeof c === 'object') {
+                    const out = {};
+                    if (c.type) out.type = String(c.type);
+                    if (typeof c.label === 'string' || Array.isArray(c.label)) out.label = c.label;
+                    if (typeof c.minLength === 'number') out.minLength = c.minLength;
+                    if (typeof c.maxLength === 'number') out.maxLength = c.maxLength;
+                    if (c.match && typeof c.match === 'object') out.match = c.match;
+                    return out;
+                }
+                return String(c);
+            };
+
+            const safeFeatures = Array.isArray(features) ? features.map(f => ({
+                code: String(f.code || ''),
+                explain: String(f.explain || ''),
+                cmds: Array.isArray(f.cmds) ? f.cmds.map(sanitizeCmd) : []
+            })) : [];
+
+            return ipcRenderer.invoke('register-plugin-features', PLUGIN_NAME, safeFeatures)
+                .catch(err => {
+                    console.error('注册插件特性失败:', err);
+                    return false;
+                });
+        } catch (error) {
+            console.error('注册插件特性失败:', error);
+            return false;
+        }
     },
 
     copyToClipboard: (text) => {
@@ -563,5 +601,63 @@ window.services = {
         // 辅助函数，具体UI操作应在 index.html 中实现
     }
 };
+
+// 动态注册快捷指令对应的特性入口
+try {
+    const settings = window.services.getSettings();
+    if (settings && settings.quickCommands) {
+        settings.quickCommands.forEach((cmd, index) => {
+             const slug = (cmd.title || `cmd-${index}`).replace(/[^\w\u4e00-\u9fa5]+/g, '-').toLowerCase();
+             const code = `quick-${slug}`;
+             
+             // 如果该 code 尚未定义，则注册
+             if (!window.exports[code]) {
+                 window.exports[code] = {
+                     mode: "none",
+                     args: {
+                         enter: (action) => {
+                             // 1. 设置待处理指令
+                             window.pendingQuickCommand = cmd;
+                             
+                             // 2. 获取输入文本
+                             let textToFill = '';
+                             if (action.type === 'over' && action.payload) {
+                                 textToFill = action.payload;
+                             } 
+                             window.pendingText = textToFill;
+                             
+                             // 3. 跳转到主界面
+                             if (window.newChat) window.newChat();
+                             
+                             // 4. 填充文本逻辑
+                             const fillText = () => {
+                                 const textarea = document.getElementById('promptInput');
+                                 if (textarea && window.pendingText) {
+                                     textarea.value = window.pendingText;
+                                     textarea.dispatchEvent(new Event('input'));
+                                     textarea.focus();
+                                     textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+                                     window.pendingText = null;
+                                 }
+                             };
+                             
+                             fillText();
+                             if (document.readyState !== 'complete') {
+                                 document.addEventListener('DOMContentLoaded', fillText);
+                             }
+                             
+                             // 5. 立即应用指令 (直接调用 window 对象上的方法)
+                             if (window.applyQuickCommand) {
+                                 window.applyQuickCommand(cmd);
+                             }
+                         }
+                     }
+                 };
+             }
+        });
+    }
+} catch (e) {
+    console.error('动态注册快捷指令失败:', e);
+}
 
 contextBridge.exposeInMainWorld('services', window.services);
