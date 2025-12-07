@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain, globalShortcut, Menu, Tray, nativeImage, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { exec } = require('child_process');
+const { exec, spawn } = require('child_process');
 
 // 初始化remote模块 - 需要在app ready之后
 let remoteMain;
@@ -31,12 +31,11 @@ let isPinned = false; // 添加钉住状态
 const pluginPinnedMap = new Map();
 let lastActiveWindow = null; // 记录最后活动的窗口句柄
 
-// 右键长按相关变量
-let rightClickMonitor = null;
-let isRightClickMonitorRunning = false;
-// 中键长按相关变量
-let middleClickMonitor = null;
-let isMiddleClickMonitorRunning = false;
+// 快捷搜索热键节流控制
+let lastSearchHotkeyTime = 0;
+const SEARCH_HOTKEY_COOLDOWN_MS = 1200;
+
+
 
 // 设置文件路径
 const settingsPath = path.join(app.getPath('userData'), 'settings.json');
@@ -73,7 +72,7 @@ function configureLoggingAndCache() {
         const cachePath = path.join(app.getPath('userData'), 'Cache');
         try {
             fs.mkdirSync(cachePath, { recursive: true });
-        } catch {}
+        } catch { }
         app.setPath('cache', cachePath);
     } catch (error) {
         // 静默处理，避免影响应用启动
@@ -111,17 +110,17 @@ async function getTextSnippets(pluginPath) {
     try {
         console.log('=== 开始获取余汉波文本片段 ===');
         console.log('插件路径:', pluginPath);
-        
+
         // 从插件管理器的持久化存储中读取设置
         let actualPaths = [];
         let settingsFound = false;
-        
+
         try {
             if (pluginManager) {
                 // 从插件的持久化存储中获取设置
                 const settings = pluginManager.getPluginStorageItem('余汉波文本片段助手', 'snippets-settings');
                 console.log('从存储中获取到设置:', settings);
-                
+
                 if (settings) {
                     // 支持新版多路径和旧版单一路径
                     if (Array.isArray(settings.snippetsPaths) && settings.snippetsPaths.length > 0) {
@@ -138,7 +137,7 @@ async function getTextSnippets(pluginPath) {
         } catch (error) {
             console.error('从存储中读取设置失败:', error);
         }
-        
+
         // 如果没有找到插件的设置，显示提示信息
         if (!settingsFound) {
             console.log('❌ 未找到插件的设置或路径无效');
@@ -146,35 +145,35 @@ async function getTextSnippets(pluginPath) {
             console.log('   打开插件 → 点击设置 → 添加文本片段文件夹路径');
             return [];
         }
-        
+
         console.log('✅ 最终使用的文本片段路径:', actualPaths);
-        
+
         const allSnippets = [];
-        
+
         // 扫描每个路径中的.md文件
         for (const folderPath of actualPaths) {
             console.log(`开始扫描文件夹: ${folderPath}`);
-            
+
             try {
                 // 递归扫描函数
                 function scanDirectory(dir, maxDepth = 2, currentDepth = 0) {
                     if (!fs.existsSync(dir) || currentDepth >= maxDepth) return;
-                    
+
                     const items = fs.readdirSync(dir);
                     console.log(`文件夹 ${dir} 中的项目:`, items.slice(0, 10)); // 只显示前10个
-                    
+
                     for (const item of items) {
                         const fullPath = path.join(dir, item);
                         try {
                             const stat = fs.statSync(fullPath);
-                            
+
                             if (stat.isFile() && path.extname(item).toLowerCase() === '.md') {
                                 try {
                                     const content = fs.readFileSync(fullPath, 'utf8');
                                     const fileName = path.basename(item, '.md');
-                                    
+
                                     console.log(`✅ 读取MD文件: ${fileName}, 内容长度: ${content.length}`);
-                                    
+
                                     // 生成预览文本（去掉Markdown语法）
                                     let preview = content
                                         .replace(/^#+\s*/gm, '') // 去掉标题标记
@@ -184,12 +183,12 @@ async function getTextSnippets(pluginPath) {
                                         .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1') // 去掉链接标记，保留文本
                                         .replace(/\n+/g, ' ') // 将换行符替换为空格
                                         .trim();
-                                    
+
                                     // 截取预览长度
                                     if (preview.length > 150) {
                                         preview = preview.substring(0, 150) + '...';
                                     }
-                                    
+
                                     allSnippets.push({
                                         title: fileName,
                                         content: content,
@@ -209,20 +208,20 @@ async function getTextSnippets(pluginPath) {
                         }
                     }
                 }
-                
+
                 scanDirectory(folderPath);
             } catch (error) {
                 console.error(`扫描文件夹 ${folderPath} 失败:`, error);
             }
         }
-        
+
         console.log(`🎉 最终找到 ${allSnippets.length} 个文本片段`);
-        
+
         // 按文件名排序
         allSnippets.sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'));
-        
+
         console.log('=== 文本片段获取完成 ===');
-        
+
         return allSnippets;
     } catch (error) {
         console.error('获取文本片段失败:', error);
@@ -231,14 +230,32 @@ async function getTextSnippets(pluginPath) {
 }
 
 // 注册全局快捷键
-// 函数级注释：注册全局快捷键（默认 Alt+Space，若系统占用将回退由调用者处理）
+// 函数级注释：
+// - 注册快速搜索的全局快捷键（默认 Alt+Space，若系统占用由调用方处理回退）
+// - 增加节流机制（1200ms）避免在选择结果并隐藏窗口后因键位重复触发导致“快捷搜索反复打开”
 function registerGlobalShortcut(hotkey = 'Alt+Space') {
     try {
         // 先注销现有的全局快捷键，但不要注销所有
         globalShortcut.unregister(hotkey);
-        
+
         // 注册全局快捷键
         const ret = globalShortcut.register(hotkey, () => {
+            const now = Date.now();
+            // 若窗口已可见，仅聚焦即可，避免重复重新定位与闪烁
+            if (searchWindow && !searchWindow.isDestroyed() && searchWindow.isVisible()) {
+                try {
+                    searchWindow.focus();
+                } catch (_) {}
+                return;
+            }
+
+            // 节流：短时间内忽略后续触发，解决重复打开问题
+            if (now - lastSearchHotkeyTime < SEARCH_HOTKEY_COOLDOWN_MS) {
+                console.log('忽略重复触发全局快捷键（节流中）');
+                return;
+            }
+
+            lastSearchHotkeyTime = now;
             console.log('全局快捷键被触发:', hotkey);
             showSearchWindow();
         });
@@ -265,26 +282,26 @@ function registerPinShortcut(hotkey = 'Ctrl+D') {
             console.log('钉住快捷键与全局快捷键相同，跳过注册');
             return true;
         }
-        
+
         // 先注销现有的钉住快捷键
         globalShortcut.unregister(hotkey);
-        
+
         // 注册钉住快捷键
         const ret = globalShortcut.register(hotkey, () => {
             console.log('钉住快捷键被触发:', hotkey);
-            
+
             // 检查搜索窗口是否可见
             if (searchWindow && !searchWindow.isDestroyed() && searchWindow.isVisible()) {
                 togglePin();
                 return;
             }
-            
+
             // 检查是否有插件窗口可以操作
             if (pluginManager) {
                 // 首先检查当前获得焦点的插件窗口
                 let targetWindow = pluginManager.getActivePluginWindow();
                 let pluginName = null;
-                
+
                 if (targetWindow) {
                     pluginName = pluginManager.getPluginNameByWindow(targetWindow);
                     console.log('找到获得焦点的插件窗口:', pluginName);
@@ -296,15 +313,15 @@ function registerPinShortcut(hotkey = 'Ctrl+D') {
                         console.log('找到可见的插件窗口:', pluginName);
                     }
                 }
-                
+
                 if (pluginName && targetWindow) {
                     console.log('对插件窗口执行钉住操作:', pluginName);
-                    
+
                     // 立即执行钉住操作，不需要延迟
                     try {
                         const newPinStatus = pluginManager.togglePluginPin(pluginName);
                         console.log(`插件 ${pluginName} 钉住状态已更改为: ${newPinStatus}`);
-                        
+
                         // 如果成功钉住，确保窗口显示并获得焦点
                         if (newPinStatus && targetWindow && !targetWindow.isDestroyed()) {
                             if (!targetWindow.isVisible()) {
@@ -313,14 +330,14 @@ function registerPinShortcut(hotkey = 'Ctrl+D') {
                             targetWindow.focus();
                             console.log(`插件 ${pluginName} 已显示并获得焦点`);
                         }
-                        
+
                         return;
                     } catch (error) {
                         console.error('执行钉住操作时出错:', error);
                     }
                 }
             }
-            
+
             console.log('没有找到可操作的窗口，快捷键无效');
         });
 
@@ -341,7 +358,7 @@ function registerPinShortcut(hotkey = 'Ctrl+D') {
 function togglePin() {
     isPinned = !isPinned;
     console.log('搜索窗口钉住状态:', isPinned ? '已钉住' : '未钉住');
-    
+
     if (searchWindow && !searchWindow.isDestroyed()) {
         // 更新窗口行为
         if (isPinned) {
@@ -353,13 +370,13 @@ function togglePin() {
             searchWindow.setSkipTaskbar(true); // 不显示在任务栏
             searchWindow.setMinimizable(false); // 不允许最小化
         }
-        
+
         // 发送状态更新到渲染进程
         if (searchWindow.webContents) {
             searchWindow.webContents.send('pin-status-changed', isPinned);
         }
     }
-    
+
     return isPinned;
 }
 
@@ -377,170 +394,154 @@ function getResourcePath(relativePath) {
 // 获取图标路径
 function getIconPath() {
     // 优先使用 .ico 格式，适用于 Windows
-    const icoPath = app.isPackaged 
+    const icoPath = app.isPackaged
         ? path.join(process.resourcesPath, 'build', 'icon.ico')
         : path.join(__dirname, 'build', 'icon.ico');
-    
+
     // 检查 .ico 文件是否存在
     if (fs.existsSync(icoPath)) {
         console.log('使用图标路径:', icoPath);
         return icoPath;
     }
-    
+
     // 备用方案：使用 assets 中的 png 图标
     const pngPath = getResourcePath('assets/icon.png');
     if (fs.existsSync(pngPath)) {
         console.log('使用备用图标路径:', pngPath);
         return pngPath;
     }
-    
+
     // 最后备用方案：返回 null，让 Electron 使用默认图标
     console.log('未找到任何图标文件，使用默认图标');
     return null;
 }
 
-// 启动右键长按监听器
-function startRightClickMonitor() {
-    if (isRightClickMonitorRunning || process.platform !== 'win32') {
-        return;
-    }
-    
-    const settings = loadSettings();
-    if (!settings.enableRightClickPanel) {
-        return;
-    }
-    
-    isRightClickMonitorRunning = true;
-    startOptimizedRightClickMonitor(settings);
-}
+// 鼠标监控进程
+let mouseMonitorProcess = null;
 
-// 优化的右键长按监控实现 - 减少资源消耗和控制台输出
-function startOptimizedRightClickMonitor(settings) {
-    const os = require('os');
-    const tempDir = os.tmpdir();
-    const scriptPath = path.join(tempDir, `optimized_right_click_${Date.now()}.ps1`);
-    
-    // 优化的PowerShell脚本 - 减少轮询频率，去除不必要输出
+// 启动鼠标监控（右键长按）
+function startMouseMonitor() {
+    if (mouseMonitorProcess || process.platform !== 'win32') return;
+
+    const settings = loadSettings();
+    if (!settings.enableRightClickPanel) return;
+
+    const scriptPath = path.join(app.getPath('userData'), 'mouse-monitor.ps1');
+    const delay = settings.rightClickDelay || 300;
+
+    // 更加稳健的PowerShell脚本，避免不必要的资源消耗
     const psScript = `
 $ErrorActionPreference = "SilentlyContinue"
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $VK_RBUTTON = 0x02
-$DELAY = ${settings.rightClickDelay || 500}
+$VK_ESCAPE = 0x1B
+$threshold = ${delay}
 
 $signature = @'
 [DllImport("user32.dll")]
 public static extern short GetAsyncKeyState(int vKey);
+[DllImport("user32.dll")]
+public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, int dwExtraInfo);
 '@
 
-try {
-    Add-Type -MemberDefinition $signature -Name 'Win32API' -Namespace 'Win32'
-} catch {
-    # Type already exists, continue silently
-}
+try { Add-Type -MemberDefinition $signature -Name 'Win32API' -Namespace 'Win32' } catch {}
 
-$pressed = $false
-$startTime = 0
-$longPressTriggered = $false
+$isPressed = $false
+$pressTime = 0
+$triggered = $false
 
-# 主监听循环 - 降低检测频率减少CPU占用
 while ($true) {
     try {
         $state = [Win32.Win32API]::GetAsyncKeyState($VK_RBUTTON)
-        $now = [Environment]::TickCount
-        $isDown = ($state -band 0x8000) -ne 0
-        
-        if ($isDown -and -not $pressed) {
-            $pressed = $true
-            $startTime = $now
-            $longPressTriggered = $false
-        }
-        elseif ($isDown -and $pressed -and -not $longPressTriggered) {
-            if (($now - $startTime) -ge $DELAY) {
-                $longPressTriggered = $true
-                Write-Output "LONG_PRESS"
+        $down = ($state -band 0x8000) -ne 0
+
+        if ($down) {
+            if (-not $isPressed) {
+                $isPressed = $true
+                $pressTime = [Environment]::TickCount
+                $triggered = $false
+            } elseif (-not $triggered) {
+                $elapsed = [Environment]::TickCount - $pressTime
+                if ($elapsed -ge $threshold) {
+                    $triggered = $true
+                    Write-Output "RBUTTON_LONG_PRESS"
+                }
             }
+        } else {
+            if ($isPressed -and $triggered) {
+                # 长按释放后，发送 ESC 键以关闭可能弹出的上下文菜单
+                # 0 = KeyDown, 2 = KeyUp
+                [Win32.Win32API]::keybd_event($VK_ESCAPE, 0, 0, 0)
+                [Win32.Win32API]::keybd_event($VK_ESCAPE, 0, 2, 0)
+                Write-Output "ESC_SENT"
+            }
+            $isPressed = $false
+            $triggered = $false
         }
-        elseif (-not $isDown -and $pressed) {
-            $pressed = $false
-            $longPressTriggered = $false
-        }
-        
-        # 轮询频率设置为20ms，以支持更小的长按延迟，同时兼顾性能
-        Start-Sleep -Milliseconds 20
-    } catch {
-        Start-Sleep -Milliseconds 200
-    }
-}
-    `;
+    } catch {}
     
+    Start-Sleep -Milliseconds 20
+}
+`;
+
     try {
-        fs.writeFileSync(scriptPath, psScript, { encoding: 'utf8' });
+        fs.writeFileSync(scriptPath, psScript);
         
-        const command = `powershell -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File "${scriptPath}"`;
-        
-        rightClickMonitor = exec(command, { windowsHide: true });
-        
-        // 简化输出处理，只处理长按事件
-        rightClickMonitor.stdout.on('data', (data) => {
-            const output = data.toString().trim();
-            if (output.includes('LONG_PRESS')) {
+        console.log('启动鼠标监控进程...');
+        mouseMonitorProcess = spawn('powershell', [
+            '-ExecutionPolicy', 'Bypass',
+            '-NoProfile',
+            '-WindowStyle', 'Hidden',
+            '-File', scriptPath
+        ], {
+            stdio: ['ignore', 'pipe', 'ignore'],
+            windowsHide: true
+        });
+
+        mouseMonitorProcess.stdout.on('data', (data) => {
+            const output = data.toString();
+            if (output.includes('RBUTTON_LONG_PRESS')) {
+                console.log('检测到右键长按，调用超级面板');
+                // 收到长按信号，开始忽略 ESC，防止释放时发送的 ESC 关闭面板
+                isIgnoreEsc = true;
                 showSuperPanel();
             }
-        });
-        
-        // 静默处理错误，避免控制台输出过多
-        rightClickMonitor.stderr.on('data', () => {
-            // 静默处理，避免控制台跳动
-        });
-        
-        // 进程退出处理 - 不频繁重启
-        rightClickMonitor.on('exit', (code) => {
-            isRightClickMonitorRunning = false;
-            
-            // 清理临时文件
-            try {
-                if (fs.existsSync(scriptPath)) {
-                    fs.unlinkSync(scriptPath);
-                }
-            } catch (e) {
-                // 静默处理清理错误
+            if (output.includes('ESC_SENT')) {
+                 console.log('检测到右键释放，已发送 ESC 关闭菜单');
+                 // ESC 发送后，延迟恢复 ESC 响应，确保面板不被误关
+                 setTimeout(() => {
+                     isIgnoreEsc = false;
+                 }, 200);
             }
+        });
+
+        mouseMonitorProcess.on('exit', (code) => {
+            console.log(`鼠标监控进程退出，代码: ${code}`);
+            mouseMonitorProcess = null;
             
-            // 只在异常情况下重启，并增加重启间隔
-            if (code !== 0 && loadSettings().enableRightClickPanel) {
-                setTimeout(() => {
-                    if (loadSettings().enableRightClickPanel && !isRightClickMonitorRunning) {
-                        startRightClickMonitor();
-                    }
-                }, 10000); // 10秒重启间隔，避免频繁重启
+            // 异常退出自动重启
+            if (code !== 0 && code !== null) {
+                 setTimeout(() => {
+                    if (!mouseMonitorProcess) startMouseMonitor();
+                 }, 5000);
             }
         });
         
-        rightClickMonitor.on('error', () => {
-            isRightClickMonitorRunning = false;
-        });
-        
-    } catch (error) {
-        isRightClickMonitorRunning = false;
+    } catch (e) {
+        console.error('启动鼠标监控失败:', e);
+    }
+}
+
+// 停止鼠标监控
+function stopMouseMonitor() {
+    if (mouseMonitorProcess) {
+        console.log('停止鼠标监控进程');
+        mouseMonitorProcess.kill();
+        mouseMonitorProcess = null;
     }
 }
 
 
-
-// 停止右键长按监听器
-function stopRightClickMonitor() {
-    if (rightClickMonitor) {
-        console.log('停止右键长按监听器');
-        try {
-            if (typeof rightClickMonitor.kill === 'function') {
-                rightClickMonitor.kill();
-            }
-            rightClickMonitor = null;
-        } catch (error) {
-            console.error('停止监听器时出错:', error);
-        }
-    }
-    isRightClickMonitorRunning = false;
-}
 
 /**
  * 注册超级面板快捷键
@@ -561,117 +562,7 @@ function registerSuperPanelShortcut(hotkey = '') {
     }
 }
 
-/**
- * 启动中键长按监听器
- * 函数级注释：在 Windows 平台通过 PowerShell 轮询 VK_MBUTTON 状态，按下超过设定延迟触发超级面板
- */
-function startMiddleClickMonitor() {
-    if (isMiddleClickMonitorRunning || process.platform !== 'win32') {
-        return;
-    }
-    const settings = loadSettings();
-    if (!settings.enableMiddleClickPanel) {
-        return;
-    }
-    isMiddleClickMonitorRunning = true;
-    startOptimizedMiddleClickMonitor(settings);
-}
 
-/**
- * 优化的中键长按监控实现
- * 函数级注释：与右键实现一致，但键码改为 0x04（中键），输出仅在满足长按时产生，降低 CPU 占用
- */
-function startOptimizedMiddleClickMonitor(settings) {
-    const os = require('os');
-    const tempDir = os.tmpdir();
-    const scriptPath = path.join(tempDir, `optimized_middle_click_${Date.now()}.ps1`);
-
-    const psScript = `
-$ErrorActionPreference = "SilentlyContinue"
-$VK_MBUTTON = 0x04
-$DELAY = ${settings.middleClickDelay || 500}
-
-$signature = @'
-[DllImport("user32.dll")]
-public static extern short GetAsyncKeyState(int vKey);
-'@
-
-try {
-    Add-Type -MemberDefinition $signature -Name 'Win32API' -Namespace 'Win32'
-} catch {
-}
-
-$pressed = $false
-$startTime = 0
-$longPressTriggered = $false
-
-while ($true) {
-    try {
-        $state = [Win32.Win32API]::GetAsyncKeyState($VK_MBUTTON)
-        $now = [Environment]::TickCount
-        $isDown = ($state -band 0x8000) -ne 0
-        if ($isDown -and -not $pressed) {
-            $pressed = $true; $startTime = $now; $longPressTriggered = $false
-        } elseif ($isDown -and $pressed -and -not $longPressTriggered) {
-            if (($now - $startTime) -ge $DELAY) {
-                $longPressTriggered = $true
-                Write-Output "LONG_PRESS"
-            }
-        } elseif (-not $isDown -and $pressed) {
-            $pressed = $false; $longPressTriggered = $false
-        }
-        Start-Sleep -Milliseconds 20
-    } catch {
-        Start-Sleep -Milliseconds 200
-    }
-}
-`;
-
-    try {
-        fs.writeFileSync(scriptPath, psScript, { encoding: 'utf8' });
-        const command = `powershell -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File "${scriptPath}"`;
-        middleClickMonitor = exec(command, { windowsHide: true });
-        middleClickMonitor.stdout.on('data', (data) => {
-            const output = data.toString().trim();
-            if (output.includes('LONG_PRESS')) {
-                showSuperPanel();
-            }
-        });
-        middleClickMonitor.stderr.on('data', () => {});
-        middleClickMonitor.on('exit', (code) => {
-            isMiddleClickMonitorRunning = false;
-            try { if (fs.existsSync(scriptPath)) fs.unlinkSync(scriptPath); } catch {}
-            if (code !== 0 && loadSettings().enableMiddleClickPanel) {
-                setTimeout(() => {
-                    if (loadSettings().enableMiddleClickPanel && !isMiddleClickMonitorRunning) {
-                        startMiddleClickMonitor();
-                    }
-                }, 10000);
-            }
-        });
-        middleClickMonitor.on('error', () => {
-            isMiddleClickMonitorRunning = false;
-        });
-    } catch (error) {
-        isMiddleClickMonitorRunning = false;
-    }
-}
-
-/**
- * 停止中键长按监听器
- * 函数级注释：安全终止中键监控子进程并重置运行标记
- */
-function stopMiddleClickMonitor() {
-    if (middleClickMonitor) {
-        try {
-            if (typeof middleClickMonitor.kill === 'function') {
-                middleClickMonitor.kill();
-            }
-            middleClickMonitor = null;
-        } catch (error) {}
-    }
-    isMiddleClickMonitorRunning = false;
-}
 
 // 创建超级面板窗口
 function createSuperPanelWindow() {
@@ -701,13 +592,13 @@ function createSuperPanelWindow() {
 
     // 启用remote模块
     if (remoteMain) {
-            remoteMain.enable(superPanelWindow.webContents);
-        }
+        remoteMain.enable(superPanelWindow.webContents);
+    }
 
     // 加载超级面板页面
     const superPanelPath = getResourcePath('super-panel.html');
     console.log('尝试加载超级面板:', superPanelPath);
-    
+
     if (fs.existsSync(superPanelPath)) {
         console.log('✅ 从资源路径加载超级面板');
         superPanelWindow.loadFile(superPanelPath);
@@ -715,7 +606,7 @@ function createSuperPanelWindow() {
         // 备用方案：从根目录加载
         const rootPath = path.join(__dirname, 'super-panel.html');
         console.log('尝试从根目录加载:', rootPath);
-        
+
         if (fs.existsSync(rootPath)) {
             console.log('✅ 从根目录加载超级面板');
             superPanelWindow.loadFile(rootPath);
@@ -737,19 +628,19 @@ function createSuperPanelWindow() {
             }, 350);
             return;
         }
-        
+
         if (superPanelWindow && !superPanelWindow.isDestroyed() && superPanelWindow.isVisible()) {
             // 检查是否有输入框处于活动状态
             if (hasActiveInput) {
                 console.log('检测到活动输入框，跳过blur隐藏');
                 return; // 有活动输入框时不隐藏
             }
-            
+
             console.log('超级面板失去焦点（blur事件），自动隐藏');
             superPanelWindow.hide();
         }
     });
-    
+
     // 为应对 'blur' 事件在某些情况下可能不触发的问题，增加一个基于轮询的失焦检测作为备用方案。
     let focusCheckInterval = null;
 
@@ -762,13 +653,13 @@ function createSuperPanelWindow() {
             if (isSuperPanelGracePeriod) {
                 return; // 宽限期内不检查
             }
-            
+
             // 检查是否有输入框处于活动状态
             if (hasActiveInput) {
                 console.log('检测到活动输入框，跳过失焦检查');
                 return; // 有活动输入框时不执行失焦检查
             }
-            
+
             if (superPanelWindow && !superPanelWindow.isDestroyed() && superPanelWindow.isVisible() && !superPanelWindow.isFocused()) {
                 console.log('超级面板失去焦点（轮询检测），自动隐藏');
                 superPanelWindow.hide(); // hide() 会触发 'hide' 事件, 从而清除计时器。
@@ -782,7 +673,7 @@ function createSuperPanelWindow() {
             clearInterval(focusCheckInterval);
             focusCheckInterval = null;
         }
-        
+
         // 重置输入框活动状态
         hasActiveInput = false;
         console.log('🔍 面板隐藏，重置输入框状态');
@@ -796,16 +687,24 @@ function createSuperPanelWindow() {
     return superPanelWindow;
 }
 
+let isIgnoreEsc = false; // 是否忽略 ESC 键（用于处理右键冲突）
+
 // 显示超级面板
 function showSuperPanel() {
     try {
-        // 记录当前活动窗口句柄并检测是否处于文本输入环境，用于后续恢复焦点与插入判断
-        recordActiveWindowWithInputStatus();
+        // 异步记录当前活动窗口句柄，消除UI阻塞
+        hasActiveInput = false; // 重置输入框活动状态
+        recordActiveWindowWithInputStatusAsync();
     } catch (error) {
-        console.error('记录活动窗口失败:', error);
+        console.error('启动记录活动窗口失败:', error);
     }
-    
+
     if (!superPanelWindow || superPanelWindow.isDestroyed()) {
+        // 添加 IPC 处理：检查是否应该忽略 ESC
+        ipcMain.removeHandler('should-ignore-esc'); // 先移除，防止重复注册
+        ipcMain.handle('should-ignore-esc', () => {
+            return isIgnoreEsc;
+        });
         createSuperPanelWindow();
     }
 
@@ -815,18 +714,21 @@ function showSuperPanel() {
     }
 
     try {
+        // 标记进入宽限期，避免立即被 blur 隐藏
+        isSuperPanelGracePeriod = true;
+        
         // 获取鼠标位置并在鼠标附近显示
         const { screen } = require('electron');
         const cursorPoint = screen.getCursorScreenPoint();
         const currentDisplay = screen.getDisplayNearestPoint(cursorPoint);
-        
+
         const windowWidth = 450;
         const windowHeight = 350;
-        
+
         // 计算窗口位置，在鼠标右侧显示
         let x = cursorPoint.x + 20;
         let y = cursorPoint.y - windowHeight / 2;
-        
+
         // 边界检查，确保窗口在屏幕内
         if (x + windowWidth > currentDisplay.workArea.x + currentDisplay.workArea.width) {
             x = cursorPoint.x - windowWidth - 20; // 显示在鼠标左侧
@@ -842,40 +744,63 @@ function showSuperPanel() {
         }
 
         superPanelWindow.setBounds({ x, y, width: windowWidth, height: windowHeight });
-
-        isSuperPanelGracePeriod = true;
         superPanelWindow.show();
         
+        // 强制窗口置顶并获取焦点
+        superPanelWindow.setAlwaysOnTop(true, 'screen-saver'); // 提高置顶级别
+        setTimeout(() => {
+             if (superPanelWindow && !superPanelWindow.isDestroyed()) {
+                 superPanelWindow.setAlwaysOnTop(true);
+             }
+        }, 100);
+
+        // 通知页面刷新（重新获取选中文本）
+        if (superPanelWindow.webContents) {
+            console.log('📤 发送刷新面板请求');
+            superPanelWindow.webContents.send('refresh-super-panel');
+        }
+
         // 首先等待窗口显示完成
         setTimeout(() => {
-            // 然后再尝试获取焦点
-            superPanelWindow.focus();
-            superPanelWindow.webContents.focus();
-            
-            console.log('✅ 超级面板已显示');
-            
-            // 再等待足够长时间才关闭宽限期
+            if (superPanelWindow && !superPanelWindow.isDestroyed()) {
+                // 然后再尝试获取焦点
+                superPanelWindow.focus();
+                superPanelWindow.webContents.focus();
+                
+                // 再次确认焦点状态
+                if (!superPanelWindow.isFocused()) {
+                    console.log('⚠️ 尝试强制激活窗口');
+                    superPanelWindow.moveTop();
+                    superPanelWindow.focus();
+                }
+
+                console.log('✅ 超级面板已显示');
+            }
+
+            // 延长宽限期，以容纳右键释放后的冲突处理
             setTimeout(() => {
                 isSuperPanelGracePeriod = false;
-            }, 300); // 缩短宽限期，提高响应速度
-        }, 50); // 短暂等待窗口显示
-        
+            }, 600); 
+        }, 50);
+
     } catch (error) {
         console.error('设置超级面板位置失败:', error);
-        
-        // 出错时回退到默认位置
+        // ... (回退逻辑保持不变)
         const { screen } = require('electron');
         const primaryDisplay = screen.getPrimaryDisplay();
         const { width, height } = primaryDisplay.workAreaSize;
-        
         const windowWidth = 450;
         const windowHeight = 350;
         const x = Math.round((width - windowWidth) / 2);
         const y = Math.round((height - windowHeight) / 3);
-
         superPanelWindow.setBounds({ x, y, width: windowWidth, height: windowHeight });
         superPanelWindow.show();
         superPanelWindow.focus();
+        
+        // 出错回退时也要发送刷新请求
+        if (superPanelWindow.webContents) {
+            superPanelWindow.webContents.send('refresh-super-panel');
+        }
     }
 }
 
@@ -904,13 +829,13 @@ function createSearchWindow() {
 
     // 启用remote模块
     if (remoteMain) {
-            remoteMain.enable(searchWindow.webContents);
-        }
+        remoteMain.enable(searchWindow.webContents);
+    }
 
     // 加载搜索窗口页面 - 修复打包后的路径问题
     const searchWindowPath = getResourcePath('search-window.html');
     console.log('尝试加载搜索窗口:', searchWindowPath);
-    
+
     if (fs.existsSync(searchWindowPath)) {
         console.log('✅ 从资源路径加载搜索窗口');
         searchWindow.loadFile(searchWindowPath);
@@ -918,17 +843,17 @@ function createSearchWindow() {
         // 备用方案1：尝试从应用根目录加载
         const rootPath = path.join(__dirname, 'search-window.html');
         console.log('尝试从根目录加载:', rootPath);
-        
+
         if (fs.existsSync(rootPath)) {
             console.log('✅ 从根目录加载搜索窗口');
             searchWindow.loadFile(rootPath);
         } else {
             // 备用方案2：如果是打包后的应用，尝试从asar包外部加载
-            const asarPath = app.isPackaged 
+            const asarPath = app.isPackaged
                 ? path.join(path.dirname(process.execPath), 'search-window.html')
                 : './search-window.html';
             console.log('尝试从ASAR外部加载:', asarPath);
-            
+
             if (fs.existsSync(asarPath)) {
                 console.log('✅ 从ASAR外部加载搜索窗口');
                 searchWindow.loadFile(asarPath);
@@ -981,12 +906,13 @@ function createSearchWindow() {
  */
 function showSearchWindow() {
     try {
-        // 记录当前活动窗口句柄，并判断是否为文本输入环境，用于后续恢复焦点与自动粘贴
-        recordActiveWindowWithInputStatus();
+        // 异步记录当前活动窗口，消除阻塞
+        hasActiveInput = false; // 重置输入框活动状态
+        recordActiveWindowWithInputStatusAsync();
     } catch (error) {
-        console.error('记录活动窗口失败:', error);
+        console.error('启动记录活动窗口失败:', error);
     }
-    
+
     if (!searchWindow || searchWindow.isDestroyed()) {
         createSearchWindow();
     }
@@ -996,14 +922,14 @@ function showSearchWindow() {
         const { screen } = require('electron');
         const cursorPoint = screen.getCursorScreenPoint();
         const currentDisplay = screen.getDisplayNearestPoint(cursorPoint);
-        
+
         const windowWidth = 600;
         const windowHeight = 400;
-        
+
         // 计算窗口位置，在鼠标上方显示
         let x = cursorPoint.x - windowWidth / 2;
         let y = cursorPoint.y - 200; // 在鼠标上方200像素
-        
+
         // 边界检查，确保窗口在屏幕内
         if (x < currentDisplay.workArea.x) {
             x = currentDisplay.workArea.x + 10;
@@ -1021,12 +947,12 @@ function showSearchWindow() {
         searchWindow.setBounds({ x, y, width: windowWidth, height: windowHeight });
     } catch (error) {
         console.error('设置浮窗位置失败，使用默认位置:', error);
-        
+
         // 出错时回退到默认位置
         const { screen } = require('electron');
         const primaryDisplay = screen.getPrimaryDisplay();
         const { width, height } = primaryDisplay.workAreaSize;
-        
+
         const windowWidth = 600;
         const windowHeight = 400;
         const x = Math.round((width - windowWidth) / 2);
@@ -1034,7 +960,7 @@ function showSearchWindow() {
 
         searchWindow.setBounds({ x, y, width: windowWidth, height: windowHeight });
     }
-    
+
     searchWindow.show();
     searchWindow.focus();
 }
@@ -1071,12 +997,12 @@ function recordActiveWindow() {
     try {
         console.log('记录当前活动窗口 (同步, 使用临时 .ps1 文件)');
         fs.writeFileSync(scriptPath, psScriptContent, { encoding: 'utf8' });
-        
+
         const commandToRun = `powershell -ExecutionPolicy Bypass -NonInteractive -NoProfile -File "${scriptPath}"`;
         console.log('Executing PowerShell script for recordActiveWindow:', commandToRun);
-        
+
         const output = execSync(commandToRun, { windowsHide: true, timeout: 3000, encoding: 'utf8' }).toString().trim();
-        
+
         if (output && output !== '0||' && !output.startsWith("0||PS_SCRIPT_ERROR")) {
             const parts = output.split('|');
             if (parts.length === 2) {
@@ -1117,18 +1043,18 @@ function recordActiveWindow() {
 }
 
 /**
- * 记录当前前台活动窗口，并检测其焦点是否位于文本输入控件上
+ * 记录当前前台活动窗口，并检测其焦点是否位于文本输入控件上 (异步非阻塞版本)
  * 功能说明：
  * - 使用 PowerShell 调用 Win32 API 获取：窗口句柄、标题、当前焦点控件类名、可见插入符(hwndCaret/rcCaret)
  * - 若存在焦点控件，使用 GetAncestor(GA_ROOT) 获取其顶级窗口作为更稳健的恢复目标
  * - 综合类名白名单与插入符存在进行 isInputLikely 判断，设置全局 wasTextInputBeforeSearch
  * - 同时记录 focusHandle 以便在恢复焦点和 WM_PASTE 时作为回退依据
  */
-function recordActiveWindowWithInputStatus() {
+function recordActiveWindowWithInputStatusAsync() {
+    const { exec } = require('child_process');
     const os = require('os');
     const fs = require('fs');
     const path = require('path');
-    const execSync = require('child_process').execSync;
     const tempDir = os.tmpdir();
     const scriptPath = path.join(tempDir, `get_active_window_with_focus_${Date.now()}.ps1`);
 
@@ -1181,36 +1107,52 @@ function recordActiveWindowWithInputStatus() {
     try {
         fs.writeFileSync(scriptPath, psScript, { encoding: 'utf8' });
         const commandToRun = `powershell -ExecutionPolicy Bypass -NonInteractive -NoProfile -File "${scriptPath}"`;
-        const output = execSync(commandToRun, { windowsHide: true, timeout: 3000, encoding: 'utf8' }).toString().trim();
 
-        if (output && !output.startsWith('0||')) {
-            const parts = output.split('|');
-            const handle = parts[0];
-            const title = parts[1] || 'Unknown';
-            const className = parts[2] || '';
-            const focusHandle = parts[3] || '0';
-            const isInputLikely = parts[4] === '1';
-            if (handle && /^[1-9][0-9]*$/.test(handle)) {
-                lastActiveWindow = { handle, title, focusHandle, timestamp: Date.now(), fallback: false };
-            } else {
-                lastActiveWindow = { handle: null, title, focusHandle, timestamp: Date.now(), fallback: true };
+        // 异步执行，不阻塞主进程
+        exec(commandToRun, { windowsHide: true, timeout: 3000, encoding: 'utf8' }, (error, stdout, stderr) => {
+            // 清理临时文件
+            try {
+                if (fs.existsSync(scriptPath)) {
+                    fs.unlinkSync(scriptPath);
+                }
+            } catch (e) { }
+
+            if (error) {
+                console.error('记录活动窗口异常(Async):', error.message);
+                // 仅在完全失败时重置（或者保留旧值？为了安全，重置比较好，防止粘贴到错误窗口）
+                lastActiveWindow = { handle: null, title: 'Unknown', focusHandle: '0', timestamp: Date.now(), fallback: true };
+                wasTextInputBeforeSearch = false;
+                return;
             }
-            const cls = className.toLowerCase();
-            wasTextInputBeforeSearch = Boolean(isInputLikely || cls.includes('edit') || cls.includes('richedit') || cls.includes('renderwidgethost') || cls.includes('textbox') || cls.includes('input') || cls.includes('scintilla') || cls.includes('chrome_widgetwin'));
-            console.log('记录活动窗口(含焦点类型):', { title, handle, focusHandle, className, wasTextInputBeforeSearch });
-        } else {
-            console.log('未获取到有效的活动窗口信息(含焦点类型): ', output);
-            lastActiveWindow = { handle: null, title: 'Unknown', focusHandle: '0', timestamp: Date.now(), fallback: true };
-            wasTextInputBeforeSearch = false;
-        }
+
+            const output = stdout ? stdout.toString().trim() : '';
+
+            if (output && !output.startsWith('0||')) {
+                const parts = output.split('|');
+                const handle = parts[0];
+                const title = parts[1] || 'Unknown';
+                const className = parts[2] || '';
+                const focusHandle = parts[3] || '0';
+                const isInputLikely = parts[4] === '1';
+
+                if (handle && /^[1-9][0-9]*$/.test(handle)) {
+                    lastActiveWindow = { handle, title, focusHandle, timestamp: Date.now(), fallback: false };
+                } else {
+                    lastActiveWindow = { handle: null, title, focusHandle, timestamp: Date.now(), fallback: true };
+                }
+
+                const cls = className.toLowerCase();
+                wasTextInputBeforeSearch = Boolean(isInputLikely || cls.includes('edit') || cls.includes('richedit') || cls.includes('renderwidgethost') || cls.includes('textbox') || cls.includes('input') || cls.includes('scintilla') || cls.includes('chrome_widgetwin'));
+                // console.log('记录活动窗口成功(Async):', { title, wasTextInputBeforeSearch });
+            } else {
+                console.log('未获取到有效的活动窗口信息(Async): ', output);
+                lastActiveWindow = { handle: null, title: 'Unknown', focusHandle: '0', timestamp: Date.now(), fallback: true };
+                wasTextInputBeforeSearch = false;
+            }
+        });
     } catch (error) {
-        console.error('记录活动窗口异常(recordActiveWindowWithInputStatus):', error.message);
-        wasTextInputBeforeSearch = false;
-        lastActiveWindow = { handle: null, title: 'Unknown', focusHandle: '0', timestamp: Date.now(), fallback: true };
-    } finally {
-        try { if (fs.existsSync(scriptPath)) { fs.unlinkSync(scriptPath); } } catch (cleanupError) {
-            console.error('清理临时PS脚本失败(recordActiveWindowWithInputStatus):', cleanupError.message);
-        }
+        console.error('启动记录活动窗口脚本失败:', error.message);
+        try { if (fs.existsSync(scriptPath)) { fs.unlinkSync(scriptPath); } } catch (e) { }
     }
 }
 
@@ -1287,8 +1229,8 @@ function createWindow() {
 
         // 启用remote模块
         if (remoteMain) {
-        remoteMain.enable(mainWindow.webContents);
-    }
+            remoteMain.enable(mainWindow.webContents);
+        }
 
         // 移除菜单栏 - 多平台兼容
         if (process.platform === 'darwin') {
@@ -1359,22 +1301,22 @@ function createTray() {
         // 创建托盘图标 - 修改为使用新的图标路径
         const iconPath = getIconPath();
         console.log('托盘图标路径:', iconPath);
-        
+
         // 确保图标文件存在
         if (!iconPath || !fs.existsSync(iconPath)) {
             console.log('托盘图标文件不存在，跳过托盘创建');
             return;
         }
-        
+
         tray = new Tray(iconPath);
-        
+
         // 设置托盘提示
         tray.setToolTip('三人聚智-效率工具');
-        
+
         // 托盘菜单
         const contextMenu = Menu.buildFromTemplate([
-            { 
-                label: '显示主窗口', 
+            {
+                label: '显示主窗口',
                 click: () => {
                     if (mainWindow) {
                         mainWindow.show();
@@ -1387,23 +1329,23 @@ function createTray() {
                     }
                 }
             },
-            { 
-                label: '搜索功能', 
+            {
+                label: '搜索功能',
                 accelerator: loadSettings().globalHotkey || 'Alt+Space',
                 click: () => {
                     showSearchWindow();
                 }
             },
-            { 
-                label: '设置超级面板', 
+            {
+                label: '设置超级面板',
                 click: () => {
                     console.log('🔧 打开超级面板设置');
                     createSuperPanelManagerWindow();
                 }
             },
             { type: 'separator' },
-            { 
-                label: '关于', 
+            {
+                label: '关于',
                 click: () => {
                     if (mainWindow) {
                         mainWindow.show();
@@ -1411,8 +1353,8 @@ function createTray() {
                     }
                 }
             },
-            { 
-                label: '退出应用', 
+            {
+                label: '退出应用',
                 click: () => {
                     // 彻底退出应用
                     app.isQuiting = true;
@@ -1420,10 +1362,10 @@ function createTray() {
                 }
             }
         ]);
-        
+
         // 设置托盘上下文菜单
         tray.setContextMenu(contextMenu);
-        
+
         // 双击托盘图标显示主窗口（Windows 和 Linux）
         tray.on('double-click', () => {
             console.log('托盘图标被双击');
@@ -1441,7 +1383,7 @@ function createTray() {
                 }
             }
         });
-        
+
         // 单击托盘图标的处理（主要针对 macOS）
         tray.on('click', () => {
             console.log('托盘图标被单击');
@@ -1473,7 +1415,7 @@ function createTray() {
                 }
             }
         });
-        
+
         console.log('系统托盘创建成功');
     } catch (error) {
         console.error('创建系统托盘失败:', error);
@@ -1493,9 +1435,55 @@ ipcMain.handle('get-plugin-list', async () => {
 
 // 注册插件动态功能
 ipcMain.handle('register-plugin-features', async (event, pluginName, features) => {
+    /**
+     * 函数级注释：
+     * - 接收渲染进程注册的插件特性并进行可序列化清洗，避免“An object could not be cloned”
+     * - 仅保留 `code`/`explain`/`cmds` 字段，且 `cmds` 内仅允许字符串或基本对象
+     */
     try {
+        const sanitizeCmd = (c) => {
+            try {
+                if (typeof c === 'string') return c;
+                if (c && typeof c === 'object') {
+                    const out = {};
+                    if (c.type !== undefined) out.type = String(c.type);
+                    if (typeof c.label === 'string') out.label = c.label;
+                    else if (Array.isArray(c.label)) out.label = c.label.map(v => String(v));
+                    if (typeof c.minLength === 'number') out.minLength = c.minLength;
+                    if (typeof c.maxLength === 'number') out.maxLength = c.maxLength;
+                    if (c.match) {
+                        // 将正则或复杂匹配对象转换为可序列化形式
+                        if (c.match instanceof RegExp) {
+                            out.match = { pattern: c.match.source, flags: c.match.flags };
+                        } else if (typeof c.match === 'string') {
+                            out.match = c.match;
+                        } else if (typeof c.match === 'object') {
+                            // 仅保留可序列化的基本键值
+                            const m = {};
+                            for (const k of Object.keys(c.match)) {
+                                const v = c.match[k];
+                                if (v instanceof RegExp) m[k] = { pattern: v.source, flags: v.flags };
+                                else if (['string', 'number', 'boolean'].includes(typeof v)) m[k] = v;
+                            }
+                            out.match = m;
+                        }
+                    }
+                    return out;
+                }
+                return String(c);
+            } catch (_) {
+                return String(c);
+            }
+        };
+
+        const safeFeatures = Array.isArray(features) ? features.map(f => ({
+            code: String(f?.code || ''),
+            explain: String(f?.explain || ''),
+            cmds: Array.isArray(f?.cmds) ? f.cmds.map(sanitizeCmd) : []
+        })) : [];
+
         if (pluginManager) {
-            return pluginManager.registerDynamicFeatures(pluginName, features);
+            return pluginManager.registerDynamicFeatures(pluginName, safeFeatures);
         }
         return false;
     } catch (error) {
@@ -1509,7 +1497,7 @@ ipcMain.handle('run-plugin', async (event, pluginPath, features) => {
     try {
         if (pluginManager && mainWindow && !mainWindow.isDestroyed()) {
             await pluginManager.runPlugin(pluginPath, features);
-            
+
             // 插件运行后，自动注册其超级面板功能
             try {
                 const pluginConfigPath = path.join(pluginPath, 'plugin.json');
@@ -1570,7 +1558,7 @@ ipcMain.handle('close-plugin-window', (event, pluginName) => {
 ipcMain.handle('get-plugin-contents', async (event, pluginPath) => {
     try {
         const pluginJsonPath = path.join(pluginPath, 'plugin.json');
-        
+
         if (!fs.existsSync(pluginJsonPath)) {
             console.log('插件配置文件不存在:', pluginJsonPath);
             return [];
@@ -1578,9 +1566,9 @@ ipcMain.handle('get-plugin-contents', async (event, pluginPath) => {
 
         const pluginConfig = JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8'));
         const allContents = [];
-        
+
         console.log(`正在处理插件: ${pluginConfig.pluginName}`);
-        
+
         // 1. 添加插件的 cmds 作为可搜索内容（支持对象型命令并去重）
         /**
          * 收集命令的文本标签
@@ -1635,7 +1623,7 @@ ipcMain.handle('get-plugin-contents', async (event, pluginPath) => {
                 }
             });
         }
-        
+
         // 1.5 添加动态注册的功能 (如 AI 助手的快捷指令)
         if (pluginManager && pluginConfig.pluginName) {
             try {
@@ -1702,22 +1690,22 @@ ipcMain.handle('get-plugin-contents', async (event, pluginPath) => {
                             const items = resolveStorageArrayByPath(pluginConfig.pluginName, config.storageKey);
                             if (items && Array.isArray(items)) {
                                 console.log(`从存储中发现动态功能: ${pluginConfig.pluginName} - ${config.storageKey}, 数量: ${items.length}`);
-                                
+
                                 items.forEach((item, index) => {
                                     const titleKey = String(config.itemTitleKey || 'title');
                                     const label = item[titleKey] || `项目-${index + 1}`;
-                                    
+
                                     // 生成唯一代码，与插件内部逻辑保持一致
                                     const slug = String(label).replace(/[^\w\u4e00-\u9fa5]+/g, '-').toLowerCase();
                                     const featureCode = `${String(config.codePrefix || '')}${slug}`;
-                                    
+
                                     // 检查是否已存在
                                     const exists = allContents.some(c =>
                                         c.type === 'command' &&
                                         c.title === label &&
                                         c.featureCode === featureCode
                                     );
-                                    
+
                                     if (!exists) {
                                         allContents.push({
                                             title: String(label),
@@ -1740,14 +1728,14 @@ ipcMain.handle('get-plugin-contents', async (event, pluginPath) => {
                 console.error('处理动态功能失败:', dynError);
             }
         }
-        
+
         // 2. 根据插件类型加载具体的内容
         if (pluginConfig.pluginName === '余汉波文本片段助手') {
             console.log('开始加载余汉波文本片段助手的内容...');
             try {
                 const textSnippets = await getTextSnippets(pluginPath);
                 console.log(`文本片段助手返回了 ${textSnippets.length} 个片段`);
-                
+
                 // 为文本片段添加类型标识，确保所有字段都是可序列化的
                 textSnippets.forEach(snippet => {
                     console.log(`添加文本片段: ${snippet.title}`);
@@ -1763,9 +1751,9 @@ ipcMain.handle('get-plugin-contents', async (event, pluginPath) => {
                 console.error('加载文本片段失败:', error);
             }
         }
-        
+
         console.log(`插件 ${pluginConfig.pluginName} 共加载 ${allContents.length} 个可搜索项`);
-        
+
         return allContents;
     } catch (error) {
         console.error('获取插件内容失败:', error);
@@ -1777,25 +1765,26 @@ ipcMain.handle('get-plugin-contents', async (event, pluginPath) => {
 ipcMain.handle('insert-content', async (event, content) => {
     try {
         console.log('准备复制内容:', content.title, '类型:', content.contentType || content.type);
-        
+
         // 只处理文本片段类型的内容
         if (content.contentType !== 'text-snippet' && content.type !== 'text-snippet') {
             console.log('非文本片段类型，跳过复制操作');
             return { success: false, message: '不支持的内容类型' };
         }
-        
+
         const { clipboard } = require('electron');
-        
+
         // 复制内容到剪贴板
         clipboard.writeText(content.content);
         console.log('文本片段已复制到剪贴板:', content.title);
-        
-        // 隐藏搜索窗口
+
+        // 隐藏搜索窗口并进入冷却
         if (searchWindow && !searchWindow.isDestroyed() && searchWindow.isVisible()) {
             searchWindow.hide();
+            lastSearchHotkeyTime = Date.now();
             console.log('搜索窗口已隐藏');
         }
-        
+
         // 显示复制成功通知
         const { Notification } = require('electron');
         if (Notification.isSupported()) {
@@ -1805,7 +1794,7 @@ ipcMain.handle('insert-content', async (event, content) => {
                 silent: true
             }).show();
         }
-        
+
         return { success: true, message: '文本片段已复制到剪贴板' };
     } catch (error) {
         console.error('复制内容失败:', error);
@@ -1845,13 +1834,13 @@ ipcMain.handle('save-settings', (event, settings) => {
     try {
         const currentSettings = loadSettings();
         const savedSettings = saveSettings(settings);
-        
+
         // 如果全局快捷键发生变化，重新注册
         if (settings.globalHotkey && settings.globalHotkey !== currentSettings.globalHotkey) {
             console.log('重新注册全局快捷键:', settings.globalHotkey);
             registerGlobalShortcut(settings.globalHotkey);
         }
-        
+
         // 如果钉住快捷键发生变化，重新注册
         if (settings.pinHotkey && settings.pinHotkey !== currentSettings.pinHotkey) {
             console.log('重新注册钉住快捷键:', settings.pinHotkey);
@@ -1863,37 +1852,26 @@ ipcMain.handle('save-settings', (event, settings) => {
             console.log('重新注册超级面板快捷键:', settings.superPanelHotkey);
             // 先尝试注销旧的
             if (currentSettings.superPanelHotkey) {
-                try { globalShortcut.unregister(currentSettings.superPanelHotkey); } catch {}
+                try { globalShortcut.unregister(currentSettings.superPanelHotkey); } catch { }
             }
             registerSuperPanelShortcut(settings.superPanelHotkey);
         }
-        
+
+
+
         // 如果右键设置发生变化，重新启动监听器
-        if (process.platform === 'win32' && 
+        if (process.platform === 'win32' &&
             (settings.enableRightClickPanel !== currentSettings.enableRightClickPanel ||
-             settings.rightClickDelay !== currentSettings.rightClickDelay)) {
+                settings.rightClickDelay !== currentSettings.rightClickDelay)) {
             console.log('右键设置已更改，重新启动监听器');
-            stopRightClickMonitor();
+            stopMouseMonitor();
             if (settings.enableRightClickPanel) {
                 setTimeout(() => {
-                    startRightClickMonitor();
+                    startMouseMonitor();
                 }, 1000);
             }
         }
 
-        // 如果中键设置发生变化，重新启动监听器
-        if (process.platform === 'win32' &&
-            (settings.enableMiddleClickPanel !== currentSettings.enableMiddleClickPanel ||
-             settings.middleClickDelay !== currentSettings.middleClickDelay)) {
-            console.log('中键设置已更改，重新启动监听器');
-            stopMiddleClickMonitor();
-            if (settings.enableMiddleClickPanel) {
-                setTimeout(() => {
-                    startMiddleClickMonitor();
-                }, 1000);
-            }
-        }
-        
         // 处理开机自启动
         if (typeof settings.autoStart === 'boolean') {
             app.setLoginItemSettings({
@@ -1901,7 +1879,7 @@ ipcMain.handle('save-settings', (event, settings) => {
                 path: process.execPath
             });
         }
-        
+
         return savedSettings;
     } catch (error) {
         console.error('保存设置失败:', error);
@@ -1912,13 +1890,16 @@ ipcMain.handle('save-settings', (event, settings) => {
 // 隐藏搜索窗口
 ipcMain.handle('hide-search-window', async (event, options = {}) => {
     if (searchWindow && !searchWindow.isDestroyed()) {
+        const wasVisible = searchWindow.isVisible();
         searchWindow.hide();
-        
-        // 只有在需要恢复焦点时才执行焦点恢复逻辑
-        if (options.restoreFocus !== false) {
+        // 隐藏后开启一段时间的热键冷却，防止快速重复打开
+        lastSearchHotkeyTime = Date.now();
+
+        // 只有在需要恢复焦点且此前窗口为可见状态时才执行焦点恢复逻辑
+        if (options.restoreFocus !== false && wasVisible) {
             try {
                 console.log('搜索窗口被隐藏，开始恢复焦点');
-                
+
                 // Using a slightly longer delay here as well
                 setTimeout(async () => {
                     try {
@@ -1928,7 +1909,7 @@ ipcMain.handle('hide-search-window', async (event, options = {}) => {
                         console.error('隐藏后焦点恢复失败:', error.message, error.stack);
                     }
                 }, 80); // Consistent delay
-                
+
             } catch (error) {
                 console.error('搜索窗口隐藏后处理失败:', error);
             }
@@ -1963,10 +1944,10 @@ ipcMain.handle('was-text-input-active', () => {
 ipcMain.on('show-open-dialog', (event, options) => {
     try {
         console.log('主进程收到文件选择请求:', options);
-        
+
         const result = dialog.showOpenDialogSync(mainWindow, options);
         console.log('文件选择结果:', result);
-        
+
         event.returnValue = result || null;
     } catch (error) {
         console.error('主进程文件选择错误:', error);
@@ -1978,10 +1959,10 @@ ipcMain.on('show-open-dialog', (event, options) => {
 ipcMain.on('show-save-dialog', (event, options) => {
     try {
         console.log('主进程收到保存文件选择请求:', options);
-        
+
         const result = dialog.showSaveDialogSync(mainWindow, options);
         console.log('保存文件选择结果:', result);
-        
+
         event.returnValue = result || null;
     } catch (error) {
         console.error('主进程保存文件选择错误:', error);
@@ -2041,34 +2022,9 @@ ipcMain.handle('restore-previous-focus', async (event) => {
     }
 });
 
-// 添加 IPC 处理：获取右键监听器状态
-ipcMain.handle('get-right-click-monitor-status', () => {
-    return {
-        isRunning: isRightClickMonitorRunning,
-        isSupported: process.platform === 'win32'
-    };
-});
 
-// 添加 IPC 处理：切换右键监听器
-ipcMain.handle('toggle-right-click-monitor', (event, enabled) => {
-    if (process.platform !== 'win32') {
-        return { success: false, error: '仅支持 Windows 系统' };
-    }
-    
-    try {
-        if (enabled) {
-            startRightClickMonitor();
-        } else {
-            stopRightClickMonitor();
-        }
-        return { success: true, isRunning: isRightClickMonitorRunning };
-    } catch (error) {
-        console.error('切换右键监听器失败:', error);
-        return { success: false, error: error.message };
-    }
-});
 
-// 添加 IPC 处理：手动测试右键功能
+// 添加 IPC 处理：测试右键功能
 ipcMain.handle('test-right-click-function', () => {
     try {
         console.log('🧪 手动测试右键功能');
@@ -2092,6 +2048,7 @@ ipcMain.handle('get-selected-text', async () => {
 
         const psScript = `
 $ErrorActionPreference = "SilentlyContinue"
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 Add-Type -AssemblyName System.Windows.Forms
 
 $selectedText = ""
@@ -2111,14 +2068,14 @@ try {
 }`;
 
         fs.writeFileSync(scriptPath, psScript, { encoding: 'utf8' });
-        
+
         const command = `powershell -ExecutionPolicy Bypass -NonInteractive -NoProfile -File "${scriptPath}"`;
-        const result = execSync(command, { 
-            windowsHide: true, 
-            timeout: 3000, 
-            encoding: 'utf8' 
+        const result = execSync(command, {
+            windowsHide: true,
+            timeout: 3000,
+            encoding: 'utf8'
         }).toString().trim();
-        
+
         // 清理临时文件
         try {
             if (fs.existsSync(scriptPath)) {
@@ -2127,10 +2084,10 @@ try {
         } catch (e) {
             console.error('清理PS脚本失败:', e);
         }
-        
+
         console.log('获取到选中文本:', result);
         return result;
-        
+
     } catch (error) {
         console.error('获取选中文本失败:', error);
         return '';
@@ -2142,10 +2099,10 @@ try {
 // 计算功能与选中文本的匹配度
 function calculateMatchScore(selectedText, feature) {
     if (!selectedText || !feature) return 0;
-    
+
     let score = 0;
     const text = selectedText.toLowerCase();
-    
+
     // 检查命令关键词匹配
     if (feature.cmds) {
         feature.cmds.forEach(cmd => {
@@ -2154,7 +2111,7 @@ function calculateMatchScore(selectedText, feature) {
             }
         });
     }
-    
+
     // 检查功能说明匹配
     if (feature.explain) {
         const explain = feature.explain.toLowerCase();
@@ -2163,11 +2120,11 @@ function calculateMatchScore(selectedText, feature) {
         if (text.includes('翻译') && explain.includes('翻译')) score += 8;
         if (text.includes('密码') && explain.includes('密码')) score += 8;
     }
-    
+
     // 基础分数
     if (feature.superPanel) score += 5;
     if (feature.contextMenu) score += 3;
-    
+
     return score;
 }
 
@@ -2176,31 +2133,31 @@ function getPluginIconPath(pluginPath, returnDefault = true) {
     try {
         const logoIcoPath = path.join(pluginPath, 'logo.ico');
         const logoPngPath = path.join(pluginPath, 'logo.png');
-        
+
         // 优先检查 logo.ico
         if (fs.existsSync(logoIcoPath)) {
             console.log(`插件图标找到 logo.ico: ${logoIcoPath}`);
             return logoIcoPath;
         }
-        
+
         // 其次检查 logo.png
         if (fs.existsSync(logoPngPath)) {
             console.log(`插件图标找到 logo.png: ${logoPngPath}`);
             return logoPngPath;
         }
-        
+
         // 如果都没有，返回默认图标或undefined
         if (returnDefault) {
-            const appIconPath = app.isPackaged 
+            const appIconPath = app.isPackaged
                 ? path.join(process.resourcesPath, 'build', 'icon.ico')
                 : path.join(__dirname, 'build', 'icon.ico');
-                
+
             if (fs.existsSync(appIconPath)) {
                 console.log(`插件无自定义图标，使用主应用图标: ${appIconPath}`);
                 return appIconPath;
             }
         }
-        
+
         console.log('未找到插件图标文件');
         return undefined;
     } catch (error) {
@@ -2216,7 +2173,7 @@ function getPluginIcon(pluginName) {
         '插件下载': '📦',
         '余汉波AI助手': '🤖'
     };
-    
+
     return iconMap[pluginName] || '🔧';
 }
 
@@ -2224,20 +2181,20 @@ function getPluginIcon(pluginName) {
 ipcMain.handle('run-plugin-action', async (event, { pluginPath, feature, selectedText }) => {
     try {
         console.log('运行插件操作:', { pluginPath, feature: feature.code, selectedText });
-        
+
         if (pluginManager) {
             // 传递选中的文本到插件
             if (selectedText && feature.useSelectedText !== false) {
                 // 可以在这里将选中文本传递给插件
                 feature.selectedText = selectedText;
             }
-            
+
             await pluginManager.runPlugin(pluginPath, [feature]);
             return { success: true };
         } else {
             throw new Error('插件管理器未初始化');
         }
-        
+
     } catch (error) {
         console.error('运行插件操作失败:', error);
         throw error;
@@ -2248,36 +2205,36 @@ ipcMain.handle('run-plugin-action', async (event, { pluginPath, feature, selecte
 ipcMain.handle('execute-system-command', async (event, { command, args, selectedText }) => {
     try {
         console.log('执行系统命令:', { command, args, selectedText });
-        
+
         const { shell } = require('electron');
-        
+
         switch (command) {
             case 'search-web':
                 const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(args.query)}`;
                 await shell.openExternal(searchUrl);
                 break;
-                
+
             case 'open-url':
                 await shell.openExternal(args.url);
                 break;
-                
+
             case 'send-email':
                 const emailUrl = `mailto:${args.email}`;
                 await shell.openExternal(emailUrl);
                 break;
-                
+
             case 'translate':
                 const translateUrl = `https://translate.google.com/?sl=${args.from}&tl=${args.to}&text=${encodeURIComponent(args.text)}`;
                 await shell.openExternal(translateUrl);
                 break;
-                
+
             case 'open-app':
                 // 打开本地应用程序
                 const appPath = args.app;
                 if (appPath) {
                     const { spawn } = require('child_process');
                     try {
-                        spawn(appPath, [], { 
+                        spawn(appPath, [], {
                             detached: true,
                             stdio: 'ignore'
                         }).unref();
@@ -2289,13 +2246,13 @@ ipcMain.handle('execute-system-command', async (event, { command, args, selected
                     throw new Error('未指定应用路径');
                 }
                 break;
-                
+
             default:
                 throw new Error(`未知命令: ${command}`);
         }
-        
+
         return { success: true };
-        
+
     } catch (error) {
         console.error('执行系统命令失败:', error);
         throw error;
@@ -2306,7 +2263,7 @@ ipcMain.handle('execute-system-command', async (event, { command, args, selected
 ipcMain.handle('close-super-panel', () => {
     if (superPanelWindow && !superPanelWindow.isDestroyed()) {
         superPanelWindow.hide();
-        
+
         // 恢复焦点到原窗口
         setTimeout(async () => {
             try {
@@ -2329,13 +2286,13 @@ let superPanelRegistry = new Map();
 ipcMain.handle('register-super-panel-action', (event, pluginName, action) => {
     try {
         console.log(`🔌 插件 ${pluginName} 注册功能:`, action.title);
-        
+
         if (!superPanelRegistry.has(pluginName)) {
             superPanelRegistry.set(pluginName, []);
         }
-        
+
         const actions = superPanelRegistry.get(pluginName);
-        
+
         // 检查是否已存在相同ID的功能
         const existingIndex = actions.findIndex(a => a.id === action.id);
         if (existingIndex >= 0) {
@@ -2343,12 +2300,12 @@ ipcMain.handle('register-super-panel-action', (event, pluginName, action) => {
         } else {
             actions.push(action); // 添加新功能
         }
-        
+
         superPanelRegistry.set(pluginName, actions);
-        
+
         // 通知超级面板更新
         notifySuperPanelUpdate();
-        
+
         return true;
     } catch (error) {
         console.error('注册超级面板功能失败:', error);
@@ -2360,16 +2317,16 @@ ipcMain.handle('register-super-panel-action', (event, pluginName, action) => {
 ipcMain.handle('unregister-super-panel-action', (event, pluginName, actionId) => {
     try {
         console.log(`🔌 插件 ${pluginName} 取消注册功能:`, actionId);
-        
+
         if (superPanelRegistry.has(pluginName)) {
             const actions = superPanelRegistry.get(pluginName);
             const filteredActions = actions.filter(a => a.id !== actionId);
             superPanelRegistry.set(pluginName, filteredActions);
-            
+
             // 通知超级面板更新
             notifySuperPanelUpdate();
         }
-        
+
         return true;
     } catch (error) {
         console.error('取消注册超级面板功能失败:', error);
@@ -2382,10 +2339,10 @@ ipcMain.handle('clear-super-panel-actions', (event, pluginName) => {
     try {
         console.log(`🔌 清除插件 ${pluginName} 的所有超级面板功能`);
         superPanelRegistry.delete(pluginName);
-        
+
         // 通知超级面板更新
         notifySuperPanelUpdate();
-        
+
         return true;
     } catch (error) {
         console.error('清除超级面板功能失败:', error);
@@ -2406,15 +2363,15 @@ ipcMain.handle('clear-super-panel-actions', (event, pluginName) => {
 ipcMain.handle('get-super-panel-actions', async (event, selectedText) => {
     try {
         console.log('🎯 获取超级面板功能，选中文本:', selectedText);
-        
+
         // 获取设置中保存的功能列表
         const settings = loadSettings();
         let configuredActions = settings.superPanelActions || [];
         console.log(`从设置中加载已配置功能: ${configuredActions.length}个`);
-        
+
         // 总是重新加载功能，确保获取最新的功能列表
         let allActions = [];
-        
+
         // 1. 获取插件注册的功能
         for (const [pluginName, actions] of superPanelRegistry) {
             console.log(`📦 加载插件功能: ${pluginName} (${actions.length}个)`);
@@ -2424,45 +2381,45 @@ ipcMain.handle('get-super-panel-actions', async (event, selectedText) => {
                 pluginName: pluginName
             })));
         }
-        
+
         // 2. 获取持久化的自定义功能
         const customActions = await getCustomSuperPanelActions();
         allActions = allActions.concat(customActions);
-        
+
         // 3. 获取内置功能
         const builtinActions = await getBuiltinSuperPanelActions();
         allActions = allActions.concat(builtinActions);
-        
+
         // 4. 获取动态功能（基于选中内容）
         const dynamicActions = await getDynamicSuperPanelActions(selectedText);
         allActions = allActions.concat(dynamicActions);
-        
+
         console.log(`🔧 总共可用功能: ${allActions.length}个`);
-        
+
         // 如果设置中有指定的功能列表，则过滤出已配置的功能
         if (configuredActions.length > 0) {
             const configuredIds = new Set(configuredActions.map(action => action.id));
             const filteredActions = allActions.filter(action => configuredIds.has(action.id));
             console.log(`🎯 已配置功能: ${filteredActions.length}个`);
-            
+
             // 按配置的顺序排序
             const sortedActions = configuredActions.map(configAction => {
                 const foundAction = allActions.find(action => action.id === configAction.id);
                 return foundAction || configAction; // 使用最新的功能定义，如果找不到就用配置的
             }).filter(action => action); // 过滤掉空值
-            
+
             return sortedActions;
         }
-        
+
         // 否则返回所有功能（首次使用时）
         console.log('返回所有可用功能');
-        
+
         // 按类型和优先级排序
         allActions.sort((a, b) => {
             const priorityMap = { dynamic: 1, plugin: 2, custom: 3, builtin: 4 };
             return (priorityMap[a.type] || 5) - (priorityMap[b.type] || 5);
         });
-        
+
         // 根据 id 去重（保留优先级排序后靠前的项）
         const uniqueById = new Map();
         for (const action of allActions) {
@@ -2473,7 +2430,7 @@ ipcMain.handle('get-super-panel-actions', async (event, selectedText) => {
         }
         const dedupedActions = Array.from(uniqueById.values());
         console.log(`去重后功能数量: ${dedupedActions.length}`);
-        
+
         return dedupedActions;
     } catch (error) {
         console.error('获取超级面板功能失败:', error);
@@ -2492,28 +2449,28 @@ function notifySuperPanelUpdate() {
 function autoRegisterPluginSuperPanelActions(pluginName, pluginConfig, pluginPath = null) {
     try {
         if (!pluginConfig || !pluginConfig.features) return;
-        
+
         console.log(`🚀 自动注册插件 ${pluginName} 的超级面板功能`);
-        
+
         // 如果没有提供 pluginPath，尝试推算
         if (!pluginPath && pluginManager && pluginManager.getPluginPath) {
             pluginPath = pluginManager.getPluginPath(pluginName);
         }
-        
+
         // 如果还是没有，根据插件名称推算默认路径
         if (!pluginPath) {
             const pluginFolderName = getPluginFolderName(pluginName);
             pluginPath = path.join(__dirname, 'app', 'software', pluginFolderName);
         }
-        
+
         console.log(`插件 ${pluginName} 的路径: ${pluginPath}`);
-        
-        pluginConfig.features.forEach(feature => {
+
+        pluginConfig.features.forEach(rawFeature => {
             // 检查功能是否支持超级面板
-            if (feature.superPanel !== false) { // 默认启用，除非明确禁用
+            if (rawFeature.superPanel !== false) { // 默认启用，除非明确禁用
                 // 处理图标：优先使用插件目录中的logo.ico，其次使用logo.png，最后使用默认emoji
                 let icon = getPluginDefaultIcon(pluginName);
-                
+
                 // 尝试查找插件目录中的图标文件
                 try {
                     // 首先尝试 logo.ico
@@ -2545,8 +2502,8 @@ function autoRegisterPluginSuperPanelActions(pluginName, pluginConfig, pluginPat
                             }
                         } else {
                             // 如果指定了图标文件，尝试使用指定的文件
-                            if (feature.icon && feature.icon.includes('.')) {
-                                const customIconPath = path.join(pluginPath, feature.icon);
+                            if (rawFeature.icon && rawFeature.icon.includes('.')) {
+                                const customIconPath = path.join(pluginPath, rawFeature.icon);
                                 if (fs.existsSync(customIconPath)) {
                                     try {
                                         const imageBuffer = fs.readFileSync(customIconPath);
@@ -2562,35 +2519,80 @@ function autoRegisterPluginSuperPanelActions(pluginName, pluginConfig, pluginPat
                                 }
                             }
                             // 如果是emoji，直接使用
-                            else if (feature.icon && /^[\u{1F000}-\u{1F9FF}]|^[\u{2600}-\u{26FF}]|^[\u{2700}-\u{27BF}]/u.test(feature.icon)) {
-                                icon = feature.icon;
-                                console.log(`使用emoji图标: ${feature.icon}`);
+                            else if (rawFeature.icon && /^[\u{1F000}-\u{1F9FF}]|^[\u{2600}-\u{26FF}]|^[\u{2700}-\u{27BF}]/u.test(rawFeature.icon)) {
+                                icon = rawFeature.icon;
+                                console.log(`使用emoji图标: ${rawFeature.icon}`);
                             }
                         }
                     }
                 } catch (error) {
                     console.error(`查找插件图标失败:`, error);
                 }
-                
+
+                // 清洗 feature，确保可序列化
+                /**
+                 * 函数级注释：
+                 * - 将插件 feature 精简为可跨 IPC 传输的形态：仅保留 code/explain/cmds
+                 * - 对 cmds 进行逐项清洗，剔除函数/RegExp 等不可克隆对象，避免“An object could not be cloned”
+                 */
+                const sanitizeCmd = (c) => {
+                    try {
+                        if (typeof c === 'string') return c;
+                        if (c && typeof c === 'object') {
+                            const out = {};
+                            if (c.type !== undefined) out.type = String(c.type);
+                            if (typeof c.label === 'string') out.label = c.label;
+                            else if (Array.isArray(c.label)) out.label = c.label.map(v => String(v));
+                            if (typeof c.minLength === 'number') out.minLength = c.minLength;
+                            if (typeof c.maxLength === 'number') out.maxLength = c.maxLength;
+                            if (c.match) {
+                                if (c.match instanceof RegExp) {
+                                    out.match = { pattern: c.match.source, flags: c.match.flags };
+                                } else if (typeof c.match === 'string') {
+                                    out.match = c.match;
+                                } else if (typeof c.match === 'object') {
+                                    const m = {};
+                                    for (const k of Object.keys(c.match)) {
+                                        const v = c.match[k];
+                                        if (v instanceof RegExp) m[k] = { pattern: v.source, flags: v.flags };
+                                        else if (['string', 'number', 'boolean'].includes(typeof v)) m[k] = v;
+                                    }
+                                    out.match = m;
+                                }
+                            }
+                            return out;
+                        }
+                        return String(c);
+                    } catch (_) {
+                        return String(c);
+                    }
+                };
+
+                const feature = {
+                    code: String(rawFeature.code || ''),
+                    explain: String(rawFeature.explain || ''),
+                    cmds: Array.isArray(rawFeature.cmds) ? rawFeature.cmds.map(sanitizeCmd) : []
+                };
+
                 const action = {
                     id: `plugin-${pluginName}-${feature.code}`,
                     title: feature.explain || feature.code,
-                    description: feature.description || `使用 ${pluginName} 的 ${feature.explain || feature.code} 功能`,
+                    description: rawFeature.description || `使用 ${pluginName} 的 ${rawFeature.explain || rawFeature.code} 功能`,
                     icon: icon,
                     type: 'plugin',
-                    category: feature.category || '插件功能',
+                    category: rawFeature.category || '插件功能',
                     pluginPath: pluginPath,
                     feature: feature,
-                    priority: feature.priority || 10
+                    priority: rawFeature.priority || 10
                 };
-                
+
                 console.log(`注册功能: ${action.title} (${action.id})`);
-                
+
                 // 直接添加到注册表
                 if (!superPanelRegistry.has(pluginName)) {
                     superPanelRegistry.set(pluginName, []);
                 }
-                
+
                 const actions = superPanelRegistry.get(pluginName);
                 const existingIndex = actions.findIndex(a => a.id === action.id);
                 if (existingIndex >= 0) {
@@ -2598,17 +2600,17 @@ function autoRegisterPluginSuperPanelActions(pluginName, pluginConfig, pluginPat
                 } else {
                     actions.push(action);
                 }
-                
+
                 superPanelRegistry.set(pluginName, actions);
             }
         });
-        
+
         const registeredCount = superPanelRegistry.get(pluginName)?.length || 0;
         console.log(`插件 ${pluginName} 共注册了 ${registeredCount} 个超级面板功能`);
-        
+
         // 通知更新
         notifySuperPanelUpdate();
-        
+
     } catch (error) {
         console.error('自动注册插件超级面板功能失败:', error);
     }
@@ -2622,7 +2624,7 @@ function getPluginFolderName(pluginName) {
         '插件下载': 'sanrenjz-tools-download_plugin',
         '余汉波AI助手': 'sanrenjz.tools-ai'
     };
-    
+
     return folderNameMap[pluginName] || pluginName.toLowerCase().replace(/\s+/g, '-');
 }
 
@@ -2639,7 +2641,7 @@ function getPluginDefaultIcon(pluginName) {
         '余汉波AI助手': '🤖',
         'sanrenjz.tools-ai': '🤖'
     };
-    
+
     return iconMap[pluginName] || '🔧';
 }
 
@@ -2652,15 +2654,15 @@ function getPluginDefaultIcon(pluginName) {
 async function initializeSuperPanelDefaults() {
     try {
         console.log('🚀 初始化超级面板默认功能');
-        
+
         const customActionsPath = path.join(app.getPath('userData'), 'custom-super-panel-actions.json');
-        
+
         // 检查是否已经初始化过
         if (fs.existsSync(customActionsPath)) {
             console.log('超级面板配置文件已存在，跳过初始化');
             return;
         }
-        
+
         // 读取示例配置文件并初始化
         const exampleConfigPath = path.join(__dirname, 'custom-super-panel-actions-example.json');
         if (fs.existsSync(exampleConfigPath)) {
@@ -2724,11 +2726,11 @@ async function initializeSuperPanelDefaults() {
             fs.writeFileSync(customActionsPath, JSON.stringify(basicActions, null, 2));
             console.log('✅ 超级面板基础功能初始化完成');
         }
-        
+
     } catch (error) {
         console.error('初始化超级面板默认功能失败:', error);
     }
-    
+
     // 合并示例与用户自定义（若用户文件已存在）
     try {
         const customActionsPath = path.join(app.getPath('userData'), 'custom-super-panel-actions.json');
@@ -2741,7 +2743,7 @@ async function initializeSuperPanelDefaults() {
             fs.writeFileSync(customActionsPath, JSON.stringify(merged, null, 2));
             console.log('✅ 合并完成');
         }
-    
+
     } catch (mergeError) {
         console.error('合并示例与用户自定义失败:', mergeError);
     }
@@ -2783,38 +2785,38 @@ function mergeActionsByIdPreserveUser(userActions = [], exampleActions = []) {
 async function initializePluginSuperPanelActions() {
     try {
         console.log('🔌 开始初始化插件超级面板功能');
-        
+
         // 扫描插件目录
         const pluginDir = path.join(__dirname, 'app', 'software');
-        
+
         if (!fs.existsSync(pluginDir)) {
             console.log('插件目录不存在:', pluginDir);
             return;
         }
-        
+
         const pluginFolders = fs.readdirSync(pluginDir).filter(item => {
             const fullPath = path.join(pluginDir, item);
             return fs.statSync(fullPath).isDirectory();
         });
-        
+
         console.log(`找到 ${pluginFolders.length} 个插件文件夹`);
-        
+
         for (const folder of pluginFolders) {
             try {
                 const pluginPath = path.join(pluginDir, folder);
                 const configPath = path.join(pluginPath, 'plugin.json');
-                
+
                 if (fs.existsSync(configPath)) {
                     const pluginConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-                    
+
                     if (pluginConfig && pluginConfig.pluginName) {
                         console.log(`🔧 注册插件 ${pluginConfig.pluginName} 的超级面板功能`);
-                        
+
                         // 先清除之前的注册（如果有的话）
                         if (superPanelRegistry.has(pluginConfig.pluginName)) {
                             superPanelRegistry.delete(pluginConfig.pluginName);
                         }
-                        
+
                         // 调用自动注册函数，传递插件路径
                         autoRegisterPluginSuperPanelActions(pluginConfig.pluginName, pluginConfig, pluginPath);
                     }
@@ -2825,12 +2827,12 @@ async function initializePluginSuperPanelActions() {
                 console.error(`处理插件 ${folder} 时出错:`, error);
             }
         }
-        
+
         console.log('✅ 插件超级面板功能初始化完成');
-        
+
         // 通知超级面板更新
         notifySuperPanelUpdate();
-        
+
     } catch (error) {
         console.error('初始化插件超级面板功能失败:', error);
     }
@@ -2957,7 +2959,7 @@ ipcMain.handle('set-custom-plugin-data-directory', async (event) => {
         }
 
         const selectedPath = result.filePaths[0];
-        
+
         // 验证目录是否可写
         try {
             const testFile = path.join(selectedPath, '.test_write_permission');
@@ -2998,7 +3000,7 @@ ipcMain.handle('reset-plugin-data-directory', () => {
         saveSettings(settings);
 
         const defaultPath = path.join(app.getPath('userData'), 'plugin-data');
-        
+
         // 更新插件管理器的数据目录
         if (pluginManager) {
             pluginManager.updatePluginDataDirectory(defaultPath);
@@ -3024,17 +3026,17 @@ app.whenReady().then(async () => {
         } else {
             console.warn('⚠️ @electron/remote模块未加载，某些功能可能受限');
         }
-        
+
         // 初始化插件管理器
-        PluginManager = require(app.isPackaged 
+        PluginManager = require(app.isPackaged
             ? path.join(process.resourcesPath, 'app', 'software_manager.js')
             : './app/software_manager.js');
-        
+
         // 在应用准备就绪时就设置空菜单，确保所有平台都生效
         Menu.setApplicationMenu(null);
-        
+
         createWindow();
-        
+
         // 注册全局快捷键
         const settings = loadSettings();
         // 根据你的要求，强制将全局快捷键设置为 Alt+Space（若无法注册将自动回退）
@@ -3044,21 +3046,21 @@ app.whenReady().then(async () => {
             console.log('已根据用户请求将全局快捷键修改为 Alt+Space');
         }
         const hotkeyRegistered = registerGlobalShortcut(settings.globalHotkey);
-        
+
         // 如果注册失败，尝试使用备选快捷键
         if (!hotkeyRegistered) {
             console.log(`快捷键 ${settings.globalHotkey} 注册失败，尝试使用备选快捷键`);
             const fallbackHotkey = 'Ctrl+Space';
-            
+
             // 只有当当前快捷键不是备选快捷键时才尝试
             if (settings.globalHotkey !== fallbackHotkey) {
                 const fallbackRegistered = registerGlobalShortcut(fallbackHotkey);
-                
+
                 if (fallbackRegistered) {
                     // 更新设置
                     settings.globalHotkey = fallbackHotkey;
                     saveSettings(settings);
-                    
+
                     // 通知用户
                     setTimeout(() => {
                         if (mainWindow && !mainWindow.isDestroyed()) {
@@ -3073,18 +3075,15 @@ app.whenReady().then(async () => {
                 }
             }
         }
-        
+
         // 注册钉住快捷键
         registerPinShortcut(settings.pinHotkey);
-        
-        // 启动右键长按监听器
+
+        // 启动鼠标监控（右键长按）
         if (process.platform === 'win32') {
-            startRightClickMonitor();
-            if (settings.enableMiddleClickPanel) {
-                startMiddleClickMonitor();
-            }
+            startMouseMonitor();
         }
-        
+
         // 设置开机自启动
         if (settings.autoStart) {
             app.setLoginItemSettings({
@@ -3092,7 +3091,7 @@ app.whenReady().then(async () => {
                 path: process.execPath
             });
         }
-        
+
         // 监听主窗口关闭事件，隐藏到托盘而不是退出
         mainWindow.on('close', (event) => {
             if (!app.isQuiting) {
@@ -3101,7 +3100,7 @@ app.whenReady().then(async () => {
                 mainWindow.hide();
             }
         });
-        
+
         // 注册超级面板快捷键
         if (settings.superPanelHotkey && settings.superPanelHotkey.trim() !== '') {
             const ok = registerSuperPanelShortcut(settings.superPanelHotkey);
@@ -3109,15 +3108,15 @@ app.whenReady().then(async () => {
                 console.log('超级面板快捷键注册失败:', settings.superPanelHotkey);
             }
         }
-        
+
         // 初始化超级面板默认功能
         await initializeSuperPanelDefaults();
-        
+
         // 自动加载和注册所有插件的超级面板功能
         await initializePluginSuperPanelActions();
-        
+
         console.log('应用初始化完成');
-        
+
     } catch (error) {
         console.error('初始化失败:', error);
         app.quit();
@@ -3144,20 +3143,18 @@ app.on('activate', () => {
 app.on('before-quit', () => {
     console.log('应用即将退出，清理资源...');
     app.isQuiting = true;
-    
+
     // 注销全局快捷键
     globalShortcut.unregisterAll();
-    
-    // 停止右键监听器
-    stopRightClickMonitor();
-    // 停止中键监听器
-    stopMiddleClickMonitor();
-    
+
+    // 停止鼠标监控
+    stopMouseMonitor();
+
     // 停止所有插件
     if (pluginManager) {
         pluginManager.stopAllPlugins();
     }
-    
+
     // 销毁托盘图标
     if (tray) {
         tray.destroy();
@@ -3216,17 +3213,17 @@ ipcMain.handle('open-add-plugin-dialog', async () => {
             transparent: true,
             alwaysOnTop: true
         };
-        
+
         try {
             // 获取鼠标位置并在鼠标所在的屏幕显示窗口
             const { screen } = require('electron');
             const cursorPoint = screen.getCursorScreenPoint();
             const currentDisplay = screen.getDisplayNearestPoint(cursorPoint);
-            
+
             // 计算窗口位置，在屏幕中央显示
             let x = currentDisplay.workArea.x + Math.round((currentDisplay.workArea.width - 600) / 2);
             let y = currentDisplay.workArea.y + Math.round((currentDisplay.workArea.height - 500) / 2);
-            
+
             // 边界检查
             if (x < currentDisplay.workArea.x) x = currentDisplay.workArea.x + 10;
             if (x + 600 > currentDisplay.workArea.x + currentDisplay.workArea.width) {
@@ -3236,14 +3233,14 @@ ipcMain.handle('open-add-plugin-dialog', async () => {
             if (y + 500 > currentDisplay.workArea.y + currentDisplay.workArea.height) {
                 y = currentDisplay.workArea.y + currentDisplay.workArea.height - 500 - 10;
             }
-            
+
             windowOptions.x = x;
             windowOptions.y = y;
             console.log(`添加插件对话框将在屏幕 ${currentDisplay.id} 显示，位置: (${x}, ${y})`);
         } catch (error) {
             console.error('设置添加插件对话框位置失败，使用默认位置:', error);
         }
-        
+
         // 创建添加插件功能的对话框窗口
         const addPluginWindow = new BrowserWindow(windowOptions);
 
@@ -3300,7 +3297,7 @@ ipcMain.handle('execute-super-panel-action', async (event, { action, selectedTex
 async function executeBuiltinAction(action, selectedText) {
     try {
         const { clipboard } = require('electron');
-        
+
         switch (action.id) {
             case 'generate-password-simple':
                 const simplePassword = generateRandomPassword(8, { includeSymbols: false });
@@ -3328,7 +3325,7 @@ async function executeBuiltinAction(action, selectedText) {
                 console.log('时间戳已复制:', timestamp);
                 break;
             case 'uuid':
-                const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
                     const r = Math.random() * 16 | 0;
                     const v = c == 'x' ? r : (r & 0x3 | 0x8);
                     return v.toString(16);
@@ -3404,14 +3401,14 @@ async function executeDynamicAction(action, selectedText) {
 async function getCustomSuperPanelActions() {
     try {
         const customActionsPath = path.join(app.getPath('userData'), 'custom-super-panel-actions.json');
-        
+
         if (!fs.existsSync(customActionsPath)) {
             return [];
         }
-        
+
         const data = fs.readFileSync(customActionsPath, 'utf8');
         const actions = JSON.parse(data);
-        
+
         // 返回所有从配置文件读取的功能，包括自定义和内置
         return actions || [];
     } catch (error) {
@@ -3483,13 +3480,13 @@ async function getBuiltinSuperPanelActions() {
 // 获取动态超级面板功能（基于选中内容）
 async function getDynamicSuperPanelActions(selectedText) {
     const dynamicActions = [];
-    
+
     if (!selectedText || selectedText.trim() === '') {
         return dynamicActions;
     }
-    
+
     const text = selectedText.trim();
-    
+
     // URL 检测
     if (text.match(/^https?:\/\/.+/)) {
         dynamicActions.push({
@@ -3504,7 +3501,7 @@ async function getDynamicSuperPanelActions(selectedText) {
             priority: 1
         });
     }
-    
+
     // 邮箱检测
     if (text.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
         dynamicActions.push({
@@ -3519,7 +3516,7 @@ async function getDynamicSuperPanelActions(selectedText) {
             priority: 2
         });
     }
-    
+
     // 数字检测（计算器）
     if (text.match(/^[\d\+\-\*\/\.\(\)\s]+$/)) {
         dynamicActions.push({
@@ -3534,7 +3531,7 @@ async function getDynamicSuperPanelActions(selectedText) {
             priority: 3
         });
     }
-    
+
     // 中文文本检测（翻译）
     if (/[\u4e00-\u9fa5]/.test(text)) {
         dynamicActions.push({
@@ -3549,7 +3546,7 @@ async function getDynamicSuperPanelActions(selectedText) {
             priority: 4
         });
     }
-    
+
     // 英文文本检测（翻译）
     if (/^[a-zA-Z\s.,!?'"]+$/.test(text)) {
         dynamicActions.push({
@@ -3564,7 +3561,7 @@ async function getDynamicSuperPanelActions(selectedText) {
             priority: 5
         });
     }
-    
+
     // 搜索功能（对所有文本）
     dynamicActions.push({
         id: 'search-web-' + Date.now(),
@@ -3577,7 +3574,7 @@ async function getDynamicSuperPanelActions(selectedText) {
         args: { query: text },
         priority: 10
     });
-    
+
     return dynamicActions;
 }
 
@@ -3594,20 +3591,20 @@ function generateRandomPassword(length = 12, options = {}) {
         includeSymbols: true
     };
     const settings = { ...defaults, ...options };
-    
+
     let charset = '';
     if (settings.includeNumbers) charset += '0123456789';
     if (settings.includeLowercase) charset += 'abcdefghijklmnopqrstuvwxyz';
     if (settings.includeUppercase) charset += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     if (settings.includeSymbols) charset += '!@#$%^&*()_+-=[]{}|;:,.<>?';
-    
+
     if (!charset) return '';
-    
+
     let password = '';
     for (let i = 0; i < length; i++) {
         password += charset.charAt(Math.floor(Math.random() * charset.length));
     }
-    
+
     return password;
 }
 
@@ -4348,7 +4345,7 @@ async function runPluginAction(pluginPath, feature, selectedText) {
 async function executeSystemCommand(command, args, selectedText) {
     try {
         const { shell } = require('electron');
-        
+
         switch (command) {
             case 'open-app':
                 if (args.app) {
@@ -4361,14 +4358,14 @@ async function executeSystemCommand(command, args, selectedText) {
                     return { success: true };
                 }
                 break;
-                
+
             case 'open-url':
                 if (args.url) {
                     await shell.openExternal(args.url);
                     return { success: true };
                 }
                 break;
-                
+
             case 'search-web':
                 if (args.query) {
                     const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(args.query)}`;
@@ -4376,7 +4373,7 @@ async function executeSystemCommand(command, args, selectedText) {
                     return { success: true };
                 }
                 break;
-                
+
             case 'send-email':
                 if (args.email) {
                     const emailUrl = `mailto:${args.email}`;
@@ -4384,12 +4381,12 @@ async function executeSystemCommand(command, args, selectedText) {
                     return { success: true };
                 }
                 break;
-                
+
             default:
                 console.log('未知的系统命令:', command);
                 return { success: false, error: '未知的系统命令' };
         }
-        
+
         return { success: false, error: '缺少必要参数' };
     } catch (error) {
         console.error('执行系统命令失败:', error);
@@ -4416,16 +4413,16 @@ function createSuperPanelManagerWindow() {
         alwaysOnTop: false,
         movable: true
     };
-    
+
     try {
         // 获取鼠标位置并在鼠标所在的屏幕显示窗口
         const cursorPoint = screen.getCursorScreenPoint();
         const currentDisplay = screen.getDisplayNearestPoint(cursorPoint);
-        
+
         // 计算窗口位置，在屏幕中央显示
         let x = currentDisplay.workArea.x + Math.round((currentDisplay.workArea.width - 800) / 2);
         let y = currentDisplay.workArea.y + Math.round((currentDisplay.workArea.height - 600) / 2);
-        
+
         // 边界检查
         if (x < currentDisplay.workArea.x) x = currentDisplay.workArea.x + 10;
         if (x + 800 > currentDisplay.workArea.x + currentDisplay.workArea.width) {
@@ -4435,20 +4432,20 @@ function createSuperPanelManagerWindow() {
         if (y + 600 > currentDisplay.workArea.y + currentDisplay.workArea.height) {
             y = currentDisplay.workArea.y + currentDisplay.workArea.height - 600 - 10;
         }
-        
+
         windowOptions.x = x;
         windowOptions.y = y;
         console.log(`管理器窗口将在屏幕 ${currentDisplay.id} 显示，位置: (${x}, ${y})`);
     } catch (error) {
         console.error('设置管理器窗口位置失败，使用默认位置:', error);
     }
-    
+
     const managerWindow = new BrowserWindow(windowOptions);
 
     // 启用remote模块
     if (remoteMain) {
-            remoteMain.enable(managerWindow.webContents);
-        }
+        remoteMain.enable(managerWindow.webContents);
+    }
 
     // 创建管理器的HTML内容
     const managerHtml = createSuperPanelManagerHtml();
@@ -4480,17 +4477,17 @@ function createSuperPanelSettingsWindow() {
         alwaysOnTop: false,
         movable: true
     };
-    
+
     try {
         // 获取鼠标位置并在鼠标所在的屏幕显示窗口
         const { screen } = require('electron');
         const cursorPoint = screen.getCursorScreenPoint();
         const currentDisplay = screen.getDisplayNearestPoint(cursorPoint);
-        
+
         // 计算窗口位置，在屏幕中央显示
         let x = currentDisplay.workArea.x + Math.round((currentDisplay.workArea.width - 600) / 2);
         let y = currentDisplay.workArea.y + Math.round((currentDisplay.workArea.height - 500) / 2);
-        
+
         // 边界检查
         if (x < currentDisplay.workArea.x) x = currentDisplay.workArea.x + 10;
         if (x + 600 > currentDisplay.workArea.x + currentDisplay.workArea.width) {
@@ -4500,20 +4497,20 @@ function createSuperPanelSettingsWindow() {
         if (y + 500 > currentDisplay.workArea.y + currentDisplay.workArea.height) {
             y = currentDisplay.workArea.y + currentDisplay.workArea.height - 500 - 10;
         }
-        
+
         windowOptions.x = x;
         windowOptions.y = y;
         console.log(`设置窗口将在屏幕 ${currentDisplay.id} 显示，位置: (${x}, ${y})`);
     } catch (error) {
         console.error('设置窗口位置失败，使用默认位置:', error);
     }
-    
+
     const settingsWindow = new BrowserWindow(windowOptions);
 
     // 启用remote模块
     if (remoteMain) {
-            remoteMain.enable(settingsWindow.webContents);
-        }
+        remoteMain.enable(settingsWindow.webContents);
+    }
 
     // 创建设置界面的HTML内容
     const settingsHtml = createSuperPanelSettingsHtml();
@@ -5028,11 +5025,11 @@ function createSuperPanelManagerHtml() {
 ipcMain.handle('get-all-available-actions', async (event) => {
     try {
         console.log('获取所有可用功能...');
-        
+
         // 1. 获取内置功能
         const builtinActions = await getBuiltinSuperPanelActions();
         console.log(`获取到内置功能: ${builtinActions.length}个`);
-        
+
         // 2. 获取自定义功能
         const customActionsPath = path.join(app.getPath('userData'), 'custom-super-panel-actions.json');
         let customActions = [];
@@ -5041,7 +5038,7 @@ ipcMain.handle('get-all-available-actions', async (event) => {
             customActions = JSON.parse(data);
             console.log(`获取到自定义功能: ${customActions.length}个`);
         }
-        
+
         // 3. 获取插件功能
         let pluginActions = [];
         for (const [pluginName, actions] of superPanelRegistry) {
@@ -5053,19 +5050,19 @@ ipcMain.handle('get-all-available-actions', async (event) => {
             })));
         }
         console.log(`获取到插件功能: ${pluginActions.length}个`);
-        
+
         // 4. 合并所有功能并确保ID唯一
         const allActions = [...builtinActions, ...customActions, ...pluginActions];
         const uniqueActions = [];
         const seenIds = new Set();
-        
+
         for (const action of allActions) {
             if (action && action.id && !seenIds.has(action.id)) {
                 seenIds.add(action.id);
                 uniqueActions.push(action);
             }
         }
-        
+
         console.log(`获取到唯一功能: ${uniqueActions.length}个`);
         return uniqueActions;
     } catch (error) {
@@ -5080,7 +5077,7 @@ ipcMain.handle('get-manager-active-action-ids', async (event) => {
         // 获取当前超级面板中的功能ID
         const settings = loadSettings();
         const activeIds = new Set();
-        
+
         if (settings && settings.superPanelActions && Array.isArray(settings.superPanelActions)) {
             settings.superPanelActions.forEach(action => {
                 if (action && action.id) {
@@ -5088,7 +5085,7 @@ ipcMain.handle('get-manager-active-action-ids', async (event) => {
                 }
             });
         }
-        
+
         console.log('当前激活的功能ID:', Array.from(activeIds));
         return Array.from(activeIds);
     } catch (error) {
@@ -5101,70 +5098,70 @@ ipcMain.handle('get-manager-active-action-ids', async (event) => {
 ipcMain.handle('add-super-panel-action', async (event, actionId) => {
     try {
         console.log(`正在尝试添加功能: ${actionId}`);
-        
+
         // 1. 获取所有可用功能
         const allBuiltinActions = await getBuiltinSuperPanelActions();
         console.log(`获取到内置功能: ${allBuiltinActions.length}个`);
-        
+
         const allCustomActions = await getCustomSuperPanelActions();
         console.log(`获取到自定义功能: ${allCustomActions.length}个`);
-        
+
         // 2. 尝试获取插件功能
         let pluginActions = [];
         for (const [pluginName, actions] of superPanelRegistry) {
             pluginActions = pluginActions.concat(actions);
         }
         console.log(`获取到插件功能: ${pluginActions.length}个`);
-        
+
         // 3. 合并所有功能
         const allActions = [...allBuiltinActions, ...allCustomActions, ...pluginActions];
         console.log(`总功能数: ${allActions.length}个`);
-        
+
         // 4. 查找要添加的功能
         const actionToAdd = allActions.find(action => action.id === actionId);
-        
+
         if (!actionToAdd) {
             console.error(`未找到ID为 ${actionId} 的功能`);
-            
+
             // 调试信息
             console.log('可用功能ID列表:');
             allActions.forEach(a => console.log(`- ${a.id}`));
-            
+
             return false;
         }
-        
+
         console.log(`找到功能: ${actionToAdd.title || actionToAdd.id}`);
-        
+
         // 5. 获取当前设置
         const settings = loadSettings();
         if (!settings.superPanelActions) {
             settings.superPanelActions = [];
         }
-        
+
         // 6. 检查功能是否已存在
         const exists = settings.superPanelActions.some(action => action.id === actionId);
         if (exists) {
             console.log(`功能 ${actionId} 已存在于超级面板中`);
             return true; // 已存在视为成功
         }
-        
+
         // 7. 添加功能到超级面板
         settings.superPanelActions.push(actionToAdd);
         saveSettings(settings);
-        
+
         console.log(`成功添加功能到超级面板: ${actionId}`);
-        
+
         // 8. 直接通知超级面板更新
         if (superPanelWindow && !superPanelWindow.isDestroyed()) {
             console.log('向超级面板发送添加功能的更新通知');
             superPanelWindow.webContents.send('refresh-super-panel');
-            
+
             // 同时发送更新后的功能列表
             superPanelWindow.webContents.send('super-panel-actions-updated', settings.superPanelActions);
         } else {
             console.log('超级面板窗口不存在，无法发送添加功能的更新');
         }
-        
+
         return true;
     } catch (error) {
         console.error('添加功能到超级面板失败:', error);
@@ -5177,39 +5174,39 @@ ipcMain.handle('add-super-panel-action', async (event, actionId) => {
 ipcMain.handle('delete-super-panel-action', (event, actionId) => {
     try {
         console.log(`开始处理功能删除: ${actionId}`);
-        
+
         // 获取当前设置
         const settings = loadSettings();
         if (!settings.superPanelActions) {
             console.log('超级面板功能列表为空');
             return false;
         }
-        
+
         // 检查功能是否存在
         const initialLength = settings.superPanelActions.length;
         settings.superPanelActions = settings.superPanelActions.filter(action => action.id !== actionId);
-        
+
         if (settings.superPanelActions.length === initialLength) {
             console.log(`未找到ID为 ${actionId} 的功能`);
             return false;
         }
-        
+
         console.log(`已从设置中移除功能，剩余功能: ${settings.superPanelActions.length}个`);
-        
+
         // 保存设置
         saveSettings(settings);
-        
+
         // 立即通知超级面板更新
         if (superPanelWindow && !superPanelWindow.isDestroyed()) {
             console.log('向超级面板发送更新通知');
             superPanelWindow.webContents.send('refresh-super-panel');
-            
+
             // 为了更可靠地更新，也发送功能列表
             superPanelWindow.webContents.send('super-panel-actions-updated', settings.superPanelActions);
         } else {
             console.log('超级面板窗口不存在，无法发送更新');
         }
-        
+
         console.log(`成功从超级面板移除功能: ${actionId}`);
         return true;
     } catch (error) {
@@ -5795,9 +5792,9 @@ function createSuperPanelSettingsHtml() {
 ipcMain.handle('get-all-super-panel-actions', async (event, selectedText) => {
     try {
         console.log('🎯 获取所有超级面板功能，选中文本:', selectedText);
-        
+
         let allActions = [];
-        
+
         // 1. 获取插件注册的功能
         for (const [pluginName, actions] of superPanelRegistry) {
             console.log(`📦 加载插件功能: ${pluginName} (${actions.length}个)`);
@@ -5807,27 +5804,27 @@ ipcMain.handle('get-all-super-panel-actions', async (event, selectedText) => {
                 pluginName: pluginName
             })));
         }
-        
+
         // 2. 获取持久化的自定义功能
         const customActions = await getCustomSuperPanelActions();
         allActions = allActions.concat(customActions);
-        
+
         // 3. 获取内置功能
         const builtinActions = await getBuiltinSuperPanelActions();
         allActions = allActions.concat(builtinActions);
-        
+
         // 4. 获取动态功能（基于选中内容）
         const dynamicActions = await getDynamicSuperPanelActions(selectedText);
         allActions = allActions.concat(dynamicActions);
-        
+
         console.log(`🔧 总共加载功能: ${allActions.length}个`);
-        
+
         // 按类型和优先级排序
         allActions.sort((a, b) => {
             const priorityMap = { dynamic: 1, plugin: 2, custom: 3, builtin: 4 };
             return (priorityMap[a.type] || 5) - (priorityMap[b.type] || 5);
         });
-        
+
         return allActions;
     } catch (error) {
         console.error('获取所有超级面板功能失败:', error);

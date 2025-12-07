@@ -226,11 +226,46 @@ class PluginManager {
                             const pluginConfig = JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8'));
                             const pluginName = pluginConfig.pluginName || item.name;
                             
-                            // 获取静态 features
+                            // 获取静态 features（进行可序列化清洗）
+                            // 函数级注释：
+                            // - 仅保留 code/explain/cmds 字段，cmds 内进行逐项清洗，避免 “An object could not be cloned”
+                            const sanitizeCmd = (c) => {
+                                try {
+                                    if (typeof c === 'string') return c;
+                                    if (c && typeof c === 'object') {
+                                        const out = {};
+                                        if (c.type !== undefined) out.type = String(c.type);
+                                        if (typeof c.label === 'string') out.label = c.label;
+                                        else if (Array.isArray(c.label)) out.label = c.label.map(v => String(v));
+                                        if (typeof c.minLength === 'number') out.minLength = c.minLength;
+                                        if (typeof c.maxLength === 'number') out.maxLength = c.maxLength;
+                                        if (c.match) {
+                                            if (c.match instanceof RegExp) {
+                                                out.match = { pattern: c.match.source, flags: c.match.flags };
+                                            } else if (typeof c.match === 'string') {
+                                                out.match = c.match;
+                                            } else if (typeof c.match === 'object') {
+                                                const m = {};
+                                                for (const k of Object.keys(c.match)) {
+                                                    const v = c.match[k];
+                                                    if (v instanceof RegExp) m[k] = { pattern: v.source, flags: v.flags };
+                                                    else if (['string', 'number', 'boolean'].includes(typeof v)) m[k] = v;
+                                                }
+                                                out.match = m;
+                                            }
+                                        }
+                                        return out;
+                                    }
+                                    return String(c);
+                                } catch (_) {
+                                    return String(c);
+                                }
+                            };
+
                             let features = Array.isArray(pluginConfig.features) ? pluginConfig.features.map(f => ({
                                 code: f.code,
                                 explain: f.explain,
-                                cmds: Array.isArray(f.cmds) ? f.cmds : []
+                                cmds: Array.isArray(f.cmds) ? f.cmds.map(sanitizeCmd) : []
                             })) : [];
 
                             // 合并动态注册的 features

@@ -695,10 +695,8 @@
                         cmds: f.cmds || []
                     })) : [];
                     await ipcRenderer.invoke('run-plugin', selectedResult.path, serializableFeatures);
-                    if (!isPinned) {
-                        // 打开插件时不恢复焦点
-                        await ipcRenderer.invoke('hide-search-window', { restoreFocus: false });
-                    }
+                    // 打开插件后总是关闭搜索面板
+                    await ipcRenderer.invoke('hide-search-window', { restoreFocus: false });
                 } else if (selectedResult.type === RESULT_TYPES.CONTENT) {
                     // 处理不同类型的内容
                     if (selectedResult.contentType === 'text-snippet') {
@@ -717,10 +715,8 @@
                             cmd: selectedResult.command
                         }] : [];
                         await ipcRenderer.invoke('run-plugin', selectedResult.pluginPath, features);
-                        if (!isPinned) {
-                            // 打开插件时不恢复焦点
-                            await ipcRenderer.invoke('hide-search-window', { restoreFocus: false });
-                        }
+                        // 打开插件后总是关闭搜索面板
+                        await ipcRenderer.invoke('hide-search-window', { restoreFocus: false });
                     }
                 }
             } catch (error) {
