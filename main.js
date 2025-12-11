@@ -1530,6 +1530,59 @@ ipcMain.handle('stop-plugin', async (event, pluginName) => {
     }
 });
 
+// 卸载插件
+ipcMain.handle('uninstall-plugin', async (event, pluginName) => {
+    try {
+        if (pluginManager) {
+            const result = await pluginManager.uninstallPlugin(pluginName);
+            // 如果卸载成功，同时也清除超级面板中的相关功能
+            if (result.success) {
+                if (superPanelRegistry.has(pluginName)) {
+                    superPanelRegistry.delete(pluginName);
+                    notifySuperPanelUpdate();
+                }
+            }
+            return result;
+        }
+        return { success: false, error: '插件管理器未初始化' };
+    } catch (error) {
+        console.error('卸载插件失败:', error);
+        return { success: false, error: error.message };
+    }
+});
+
+// 添加插件到超级面板
+ipcMain.handle('add-plugin-to-super-panel', async (event, pluginName) => {
+    try {
+        if (!pluginManager) {
+            return { success: false, error: '插件管理器未初始化' };
+        }
+
+        const plugins = await pluginManager.getPluginList();
+        const plugin = plugins.find(p => p.name === pluginName);
+
+        if (!plugin) {
+            return { success: false, error: `找不到插件: ${pluginName}` };
+        }
+
+        // 读取插件配置
+        const pluginConfigPath = path.join(plugin.path, 'plugin.json');
+        if (!fs.existsSync(pluginConfigPath)) {
+            return { success: false, error: '插件配置文件不存在' };
+        }
+
+        const pluginConfig = JSON.parse(fs.readFileSync(pluginConfigPath, 'utf8'));
+        
+        // 注册超级面板功能
+        autoRegisterPluginSuperPanelActions(pluginName, pluginConfig, plugin.path);
+        
+        return { success: true, message: `已将 ${pluginName} 添加到超级面板` };
+    } catch (error) {
+        console.error('添加插件到超级面板失败:', error);
+        return { success: false, error: error.message };
+    }
+});
+
 // 重新加载插件（用于开发调试）
 ipcMain.handle('reload-plugin', async (event, pluginPath) => {
     try {
@@ -2917,6 +2970,31 @@ ipcMain.on('plugin-storage-remove', (event, pluginName, key) => {
     }
 });
 
+// 异步插件存储API (用于渲染进程，避免阻塞)
+ipcMain.handle('plugin-storage-get-async', (event, pluginName, key) => {
+    try {
+        if (pluginManager) {
+            return pluginManager.getPluginStorageItem(pluginName, key);
+        }
+        return null;
+    } catch (error) {
+        console.error('插件存储获取失败(Async):', error);
+        return null;
+    }
+});
+
+ipcMain.handle('plugin-storage-set-async', (event, pluginName, key, value) => {
+    try {
+        if (pluginManager) {
+            return pluginManager.setPluginStorageItem(pluginName, key, value);
+        }
+        return false;
+    } catch (error) {
+        console.error('插件存储设置失败(Async):', error);
+        return false;
+    }
+});
+
 // 获取插件数据存储目录
 // 函数级注释：
 // - 优先返回当前插件管理器正在使用的目录，保证与实际读写一致
@@ -3010,6 +3088,31 @@ ipcMain.handle('reset-plugin-data-directory', () => {
     } catch (error) {
         console.error('重置插件数据目录失败:', error);
         return { success: false, message: error.message };
+    }
+});
+
+// 监听插件自动分离状态变更
+ipcMain.on('plugin-auto-separate-changed', (event, { pluginName, value }) => {
+    try {
+        if (pluginManager) {
+            // 获取当前插件窗口
+            const win = pluginManager.pluginWindows.get(pluginName);
+            if (win && !win.isDestroyed()) {
+                // 如果开启自动分离，立即钉住窗口
+                if (value) {
+                    if (!pluginManager.getPluginPinStatus(pluginName)) {
+                        pluginManager.togglePluginPin(pluginName);
+                    }
+                } else {
+                    // 如果关闭自动分离，取消钉住
+                    if (pluginManager.getPluginPinStatus(pluginName)) {
+                        pluginManager.togglePluginPin(pluginName);
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        console.error('处理插件自动分离变更失败:', error);
     }
 });
 

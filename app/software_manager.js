@@ -301,6 +301,54 @@ class PluginManager {
         }
     }
 
+    // 卸载插件
+    async uninstallPlugin(pluginName) {
+        try {
+            console.log(`开始卸载插件: ${pluginName}`);
+            
+            // 先停止插件
+            this.stopPlugin(pluginName);
+            
+            // 获取插件路径
+            // 注意：这里需要遍历目录找到匹配的插件，因为 getPluginList 是动态扫描的
+            const plugins = await this.getPluginList();
+            const plugin = plugins.find(p => p.name === pluginName);
+            
+            if (!plugin) {
+                throw new Error(`找不到插件: ${pluginName}`);
+            }
+            
+            const pluginPath = plugin.path;
+            
+            // 确认路径在插件目录下，防止误删系统文件
+            if (!pluginPath.startsWith(this.pluginDir)) {
+                throw new Error(`非法插件路径: ${pluginPath}`);
+            }
+            
+            // 删除插件目录
+            // 使用 rimraf 或 fs.rm (Node.js 14.14+)
+            if (fs.existsSync(pluginPath)) {
+                fs.rmSync(pluginPath, { recursive: true, force: true });
+                console.log(`插件目录已删除: ${pluginPath}`);
+            }
+            
+            // 清理持久化数据
+            // 这一步可选，根据需求决定是否保留数据
+            // const storagePath = this.getPluginStoragePath(pluginName);
+            // if (fs.existsSync(storagePath)) {
+            //     fs.unlinkSync(storagePath);
+            // }
+            
+            // 清除动态注册的功能
+            this.dynamicFeatures.delete(pluginName);
+            
+            return { success: true, message: `插件 ${pluginName} 已卸载` };
+        } catch (error) {
+            console.error(`卸载插件 ${pluginName} 失败:`, error);
+            return { success: false, error: error.message };
+        }
+    }
+
     // 执行插件
     async runPlugin(pluginPath, features = []) {
         try {
@@ -387,14 +435,20 @@ class PluginManager {
         // 获取插件图标路径
         const pluginIconPath = this.getPluginIconPath(pluginPath);
         console.log(`插件 ${pluginName} 图标路径: ${pluginIconPath}`);
+
+        // 获取插件的自定义设置
+        const autoSeparate = this.getPluginStorageItem(pluginName, 'autoSeparate') || false;
+        const exitOnBackground = this.getPluginStorageItem(pluginName, 'exitOnBackground') || false;
+        console.log(`插件 ${pluginName} 设置: autoSeparate=${autoSeparate}, exitOnBackground=${exitOnBackground}`);
         
         // 创建插件窗口，默认不显示在任务栏，且不置顶
+        // 如果开启了自动分离，则允许最小化且显示在任务栏
         const pluginWindow = new BrowserWindow({
             width: pluginConfig.pluginSetting?.width || 800,
             height: pluginConfig.pluginSetting?.height || 600,
             title: pluginName,
             icon: pluginIconPath, // 设置窗口图标
-            skipTaskbar: true,  // 默认不显示在任务栏
+            skipTaskbar: !autoSeparate,  // 如果自动分离，则显示在任务栏
             alwaysOnTop: false, // 默认不置顶
             minimizable: true,  // 允许最小化
             resizable: true,    // 允许调整大小
@@ -455,14 +509,22 @@ class PluginManager {
         });
 
         // 初始化钉住状态
-        this.pluginPinnedMap.set(pluginName, false);
-        console.log(`插件 ${pluginName} 钉住状态初始化为: false`);
+        this.pluginPinnedMap.set(pluginName, autoSeparate);
+        console.log(`插件 ${pluginName} 钉住状态初始化为: ${autoSeparate}`);
 
         // 失去焦点时隐藏窗口（除非被钉住）
         pluginWindow.on('blur', () => {
             const pinned = this.pluginPinnedMap.get(pluginName);
             console.log(`插件 ${pluginName} 失去焦点，钉住状态: ${pinned}`);
             
+            // 如果设置了“退出到后台立即结束运行”
+            // 且未被钉住，则直接停止插件
+            if (exitOnBackground && !pinned) {
+                 console.log(`插件 ${pluginName} 设置了退出即结束，且未钉住，正在停止...`);
+                 this.stopPlugin(pluginName);
+                 return;
+            }
+
             // 如果没有钉住，延迟隐藏窗口以允许快捷键操作
             if (!pinned && pluginWindow && !pluginWindow.isDestroyed()) {
                 // 延迟500ms隐藏，给钉住快捷键操作留出充足时间
