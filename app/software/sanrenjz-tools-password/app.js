@@ -163,6 +163,33 @@ const defaultCategories = [
 ];
 
 /**
+ * 应用已保存的分类顺序
+ */
+function applySavedCategoryOrder() {
+    try {
+        const saved = appStorage.get('categoryOrder');
+        if (!saved) return;
+        const order = JSON.parse(saved);
+        const set = new Set(order);
+        const ordered = [];
+        order.forEach(name => {
+            if (defaultCategories.includes(name) || appStorage.getCustomCategories().includes(name)) {
+                ordered.push(name);
+            }
+        });
+        const all = [...defaultCategories, ...appStorage.getCustomCategories()];
+        all.forEach(name => {
+            if (!set.has(name)) {
+                ordered.push(name);
+            }
+        });
+        categories = ordered;
+    } catch (e) {
+        console.error('应用分类顺序失败:', e);
+    }
+}
+
+/**
  * 数据库操作类
  */
 class PasswordDatabase {
@@ -272,8 +299,11 @@ class PasswordDatabase {
             password.createdAt = new Date().toISOString();
             password.updatedAt = new Date().toISOString();
             
-            // 加密密码
+            // 加密密码和API密钥
             password.password = this.encryptPassword(password.password);
+            if (password.apiKey) {
+                password.apiKey = this.encryptPassword(password.apiKey);
+            }
             
             existingData.push(password);
             appStorage.setCategoryData(password.category, existingData);
@@ -285,27 +315,89 @@ class PasswordDatabase {
     }
 
     // 更新密码
-    updatePassword(passwordId, updatedPassword) {
+    updatePassword(passwordId, updatedPassword, originalCategory) {
         try {
-            const existingData = appStorage.getCategoryData(updatedPassword.category) || [];
-            const index = existingData.findIndex(p => p.id === passwordId);
-            
-            if (index !== -1) {
-                updatedPassword.id = passwordId;
-                updatedPassword.updatedAt = new Date().toISOString();
-                
-                // 如果密码已改变，重新加密
-                if (updatedPassword.password !== existingData[index].password) {
-                    updatedPassword.password = this.encryptPassword(updatedPassword.password);
-                }
-                
-                existingData[index] = { ...existingData[index], ...updatedPassword };
-                appStorage.setCategoryData(updatedPassword.category, existingData);
-                return existingData[index];
+            const sourceCategory = originalCategory || updatedPassword.category;
+            let sourceData = appStorage.getCategoryData(sourceCategory) || [];
+            let index = sourceData.findIndex(p => p.id === passwordId);
+
+            // 如果在原分类中未找到，尝试在目标分类中查找（兼容历史数据）
+            if (index === -1 && sourceCategory !== updatedPassword.category) {
+                sourceData = appStorage.getCategoryData(updatedPassword.category) || [];
+                index = sourceData.findIndex(p => p.id === passwordId);
             }
-            throw new Error('密码项不存在');
+
+            if (index === -1) {
+                throw new Error('密码项不存在');
+            }
+
+            const existingItem = sourceData[index];
+            const now = new Date().toISOString();
+
+            // 构造更新后的条目（保持创建时间等元数据）
+            const updatedItem = {
+                ...existingItem,
+                ...updatedPassword,
+                id: passwordId,
+                updatedAt: now,
+                category: updatedPassword.category
+            };
+
+            // 始终使用最新明文重新加密密码和 API 密钥
+            if (typeof updatedPassword.password === 'string') {
+                updatedItem.password = this.encryptPassword(updatedPassword.password);
+            }
+            if (typeof updatedPassword.apiKey !== 'undefined') {
+                updatedItem.apiKey = updatedPassword.apiKey
+                    ? this.encryptPassword(updatedPassword.apiKey)
+                    : '';
+            }
+
+            // 如果分类未改变，在原分类内更新
+            if (sourceCategory === updatedItem.category) {
+                sourceData[index] = updatedItem;
+                appStorage.setCategoryData(sourceCategory, sourceData);
+                return updatedItem;
+            }
+
+            // 分类已改变：从原分类删除并追加到新分类
+            sourceData.splice(index, 1);
+            appStorage.setCategoryData(sourceCategory, sourceData);
+
+            const targetData = appStorage.getCategoryData(updatedItem.category) || [];
+            targetData.push(updatedItem);
+            appStorage.setCategoryData(updatedItem.category, targetData);
+
+            return updatedItem;
         } catch (error) {
             console.error('更新密码失败:', error);
+            throw error;
+        }
+    }
+
+    // 移动密码到其他分类（不修改内容，仅变更分类）
+    movePasswordToCategory(passwordId, fromCategory, toCategory) {
+        try {
+            if (!passwordId || !fromCategory || !toCategory || fromCategory === toCategory) return null;
+
+            const sourceData = appStorage.getCategoryData(fromCategory) || [];
+            const index = sourceData.findIndex(p => p.id === passwordId);
+            if (index === -1) {
+                throw new Error('密码项不存在');
+            }
+
+            const [item] = sourceData.splice(index, 1);
+            item.category = toCategory;
+
+            appStorage.setCategoryData(fromCategory, sourceData);
+
+            const targetData = appStorage.getCategoryData(toCategory) || [];
+            targetData.push(item);
+            appStorage.setCategoryData(toCategory, targetData);
+
+            return item;
+        } catch (error) {
+            console.error('移动密码分类失败:', error);
             throw error;
         }
     }
@@ -330,7 +422,8 @@ class PasswordDatabase {
             // 解密密码
             return data.map(password => ({
                 ...password,
-                password: this.decryptPassword(password.password)
+                password: this.decryptPassword(password.password),
+                apiKey: password.apiKey ? this.decryptPassword(password.apiKey) : ''
             }));
         } catch (error) {
             console.error('获取密码列表失败:', error);
@@ -354,9 +447,83 @@ class PasswordDatabase {
 const db = new PasswordDatabase();
 
 /**
+ * 保存界面状态
+ */
+function saveUIState() {
+    try {
+        const searchInput = document.getElementById('searchInput');
+        const searchKeyword = searchInput ? searchInput.value : '';
+        const state = {
+            searchMode,
+            searchKeyword,
+            currentCategory,
+            currentPasswordId: currentPassword ? currentPassword.id : null,
+            currentSearchCategory
+        };
+        appStorage.set('uiState', JSON.stringify(state));
+    } catch (error) {
+        console.error('保存界面状态失败:', error);
+    }
+}
+
+/**
+ * 恢复界面状态
+ */
+function restoreUIState() {
+    try {
+        const raw = appStorage.get('uiState');
+        if (!raw) {
+            document.getElementById('currentCategory').textContent = currentCategory;
+            loadPasswords(currentCategory);
+            renderCategories();
+            return;
+        }
+        const state = JSON.parse(raw);
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput && typeof state.searchKeyword === 'string') {
+            searchInput.value = state.searchKeyword;
+        }
+
+        if (state.currentCategory && categories.includes(state.currentCategory)) {
+            currentCategory = state.currentCategory;
+        }
+
+        if (state.searchMode && state.searchKeyword) {
+            searchPasswords(state.searchKeyword);
+            if (state.currentSearchCategory && categories.includes(state.currentSearchCategory)) {
+                currentSearchCategory = state.currentSearchCategory;
+                updateSearchHeader();
+                renderCategories();
+                renderCurrentPasswords();
+            }
+        } else {
+            searchMode = false;
+            currentSearchCategory = null;
+            document.getElementById('currentCategory').textContent = currentCategory;
+            loadPasswords(currentCategory);
+            renderCategories();
+        }
+
+        if (state.currentPasswordId) {
+            const list = getVisiblePasswords();
+            const found = list.find(item => item.id === state.currentPasswordId);
+            if (found) {
+                showPasswordDetail(found);
+            }
+        }
+    } catch (error) {
+        console.error('恢复界面状态失败:', error);
+        document.getElementById('currentCategory').textContent = currentCategory;
+        loadPasswords(currentCategory);
+        renderCategories();
+    }
+}
+
+/**
  * 初始化应用
  */
 function initApp() {
+    runInternalTests();
     // 检查是否设置了开屏密码
     checkLockPassword();
     
@@ -426,13 +593,17 @@ function showMainApp() {
     document.getElementById('setupScreen').style.display = 'none';
     document.getElementById('mainApp').style.display = 'flex';
     
-    // 加载数据
     loadData();
     
-    // 确保当前分类是有效的
     if (!categories.includes(currentCategory) && categories.length > 0) {
         currentCategory = categories[0];
         document.getElementById('currentCategory').textContent = currentCategory;
+    }
+
+    try {
+        restoreUIState();
+    } catch (e) {
+        console.error('恢复界面状态失败:', e);
     }
     
     // 启动自动锁定功能
@@ -558,6 +729,11 @@ function migrateLegacyEncryption() {
  * 锁定应用
  */
 function lockApp() {
+    try {
+        saveUIState();
+    } catch (e) {
+        console.error('保存界面状态失败:', e);
+    }
     isLocked = true;
     clearPasswordDetail();
     stopAutoLockTimer();
@@ -705,7 +881,37 @@ function loadCategories() {
     
     const customCategories = appStorage.getCustomCategories();
     categories = [...defaultCategories, ...customCategories];
+    applySavedCategoryOrder();
     renderCategories();
+}
+
+/**
+ * 保存当前分类顺序
+ */
+function saveCategoryOrder() {
+    try {
+        appStorage.set('categoryOrder', JSON.stringify(categories));
+    } catch (e) {
+        console.error('保存分类顺序失败:', e);
+    }
+}
+
+/**
+ * 重新排序分类（拖拽排序）
+ */
+function reorderCategories(sourceCategory, targetCategory) {
+    const sourceIndex = categories.indexOf(sourceCategory);
+    const targetIndex = categories.indexOf(targetCategory);
+    if (sourceIndex === -1 || targetIndex === -1) return;
+
+    const updated = categories.slice();
+    updated.splice(sourceIndex, 1);
+    const newTargetIndex = updated.indexOf(targetCategory);
+    updated.splice(newTargetIndex, 0, sourceCategory);
+    categories = updated;
+    saveCategoryOrder();
+    renderCategories();
+    renderCurrentPasswords();
 }
 
 /**
@@ -818,6 +1024,9 @@ function deleteCategory(categoryName) {
             const updatedCategories = customCategories.filter(cat => cat !== categoryName);
             appStorage.setCustomCategories(updatedCategories);
         }
+
+        categories = [...defaultCategories, ...appStorage.getCustomCategories()];
+        saveCategoryOrder();
         
         // 如果当前分类被删除，切换到第一个可用分类
         if (currentCategory === categoryName) {
@@ -899,19 +1108,120 @@ function renderCategories() {
     const categoryList = document.getElementById('categoryList');
     categoryList.innerHTML = '';
     
-    categories.forEach(category => {
-        const categoryPasswords = db.getPasswordsByCategory(category);
+    let categoriesToRender = categories.slice();
+    if (searchMode) {
+        const matched = new Set(searchResults.map(item => item.category));
+        categoriesToRender = categoriesToRender.filter(category => matched.has(category));
+    }
+
+    categoriesToRender.forEach(category => {
+        const categoryPasswords = searchMode
+            ? searchResults.filter(item => item.category === category)
+            : db.getPasswordsByCategory(category);
         const count = categoryPasswords.length;
+
+        if (searchMode && count === 0) {
+            return;
+        }
         
+        const isActive = searchMode
+            ? currentSearchCategory === category
+            : currentCategory === category;
+
         const categoryElement = document.createElement('div');
-        categoryElement.className = `category-item ${category === currentCategory ? 'active' : ''}`;
+        categoryElement.className = `category-item ${isActive ? 'active' : ''}`;
         categoryElement.innerHTML = `
             <span class="category-name">${category}</span>
             <span class="category-count">${count}</span>
         `;
+        categoryElement.setAttribute('draggable', 'true');
+        categoryElement.dataset.category = category;
+        
+        categoryElement.addEventListener('dragstart', (e) => {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', category);
+            categoryElement.classList.add('dragging');
+        });
+        
+        categoryElement.addEventListener('dragend', () => {
+            categoryElement.classList.remove('dragging');
+            categoryElement.classList.remove('drag-over');
+        });
+        
+        categoryElement.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            categoryElement.classList.add('drag-over');
+        });
+        
+        categoryElement.addEventListener('dragleave', () => {
+            categoryElement.classList.remove('drag-over');
+        });
+        
+        categoryElement.addEventListener('drop', (e) => {
+            e.preventDefault();
+            categoryElement.classList.remove('drag-over');
+
+            // 优先处理密码条目拖拽到分类以变更分类
+            const passwordId = e.dataTransfer.getData('text/password-id');
+            const fromCategory = e.dataTransfer.getData('text/password-category');
+            if (passwordId && fromCategory && fromCategory !== category) {
+                try {
+                    db.movePasswordToCategory(passwordId, fromCategory, category);
+
+                    // 更新当前视图和计数
+                    if (!searchMode) {
+                        if (currentCategory === fromCategory || currentCategory === category) {
+                            loadPasswords(currentCategory);
+                        }
+                        renderCategories();
+                    } else {
+                        // 搜索模式下只需刷新可见列表和分类计数
+                        const item = searchResults.find(p => p.id === passwordId);
+                        if (item) {
+                            item.category = category;
+                        }
+                        updateSearchHeader();
+                        renderCategories();
+                        renderCurrentPasswords();
+                    }
+
+                    // 如果正在查看该条目，保持详情中的分类一致
+                    if (currentPassword && currentPassword.id === passwordId) {
+                        currentPassword.category = category;
+                        const categorySelect = document.getElementById('passwordCategory');
+                        if (categorySelect) {
+                            categorySelect.value = category;
+                        }
+                    }
+
+                    showNotification(`已移动到分类 "${category}"`);
+                } catch (error) {
+                    showNotification('移动分类失败：' + error.message, 'error');
+                }
+
+                return;
+            }
+
+            // 默认行为：分类之间拖拽以重新排序
+            const sourceCategory = e.dataTransfer.getData('text/plain');
+            if (sourceCategory && sourceCategory !== category) {
+                reorderCategories(sourceCategory, category);
+            }
+        });
         
         categoryElement.addEventListener('click', () => {
-            switchCategory(category);
+            if (searchMode) {
+                if (currentSearchCategory === category) {
+                    currentSearchCategory = null;
+                } else {
+                    currentSearchCategory = category;
+                }
+                updateSearchHeader();
+                renderCategories();
+                renderCurrentPasswords();
+            } else {
+                switchCategory(category);
+            }
         });
         
         categoryList.appendChild(categoryElement);
@@ -993,6 +1303,19 @@ function renderPasswords(passwordList) {
                 <button class="action-btn copy-btn" onclick="copyPasswordToClipboard('${password.password}')" title="复制密码">📋</button>
             </div>
         `;
+
+        // 启用密码条目拖拽到左侧分类以变更分类
+        passwordElement.setAttribute('draggable', 'true');
+        passwordElement.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/password-id', password.id);
+            e.dataTransfer.setData('text/password-category', password.category || currentCategory);
+            e.dataTransfer.effectAllowed = 'move';
+            passwordElement.classList.add('dragging');
+        });
+
+        passwordElement.addEventListener('dragend', () => {
+            passwordElement.classList.remove('dragging');
+        });
         
         passwordElement.addEventListener('click', (e) => {
             if (!e.target.closest('.password-actions')) {
@@ -1038,16 +1361,18 @@ function showPasswordDetail(password) {
     document.getElementById('passwordTitle').value = password.title;
     document.getElementById('passwordUsername').value = password.username || '';
     document.getElementById('passwordValue').value = password.password;
+    const apiKeyInput = document.getElementById('apiKeyValue');
+    if (apiKeyInput) {
+        apiKeyInput.value = password.apiKey || '';
+    }
     document.getElementById('passwordUrl').value = password.url || '';
     document.getElementById('passwordNotes').value = password.notes || '';
     document.getElementById('passwordCategory').value = password.category;
     
-    // 显示表单，隐藏空状态
     document.getElementById('emptyDetail').classList.add('hidden');
     document.getElementById('passwordForm').classList.remove('hidden');
     
-    // 更新密码列表中的激活状态
-    renderPasswords(searchMode ? searchResults : passwords);
+    renderCurrentPasswords();
 }
 
 /**
@@ -1056,12 +1381,14 @@ function showPasswordDetail(password) {
 function clearPasswordDetail() {
     currentPassword = null;
     
-    // 隐藏表单，显示空状态
     document.getElementById('emptyDetail').classList.remove('hidden');
     document.getElementById('passwordForm').classList.add('hidden');
+    const apiKeyInput = document.getElementById('apiKeyValue');
+    if (apiKeyInput) {
+        apiKeyInput.value = '';
+    }
     
-    // 更新密码列表中的激活状态
-    renderPasswords(searchMode ? searchResults : passwords);
+    renderCurrentPasswords();
 }
 
 /**
@@ -1072,10 +1399,23 @@ function saveCurrentPassword() {
         title: document.getElementById('passwordTitle').value,
         username: document.getElementById('passwordUsername').value,
         password: document.getElementById('passwordValue').value,
+        apiKey: document.getElementById('apiKeyValue') ? document.getElementById('apiKeyValue').value : '',
         url: document.getElementById('passwordUrl').value,
         notes: document.getElementById('passwordNotes').value,
         category: document.getElementById('passwordCategory').value
     };
+
+    formData.title = formData.title.trim();
+    if (!formData.title && !currentPassword) {
+        const now = new Date();
+        const pad = (n) => n.toString().padStart(2, '0');
+        const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+        formData.title = `未命名条目 ${timestamp}`;
+        const titleInput = document.getElementById('passwordTitle');
+        if (titleInput) {
+            titleInput.value = formData.title;
+        }
+    }
     
     if (!formData.title) {
         showNotification('标题不能为空', 'error');
@@ -1089,8 +1429,9 @@ function saveCurrentPassword() {
     
     try {
         if (currentPassword) {
-            // 更新现有密码
-            db.updatePassword(currentPassword.id, formData);
+            // 更新现有密码（支持修改分类）
+            db.updatePassword(currentPassword.id, formData, currentPassword.category);
+            currentPassword = { ...currentPassword, ...formData };
         } else {
             // 添加新密码
             const newPassword = db.addPassword(formData);
@@ -1133,28 +1474,77 @@ function deleteCurrentPassword() {
 
 // 搜索相关变量
 let searchResults = [];
+let currentSearchCategory = null;
 
 /**
- * 搜索密码
+ * 获取当前应显示的密码列表
+ */
+function getVisiblePasswords() {
+    if (!searchMode) {
+        return passwords;
+    }
+    if (!currentSearchCategory) {
+        return searchResults;
+    }
+    return searchResults.filter(item => item.category === currentSearchCategory);
+}
+
+/**
+ * 更新搜索结果头部显示
+ */
+function updateSearchHeader() {
+    const header = document.getElementById('currentCategory');
+    if (!header) return;
+    if (!searchMode) {
+        header.textContent = currentCategory;
+        return;
+    }
+    const baseText = `搜索结果 (${searchResults.length})`;
+    if (currentSearchCategory) {
+        const categoryCount = searchResults.filter(item => item.category === currentSearchCategory).length;
+        header.textContent = `${baseText} - ${currentSearchCategory} (${categoryCount})`;
+    } else {
+        header.textContent = baseText;
+    }
+}
+
+/**
+ * 渲染当前可见密码列表
+ */
+function renderCurrentPasswords() {
+    renderPasswords(getVisiblePasswords());
+}
+
+/**
+ * 搜索密码（支持多关键词模糊匹配）
  */
 function searchPasswords(keyword) {
-    if (!keyword.trim()) {
+    const trimmed = keyword.trim();
+    if (!trimmed) {
         exitSearchMode();
         return;
     }
-    
+    const keywords = trimmed.split(/\s+/).filter(Boolean).map(k => k.toLowerCase());
+    if (keywords.length === 0) {
+        exitSearchMode();
+        return;
+    }
+
     searchMode = true;
+    currentSearchCategory = null;
     const allPasswords = db.getAllPasswords();
-    searchResults = allPasswords.filter(password => 
-        password.title.toLowerCase().includes(keyword.toLowerCase()) ||
-        (password.username && password.username.toLowerCase().includes(keyword.toLowerCase())) ||
-        (password.notes && password.notes.toLowerCase().includes(keyword.toLowerCase()))
-    );
-    
-    // 更新当前分类显示
-    document.getElementById('currentCategory').textContent = `搜索结果 (${searchResults.length})`;
-    
-    renderPasswords(searchResults);
+    searchResults = allPasswords.filter(password => {
+        const title = password.title || '';
+        const username = password.username || '';
+        const notes = password.notes || '';
+        const url = password.url || '';
+        const combined = `${title} ${username} ${notes} ${url}`.toLowerCase();
+        return keywords.every(kw => combined.includes(kw));
+    });
+
+    updateSearchHeader();
+    renderCategories();
+    renderCurrentPasswords();
 }
 
 /**
@@ -1163,8 +1553,13 @@ function searchPasswords(keyword) {
 function exitSearchMode() {
     searchMode = false;
     searchResults = [];
-    document.getElementById('searchInput').value = '';
+    currentSearchCategory = null;
+    const input = document.getElementById('searchInput');
+    if (input) {
+        input.value = '';
+    }
     document.getElementById('currentCategory').textContent = currentCategory;
+    renderCategories();
     renderPasswords(passwords);
 }
 
@@ -1250,7 +1645,7 @@ function initEventListeners() {
     });
     
     // 自动保存功能 - 监听表单输入变化
-    const formInputs = ['passwordTitle', 'passwordUsername', 'passwordValue', 'passwordUrl', 'passwordNotes', 'passwordCategory'];
+    const formInputs = ['passwordTitle', 'passwordUsername', 'passwordValue', 'apiKeyValue', 'passwordUrl', 'passwordNotes', 'passwordCategory'];
     formInputs.forEach(inputId => {
         const element = document.getElementById(inputId);
         if (element) {
@@ -1270,6 +1665,12 @@ function initEventListeners() {
             element.addEventListener('change', autoSave);
         }
     });
+
+    const apiKeyInput = document.getElementById('apiKeyValue');
+    if (apiKeyInput) {
+        apiKeyInput.addEventListener('input', updateApiKeyStrengthIndicator);
+        apiKeyInput.addEventListener('change', updateApiKeyStrengthIndicator);
+    }
 }
 
 /**
@@ -1367,6 +1768,57 @@ function copyPasswordToClipboard(text) {
 }
 
 /**
+ * 运行内部单元测试
+ */
+function runInternalTests() {
+    try {
+        console.group('密码管理器插件自检');
+        const weak = evaluateApiKeyStrength('123456');
+        const medium = evaluateApiKeyStrength('1234567890abcdef');
+        const strong = evaluateApiKeyStrength('A1b2C3d4E5f6!@#');
+        console.assert(weak.level === 'weak', '弱密钥评估结果异常');
+        console.assert(medium.level === 'medium' || medium.level === 'strong', '中等密钥评估结果异常');
+        console.assert(strong.level === 'strong', '强密钥评估结果异常');
+        console.groupEnd();
+    } catch (e) {
+        console.error('内部单元测试执行失败:', e);
+    }
+}
+
+/**
+ * 评估API密钥强度
+ */
+function evaluateApiKeyStrength(value) {
+    if (!value) return { level: 'none', label: '' };
+    let score = 0;
+    if (value.length >= 16) score++;
+    if (value.length >= 24) score++;
+    if (/[0-9]/.test(value)) score++;
+    if (/[a-z]/.test(value) && /[A-Z]/.test(value)) score++;
+    if (/[^0-9a-zA-Z]/.test(value)) score++;
+
+    if (score <= 2) return { level: 'weak', label: '强度：较弱，建议使用更长更复杂的密钥' };
+    if (score === 3 || score === 4) return { level: 'medium', label: '强度：中等，建议适当增加长度或复杂度' };
+    return { level: 'strong', label: '强度：强，安全性较高' };
+}
+
+/**
+ * 更新API密钥强度提示
+ */
+function updateApiKeyStrengthIndicator() {
+    const input = document.getElementById('apiKeyValue');
+    const hint = document.getElementById('apiKeyStrength');
+    if (!input || !hint) return;
+
+    const result = evaluateApiKeyStrength(input.value.trim());
+    hint.textContent = result.label;
+    hint.classList.remove('weak', 'medium', 'strong');
+    if (result.level && result.level !== 'none') {
+        hint.classList.add(result.level);
+    }
+}
+
+/**
  * 复制输入框的值到剪贴板
  */
 async function copyInputValue(inputId) {
@@ -1397,6 +1849,12 @@ async function copyInputValue(inputId) {
             case 'passwordValue':
                 message = '密码已复制到剪贴板';
                 // 密码属于敏感内容，30 秒后自动清空剪贴板
+                setTimeout(() => {
+                    try { navigator.clipboard.writeText(''); } catch (_) { /* 忽略 */ }
+                }, 30000);
+                break;
+            case 'apiKeyValue':
+                message = 'API 密钥已复制到剪贴板';
                 setTimeout(() => {
                     try { navigator.clipboard.writeText(''); } catch (_) { /* 忽略 */ }
                 }, 30000);
@@ -1463,6 +1921,16 @@ function togglePasswordVisibility() {
         } else {
             passwordInput.type = 'password';
         }
+    }
+}
+
+/**
+ * 切换API密钥可见性
+ */
+function toggleApiKeyVisibility() {
+    const apiKeyInput = document.getElementById('apiKeyValue');
+    if (apiKeyInput) {
+        apiKeyInput.type = apiKeyInput.type === 'password' ? 'text' : 'password';
     }
 }
 
@@ -1539,6 +2007,7 @@ window.useGeneratedPassword = useGeneratedPassword;
 window.copyToClipboard = copyToClipboard;
 window.copyInputValue = copyInputValue;
 window.togglePasswordVisibility = togglePasswordVisibility;
+window.toggleApiKeyVisibility = toggleApiKeyVisibility;
 window.closeModal = closeModal;
 window.showPasswordGenerator = showPasswordGenerator;
 window.addCategory = addCategory;
@@ -1657,8 +2126,10 @@ function getExportData(includePasswords, exportAllCategories) {
             
             if (includePasswords) {
                 exportItem.password = password.password;
+                exportItem.apiKey = password.apiKey || '';
             } else {
                 exportItem.password = '[已隐藏]';
+                exportItem.apiKey = password.apiKey ? '[已隐藏]' : '';
             }
             
             exportData.push(exportItem);
@@ -1688,7 +2159,7 @@ function exportAsDatabase(data) {
  * 导出为CSV格式
  */
 function exportAsCSV(data) {
-    const headers = ['标题', '用户名', '密码', '网址', '分类', '备注', '创建时间', '更新时间'];
+    const headers = ['标题', '用户名', '密码', 'API密钥', '网址', '分类', '备注', '创建时间', '更新时间'];
     let csv = headers.join(',') + '\n';
     
     data.forEach(item => {
@@ -1696,6 +2167,7 @@ function exportAsCSV(data) {
             escapeCSV(item.title),
             escapeCSV(item.username),
             escapeCSV(item.password),
+            escapeCSV(item.apiKey || ''),
             escapeCSV(item.url),
             escapeCSV(item.category),
             escapeCSV(item.notes),
@@ -1722,6 +2194,9 @@ function exportAsTXT(data) {
         txt += `标题: ${item.title}\n`;
         txt += `用户名: ${item.username}\n`;
         txt += `密码: ${item.password}\n`;
+        if (typeof item.apiKey !== 'undefined' && item.apiKey !== '') {
+            txt += `API密钥: ${item.apiKey}\n`;
+        }
         txt += `网址: ${item.url}\n`;
         txt += `分类: ${item.category}\n`;
         txt += `备注: ${item.notes}\n`;

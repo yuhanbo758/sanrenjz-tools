@@ -242,6 +242,7 @@
             border-radius: 4px;
             transition: all 0.2s;
             font-size: 13px;
+            user-select: none;
         }
 
         .category-item:hover {
@@ -270,6 +271,11 @@
         .category-item.active .category-count {
             background: #1890ff;
             color: white;
+        }
+
+        .category-item.drag-over {
+            background: #e6f7ff;
+            border: 1px dashed #1890ff;
         }
 
         /* 主内容区样式 */
@@ -515,6 +521,24 @@
             padding: 8px 12px;
             resize: vertical;
             min-height: 200px;
+        }
+
+        .field-hint {
+            margin-top: 6px;
+            font-size: 12px;
+            color: #8c8c8c;
+        }
+
+        .field-hint.weak {
+            color: #fa541c;
+        }
+
+        .field-hint.medium {
+            color: #faad14;
+        }
+
+        .field-hint.strong {
+            color: #52c41a;
         }
 
         .password-input-group {
@@ -1224,6 +1248,16 @@
                                 <button type="button" class="copy-input-btn" onclick="copyInputValue('passwordValue')" title="复制密码">📋</button>
                                 <button type="button" class="password-toggle" onclick="togglePasswordVisibility()" title="显示/隐藏密码">👁</button>
                             </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">API 密钥</label>
+                            <div class="password-input-group">
+                                <input type="password" class="form-input" id="apiKeyValue" placeholder="输入API密钥（不会自动生成）">
+                                <button type="button" class="copy-input-btn" onclick="copyInputValue('apiKeyValue')" title="复制API密钥">📋</button>
+                                <button type="button" class="password-toggle" onclick="toggleApiKeyVisibility()" title="显示/隐藏API密钥">👁</button>
+                            </div>
+                            <div id="apiKeyStrength" class="field-hint"></div>
                         </div>
                         
                         <div class="form-group">
