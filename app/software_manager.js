@@ -467,9 +467,12 @@ class PluginManager {
         // 为插件窗口设置独特的应用ID，确保在任务栏中独立显示
         try {
             if (process.platform === 'win32') {
-                // 为每个插件生成唯一的AppUserModelID
-                const appId = `SanRenJuZhi.Plugin.${pluginName.replace(/[^a-zA-Z0-9]/g, '')}`;
-                console.log(`为插件 ${pluginName} 设置应用ID: ${appId}`);
+                // 使用插件目录名作为唯一标识，避免中文名称去除非法字符后重复的问题
+                const folderName = path.basename(pluginPath);
+                // 确保ID只包含安全字符，虽然文件夹名通常是安全的，但为了AppID规范还是处理一下
+                const safeId = folderName.replace(/[^a-zA-Z0-9\-_]/g, '');
+                const appId = `SanRenJuZhi.Plugin.${safeId}`;
+                console.log(`为插件 ${pluginName} (目录: ${folderName}) 设置应用ID: ${appId}`);
                 
                 // 准备应用详情参数
                 const appDetails = {
@@ -481,9 +484,13 @@ class PluginManager {
                 
                 // 获取.ico格式的图标用于任务栏显示
                 const icoIconPath = this.getPluginIcoPath(pluginPath);
-                if (icoIconPath) {
-                    appDetails.appIconPath = icoIconPath;
-                    console.log(`任务栏将使用图标: ${icoIconPath}`);
+                
+                // 缓存图标，确保每个插件有独立的文件路径
+                const cachedIconPath = this.cachePluginIcon(folderName, icoIconPath);
+                
+                if (cachedIconPath) {
+                    appDetails.appIconPath = cachedIconPath;
+                    console.log(`任务栏将使用缓存图标: ${cachedIconPath}`);
                 } else {
                     console.log(`插件 ${pluginName} 没有可用的.ico图标，任务栏将使用默认图标`);
                 }
@@ -1392,6 +1399,43 @@ class PluginManager {
         } catch (error) {
             console.error('获取插件图标路径失败:', error);
             return undefined;
+        }
+    }
+
+    // 确保图标缓存目录存在
+    ensureIconCacheDir() {
+        try {
+            const cacheDir = path.join(app.getPath('userData'), 'plugin-icons');
+            if (!fs.existsSync(cacheDir)) {
+                fs.mkdirSync(cacheDir, { recursive: true });
+            }
+            return cacheDir;
+        } catch (error) {
+            console.error('创建图标缓存目录失败:', error);
+            return null;
+        }
+    }
+
+    // 缓存插件图标到用户数据目录，防止图标覆盖
+    cachePluginIcon(pluginName, sourcePath) {
+        try {
+            if (!sourcePath || !fs.existsSync(sourcePath)) return undefined;
+            
+            const cacheDir = this.ensureIconCacheDir();
+            if (!cacheDir) return sourcePath;
+
+            // 使用插件名称的Hex编码作为文件名，确保文件名安全且唯一
+            const safeName = Buffer.from(pluginName).toString('hex');
+            const ext = path.extname(sourcePath);
+            const destPath = path.join(cacheDir, `${safeName}${ext}`);
+            
+            // 总是复制最新图标
+            fs.copyFileSync(sourcePath, destPath);
+            console.log(`插件 ${pluginName} 图标已缓存到: ${destPath}`);
+            return destPath;
+        } catch (error) {
+            console.error(`缓存插件 ${pluginName} 图标失败:`, error);
+            return sourcePath; // 失败时回退到源路径
         }
     }
 
