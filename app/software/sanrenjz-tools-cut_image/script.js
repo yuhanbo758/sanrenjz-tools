@@ -180,28 +180,33 @@ class ImageEditor {
     
     async loadSystemFonts() {
         const fontSelect = document.getElementById('fontFamily');
+        let availableFonts = [];
         
         try {
-            // 尝试使用现代浏览器的字体API
+            // 1. 尝试使用现代浏览器的字体API
             if ('queryLocalFonts' in window) {
-                const availableFonts = await window.queryLocalFonts();
-                const fontNames = [...new Set(availableFonts.map(font => font.family))].sort();
-                
-                fontSelect.innerHTML = '';
-                fontNames.forEach(font => {
-                    const option = document.createElement('option');
-                    option.value = font;
-                    option.textContent = font;
-                    fontSelect.appendChild(option);
-                });
-                return;
+                const fonts = await window.queryLocalFonts();
+                availableFonts = [...new Set(fonts.map(font => font.family))].sort();
             }
         } catch (error) {
-            console.log('Font API not available, using fallback method');
+            console.log('Native Font API not available');
+        }
+
+        // 2. 如果原生API失败，尝试使用 Electron/Node 服务获取
+        if (availableFonts.length === 0 && window.services && window.services.getSystemFonts) {
+            try {
+                const systemFonts = window.services.getSystemFonts();
+                if (systemFonts && systemFonts.length > 0) {
+                    availableFonts = systemFonts;
+                }
+            } catch (e) {
+                console.error('Failed to get system fonts from service:', e);
+            }
         }
         
-        // 回退方案：检测常见系统字体
-        const systemFonts = [
+        // 3. 回退方案：检测常见系统字体
+        if (availableFonts.length === 0) {
+            const systemFonts = [
             // 中文字体
             'Microsoft YaHei', 'Microsoft YaHei UI', 'SimSun', 'SimHei', 'KaiTi', 'FangSong', 
             'LiSu', 'YouYuan', 'Microsoft JhengHei', 'PMingLiU', 'MingLiU', 'DFKai-SB', 
@@ -215,16 +220,15 @@ class ImageEditor {
             'Consolas', 'Monaco', 'Menlo', 'Ubuntu', 'Roboto', 'Open Sans', 'Lato',
             'Source Sans Pro', 'Montserrat', 'Oswald', 'Raleway', 'PT Sans', 'Lora'
         ];
-        
-        fontSelect.innerHTML = '';
-        
-        // 检测字体是否可用
-        const availableFonts = [];
-        for (const font of systemFonts) {
-            if (await this.isFontAvailable(font)) {
-                availableFonts.push(font);
+            
+            for (const font of systemFonts) {
+                if (await this.isFontAvailable(font)) {
+                    availableFonts.push(font);
+                }
             }
         }
+        
+        fontSelect.innerHTML = '';
         
         // 按字体类型分组显示
         const chineseFonts = availableFonts.filter(font => 

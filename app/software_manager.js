@@ -569,6 +569,55 @@ class PluginManager {
 
         // 为插件窗口注入全局变量
         pluginWindow.webContents.once('dom-ready', () => {
+            // 注入阻止右键长按默认菜单的逻辑
+            try {
+                // 读取设置中的延迟时间
+                const settings = this.loadSettings();
+                const longPressDelay = settings.rightClickDelay || 300;
+                const enableRightClickPanel = settings.enableRightClickPanel !== false; // 默认为true
+
+                if (enableRightClickPanel) {
+                    pluginWindow.webContents.executeJavaScript(`
+                        (function() {
+                            let rightClickTimer = null;
+                            let isLongPress = false;
+                            const LONG_PRESS_DELAY = ${longPressDelay};
+
+                            document.addEventListener('mousedown', (e) => {
+                                if (e.button === 2) { // 右键
+                                    isLongPress = false;
+                                    rightClickTimer = setTimeout(() => {
+                                        isLongPress = true;
+                                        // console.log('检测到右键长按，准备阻止默认菜单');
+                                    }, LONG_PRESS_DELAY);
+                                }
+                            });
+
+                            document.addEventListener('mouseup', (e) => {
+                                if (e.button === 2) {
+                                    if (rightClickTimer) {
+                                        clearTimeout(rightClickTimer);
+                                        rightClickTimer = null;
+                                    }
+                                }
+                            });
+                            
+                            document.addEventListener('contextmenu', (e) => {
+                                if (isLongPress) {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    // console.log('已阻止右键长按触发的默认菜单');
+                                    isLongPress = false; // 重置状态
+                                    return false;
+                                }
+                            }, true); // 使用捕获阶段以确保优先处理
+                        })();
+                    `).catch(err => console.error('注入右键长按拦截脚本失败:', err));
+                }
+            } catch (error) {
+                console.error('注入右键拦截逻辑失败:', error);
+            }
+
             // 添加完整的自定义标题栏样式
             pluginWindow.webContents.insertCSS(`
                 /* 自定义标题栏样式 */

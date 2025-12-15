@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>AI 屏幕翻译</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
+            background-color: #0f172a;
+            color: #e5e7eb;
+        }
+
+        .app {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 12px 16px;
+            gap: 10px;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .title span {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-left: 8px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .btn {
+            border-radius: 6px;
+            border: 1px solid #1f2937;
+            background-color: #111827;
+            color: #e5e7eb;
+            padding: 6px 12px;
+            font-size: 13px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+        }
+
+        .btn:hover {
+            background-color: #1f2937;
+            border-color: #374151;
+        }
+
+        .btn-primary {
+            background: linear-gradient(90deg, #2563eb, #4f46e5);
+            border-color: transparent;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(90deg, #1d4ed8, #4338ca);
+        }
+
+        .btn-ghost {
+            background-color: transparent;
+            border-color: #374151;
+        }
+
+        .mode-toggle {
+            display: inline-flex;
+            padding: 2px;
+            border-radius: 999px;
+            background-color: #020617;
+            border: 1px solid #1f2937;
+        }
+
+        .mode-toggle button {
+            border-radius: 999px;
+            border: none;
+            background: none;
+            color: #9ca3af;
+            padding: 4px 12px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.15s ease, color 0.15s ease;
+        }
+
+        .mode-toggle button.active {
+            background: linear-gradient(90deg, #22c55e, #14b8a6);
+            color: #0f172a;
+        }
+
+        .content {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1.1fr 1.2fr;
+            gap: 12px;
+            min-height: 0;
+        }
+
+        .panel {
+            background-color: #020617;
+            border-radius: 10px;
+            border: 1px solid #1e293b;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-height: 0;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            color: #9ca3af;
+        }
+
+        .tag {
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 999px;
+            background-color: #111827;
+            border: 1px solid #1f2937;
+        }
+
+        textarea {
+            flex: 1;
+            width: 100%;
+            resize: none;
+            border-radius: 8px;
+            border: 1px solid #1f2937;
+            background-color: #020617;
+            color: #e5e7eb;
+            padding: 8px;
+            font-size: 13px;
+            line-height: 1.5;
+            outline: none;
+        }
+
+        textarea:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 1px #2563eb66;
+        }
+
+        .panel-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 4px;
+        }
+
+        .hint {
+            font-size: 11px;
+            color: #6b7280;
+        }
+
+        .status-bar {
+            height: 22px;
+            font-size: 12px;
+            color: #9ca3af;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .status-text {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 999px;
+        }
+
+        .dot-idle {
+            background-color: #4b5563;
+        }
+
+        .dot-busy {
+            background-color: #22c55e;
+            animation: pulse 1s infinite alternate;
+        }
+
+        .status-right {
+            font-size: 11px;
+            color: #6b7280;
+        }
+
+        .linkish {
+            color: #60a5fa;
+            cursor: pointer;
+        }
+
+        .linkish:hover {
+            text-decoration: underline;
+        }
+
+        @keyframes pulse {
+            from { opacity: 0.5; }
+            to { opacity: 1; }
+        }
+
+        .settings-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(15, 23, 42, 0.75);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+
+        .settings-modal-backdrop.visible {
+            display: flex;
+        }
+
+        .settings-modal {
+            width: 420px;
+            max-width: 96vw;
+            background-color: #020617;
+            border-radius: 12px;
+            border: 1px solid #1f2937;
+            padding: 14px 16px 12px;
+            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.9);
+        }
+
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .settings-title {
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .settings-body {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 12px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .form-group label {
+            color: #9ca3af;
+        }
+
+        .form-group input,
+        .form-group select {
+            border-radius: 6px;
+            border: 1px solid #1f2937;
+            background-color: #020617;
+            color: #e5e7eb;
+            padding: 6px 8px;
+            font-size: 12px;
+            outline: none;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 1px #2563eb66;
+        }
+
+        .settings-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .pill {
+            margin-top: 8px;
+            padding: 2px 6px;
+            border-radius: 999px;
+            background-color: #111827;
+            font-size: 11px;
+            color: #9ca3af;
+        }
+
+        .danger {
+            color: #f97373;
+        }
+
+        @media (max-width: 960px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <div class="header">
+            <div class="title">
+                AI 屏幕翻译
+                <span>硅基流动 · DeepSeek</span>
+            </div>
+            <div class="header-actions">
+                <div class="mode-toggle" id="modeToggle">
+                    <button id="modeText" class="active">文本翻译</button>
+                    <button id="modeOcr">截图翻译</button>
+                </div>
+                <button class="btn btn-ghost" id="settingsBtn">⚙ 设置</button>
+                <button class="btn btn-ghost" id="closeBtn">✕</button>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="panel">
+                <div class="panel-header">
+                    <div>原文</div>
+                    <div class="tag" id="sourceTag">剪贴板内容 / 输入</div>
+                </div>
+                <textarea id="sourceText" placeholder="请复制文本到剪贴板，应用将自动读取并翻译。"></textarea>
+                <div class="panel-footer">
+                    <div class="hint" id="sourceHint">当前模式：文本翻译 · 中英自动互译</div>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        <button class="btn" id="copySourceBtn">复制原文</button>
+                        <button class="btn btn-primary" id="translateBtn">翻译</button>
+                        <button class="btn" id="ocrBtn">截图翻译</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <div>译文</div>
+                    <div class="tag" id="targetTag">等待翻译</div>
+                </div>
+                <textarea id="targetText" readonly placeholder="翻译结果会显示在这里。"></textarea>
+                <div class="panel-footer">
+                    <div class="hint" id="targetHint">DeepSeek-V3.2 / DeepSeek-OCR · 由硅基流动提供算力</div>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        <button class="btn" id="copyTargetBtn">复制译文</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-text" id="statusText">
+                <div class="dot dot-idle" id="statusDot"></div>
+                <span>就绪</span>
+            </div>
+            <div class="status-right">
+                未配置 API Key · 点击右上角 <span class="linkish" id="openSettingsLink">设置</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="settings-modal-backdrop" id="settingsBackdrop">
+        <div class="settings-modal">
+            <div class="settings-header">
+                <div class="settings-title">硅基流动 API 设置</div>
+                <button class="btn btn-ghost" id="settingsCloseBtn">✕</button>
+            </div>
+            <div class="settings-body">
+                <div class="form-group">
+                    <label for="apiKeyInput">API Key</label>
+                    <input id="apiKeyInput" type="password" placeholder="以 sk- 开头的密钥，存储于本机插件数据中">
+                </div>
+                <div class="form-group">
+                    <label for="baseUrlInput">Base URL</label>
+                    <input id="baseUrlInput" type="text" placeholder="默认：https://api.siliconflow.cn/v1">
+                </div>
+                <div class="form-group">
+                    <label for="textModelSelect">文本翻译模型</label>
+                    <select id="textModelSelect">
+                        <option value="deepseek-ai/DeepSeek-V3.2">deepseek-ai/DeepSeek-V3.2</option>
+                        <option value="deepseek-ai/DeepSeek-V3">deepseek-ai/DeepSeek-V3</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="ocrModelSelect">OCR 模型</label>
+                    <select id="ocrModelSelect">
+                        <option value="deepseek-ai/DeepSeek-OCR">deepseek-ai/DeepSeek-OCR</option>
+                    </select>
+                </div>
+                <div class="pill">
+                    提示：插件仅在本机调用硅基流动官方接口，不上传密钥到第三方服务器。
+                </div>
+            </div>
+            <div class="settings-footer">
+                <button class="btn" id="settingsCancelBtn">取消</button>
+                <button class="btn btn-primary" id="settingsSaveBtn">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * 状态栏控制对象
+         * Manages the status bar UI
+         */
+        const StatusBar = {
+            /**
+             * 设置状态信息
+             * Set status message and busy state
+             * @param {string} message 提示信息
+             * @param {boolean} busy 是否忙碌状态
+             */
+            set(message, busy) {
+                const statusText = document.getElementById('statusText');
+                const dot = document.getElementById('statusDot');
+                if (statusText) {
+                    statusText.querySelector('span').textContent = message;
+                }
+                if (dot) {
+                    dot.className = 'dot ' + (busy ? 'dot-busy' : 'dot-idle');
+                }
+            },
+            
+            /**
+             * 刷新API配置状态显示
+             * Refresh the API configuration status in the footer
+             */
+            refreshApiStatus() {
+                const el = document.querySelector('.status-right');
+                if (!el || !window.services) return;
+                const settings = window.services.getSettings();
+                if (settings && settings.apiKey) {
+                    el.textContent = '已配置 API Key · 模型：' + (settings.textModel || 'DeepSeek-V3.2');
+                } else {
+                    el.innerHTML = '未配置 API Key · 点击右上角 <span class="linkish" id="openSettingsLinkInner">设置</span>';
+                    const innerLink = document.getElementById('openSettingsLinkInner');
+                    if (innerLink) {
+                        innerLink.addEventListener('click', SettingsModal.open);
+                    }
+                }
+            }
+        };
+
+        /**
+         * 设置弹窗管理对象
+         * Manages the settings modal
+         */
+        const SettingsModal = {
+            /**
+             * 初始化设置弹窗事件
+             * Initialize settings modal events
+             */
+            init() {
+                document.getElementById('settingsBtn').addEventListener('click', this.open);
+                const openSettingsLink = document.getElementById('openSettingsLink');
+                if (openSettingsLink) openSettingsLink.addEventListener('click', this.open);
+                document.getElementById('settingsCloseBtn').addEventListener('click', this.close);
+                document.getElementById('settingsCancelBtn').addEventListener('click', this.close);
+                document.getElementById('settingsSaveBtn').addEventListener('click', this.save);
+                document.getElementById('settingsBackdrop').addEventListener('click', (ev) => {
+                    if (ev.target === ev.currentTarget) this.close();
+                });
+            },
+
+            /**
+             * 打开设置弹窗
+             * Open settings modal
+             */
+            open() {
+                const backdrop = document.getElementById('settingsBackdrop');
+                if (!backdrop || !window.services) return;
+                
+                const settings = window.services.getSettings();
+                document.getElementById('apiKeyInput').value = settings.apiKey || '';
+                document.getElementById('baseUrlInput').value = settings.baseUrl || 'https://api.siliconflow.cn/v1';
+                document.getElementById('textModelSelect').value = settings.textModel || 'deepseek-ai/DeepSeek-V3.2';
+                document.getElementById('ocrModelSelect').value = settings.ocrModel || 'deepseek-ai/DeepSeek-OCR';
+                backdrop.classList.add('visible');
+            },
+
+            /**
+             * 关闭设置弹窗
+             * Close settings modal
+             */
+            close() {
+                const backdrop = document.getElementById('settingsBackdrop');
+                if (backdrop) backdrop.classList.remove('visible');
+            },
+
+            /**
+             * 保存设置
+             * Save settings
+             */
+            save() {
+                if (!window.services) return;
+                const settings = window.services.getSettings();
+                settings.apiKey = document.getElementById('apiKeyInput').value.trim();
+                settings.baseUrl = document.getElementById('baseUrlInput').value.trim() || 'https://api.siliconflow.cn/v1';
+                settings.textModel = document.getElementById('textModelSelect').value;
+                settings.ocrModel = document.getElementById('ocrModelSelect').value;
+                window.services.saveSettings(settings);
+                SettingsModal.close();
+                StatusBar.refreshApiStatus();
+            }
+        };
+
+        /**
+         * 核心逻辑控制器
+         * Main application controller
+         */
+        const App = {
+            currentMode: 'text',
+            currentAbortController: null,
+
+            /**
+             * 初始化应用
+             * Initialize application
+             */
+            init() {
+                this.bindEvents();
+                SettingsModal.init();
+                StatusBar.refreshApiStatus();
+                StatusBar.set('就绪', false);
+
+                // 检查初始上下文（针对首次加载）
+                if (window.services && window.services.getInitialContext) {
+                    const ctx = window.services.getInitialContext();
+                    if (ctx) {
+                        this.handleEnter(ctx);
+                    }
+                }
+
+                // 监听来自 preload 的消息
+                window.addEventListener('message', (event) => {
+                    if (event.data && event.data.type === 'AI_SCREEN_TRANS_ENTER') {
+                        this.handleEnter(event.data.data);
+                    }
+                });
+            },
+
+            /**
+             * 绑定界面事件
+             * Bind UI events
+             */
+            bindEvents() {
+                document.getElementById('translateBtn').addEventListener('click', () => {
+                    this.switchMode('text');
+                    this.translateText();
+                });
+
+                document.getElementById('ocrBtn').addEventListener('click', () => {
+                    this.switchMode('ocr');
+                    this.ocrTranslate();
+                });
+
+                document.getElementById('copySourceBtn').addEventListener('click', () => this.copyText('source'));
+                document.getElementById('copyTargetBtn').addEventListener('click', () => this.copyText('target'));
+                
+                document.getElementById('modeText').addEventListener('click', () => this.switchMode('text'));
+                document.getElementById('modeOcr').addEventListener('click', () => this.switchMode('ocr'));
+                
+                document.getElementById('closeBtn').addEventListener('click', () => {
+                    if (window.services && window.services.closeWindow) window.services.closeWindow();
+                });
+            },
+
+            /**
+             * 处理进入事件
+             * Handle plugin entry event
+             * @param {Object} context - Entry context
+             */
+            async handleEnter(context) {
+                console.log('Handle Enter:', context);
+                
+                // 1. 取消上一次未完成的请求，防止冲突
+                if (this.currentAbortController) {
+                    this.currentAbortController.abort();
+                }
+                this.currentAbortController = new AbortController();
+
+                context = context || {};
+                const mode = context.mode === 'ocr' ? 'ocr' : 'text';
+                this.switchMode(mode);
+
+                // 2. 清空界面，确保显示的是最新状态
+                document.getElementById('sourceText').value = '';
+                document.getElementById('targetText').value = '';
+                document.getElementById('targetTag').textContent = '等待翻译';
+
+                if (mode === 'text') {
+                    // 逻辑优化：优先使用 payload (用户选中的文本)，如果没有则强制读取最新剪贴板
+                    let textToTranslate = '';
+                    
+                    if (context.payload && typeof context.payload === 'string') {
+                        textToTranslate = context.payload;
+                    }
+
+                    // 如果 payload 为空，则读取剪贴板
+                    if (!textToTranslate) {
+                        const clipboardText = window.services.getClipboardText();
+                        if (clipboardText && clipboardText.trim()) {
+                            textToTranslate = clipboardText;
+                        }
+                    }
+
+                    if (textToTranslate) {
+                        document.getElementById('sourceText').value = textToTranslate;
+                        await this.translateText();
+                    } else {
+                        document.getElementById('sourceText').focus();
+                        StatusBar.set('剪贴板为空，请输入文本', false);
+                    }
+                } else if (mode === 'ocr') {
+                    // 自动执行剪贴板图片 OCR (ocrTranslate 内部会读取最新剪贴板)
+                    await this.ocrTranslate();
+                }
+            },
+
+            /**
+             * 切换工作模式
+             * Switch working mode
+             * @param {string} mode - 'text' or 'ocr'
+             */
+            switchMode(mode) {
+                this.currentMode = mode;
+                const modeTextBtn = document.getElementById('modeText');
+                const modeOcrBtn = document.getElementById('modeOcr');
+                const sourceTag = document.getElementById('sourceTag');
+                const sourceHint = document.getElementById('sourceHint');
+
+                if (mode === 'text') {
+                    modeTextBtn.classList.add('active');
+                    modeOcrBtn.classList.remove('active');
+                    sourceTag.textContent = '剪贴板内容';
+                    sourceHint.textContent = '当前模式：文本翻译 · 读取剪贴板文本';
+                } else {
+                    modeOcrBtn.classList.add('active');
+                    modeTextBtn.classList.remove('active');
+                    sourceTag.textContent = '剪贴板图片';
+                    sourceHint.textContent = '当前模式：截图翻译 · 读取剪贴板图片并识别';
+                }
+            },
+
+            /**
+             * 复制文本
+             * Copy text to clipboard
+             * @param {string} which - 'source' or 'target'
+             */
+            copyText(which) {
+                if (!window.services) return;
+                const el = which === 'source' ? document.getElementById('sourceText') : document.getElementById('targetText');
+                if (!el) return;
+                const result = window.services.copyText(el.value || '');
+                if (result && !result.success) {
+                    StatusBar.set('复制失败：' + result.error, false);
+                } else {
+                    StatusBar.set('已复制到剪贴板', false);
+                }
+            },
+
+            /**
+             * 调用 SiliconFlow API
+             * Call SiliconFlow API
+             * @param {string} model - Model name
+             * @param {Array} messages - Chat messages
+             * @param {Object} options - Additional options
+             * @returns {Promise<string>} Model response content
+             */
+            async callSiliconFlow(model, messages, options = {}) {
+                if (!window.services) throw new Error('服务未初始化');
+                const settings = window.services.getSettings();
+                if (!settings.apiKey) throw new Error('请先在设置中配置 API Key');
+
+                const baseUrl = (settings.baseUrl || 'https://api.siliconflow.cn/v1').replace(/\/$/, '');
+                const body = {
+                    model: model,
+                    messages: messages,
+                    temperature: options.temperature ?? 0.3,
+                    max_tokens: options.maxTokens ?? 1024
+                };
+
+                // 添加超时控制 (默认30秒)
+                // 注意：这里使用 handleEnter 中创建的 controller 的 signal，以便支持“用户取消/重入”
+                // 同时，为了支持超时，我们需要组合逻辑，但 fetch 只接受一个 signal。
+                // 简单方案：使用外部 signal，并在内部设置超时去 abort 它？不行，外部 signal 属于 App。
+                // 正确方案：如果 options.signal 存在，则 fetch 使用它。超时逻辑改为：如果超时，手动 abort。
+                
+                const signal = options.signal || (this.currentAbortController ? this.currentAbortController.signal : null);
+                
+                // 内部超时控制器 (辅助) - 实际上我们依赖 signal 的 abort，但 signal 可能来自外部。
+                // 如果没有 signal，我们创建一个。
+                const internalController = new AbortController();
+                const effectiveSignal = signal || internalController.signal;
+
+                const timeoutId = setTimeout(() => {
+                    // 如果有外部 controller，abort 外部的 (这会触发 signal 的 abort 事件)
+                    if (this.currentAbortController) {
+                        this.currentAbortController.abort('timeout');
+                    } else {
+                        internalController.abort('timeout');
+                    }
+                }, 30000);
+
+                try {
+                    const response = await fetch(baseUrl + '/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + settings.apiKey
+                        },
+                        body: JSON.stringify(body),
+                        signal: effectiveSignal
+                    });
+
+                    if (!response.ok) {
+                        const errText = await response.text();
+                        throw new Error(`HTTP ${response.status}: ${errText}`);
+                    }
+
+                    const data = await response.json();
+                    const content = data?.choices?.[0]?.message?.content;
+                    if (!content) throw new Error('模型未返回内容');
+                    
+                    return content;
+                } catch (error) {
+                    if (error.name === 'AbortError') {
+                        // 区分是超时还是用户取消
+                        // 由于 fetch 的 AbortError 不容易携带 reason，我们简单提示
+                        throw new Error('请求已取消或超时');
+                    }
+                    throw error;
+                } finally {
+                    clearTimeout(timeoutId);
+                }
+            },
+
+            /**
+             * 执行文本翻译
+             * Execute text translation
+             */
+            async translateText() {
+                const source = document.getElementById('sourceText');
+                const target = document.getElementById('targetText');
+                const targetTag = document.getElementById('targetTag');
+                const text = source.value.trim();
+
+                if (!text) {
+                    StatusBar.set('请输入要翻译的文本', false);
+                    return;
+                }
+
+                StatusBar.set('正在调用 DeepSeek-V3.2 进行翻译...', true);
+                target.value = '';
+                targetTag.textContent = '翻译中...';
+
+                try {
+                    const settings = window.services.getSettings();
+                    const model = settings.textModel || 'deepseek-ai/DeepSeek-V3.2';
+                    const messages = [
+                        {
+                            role: 'system',
+                            content: '你是专业的中英互译助手。用户会提供中文或英文内容，请自动检测语言：如果是中文，翻译为自然流畅的英文；如果是英文，翻译为自然流畅的中文。仅输出翻译结果本身，不要添加解释。'
+                        },
+                        {
+                            role: 'user',
+                            content: text
+                        }
+                    ];
+
+                    const result = await this.callSiliconFlow(model, messages, { temperature: 0.3, maxTokens: 2048 });
+                    target.value = result;
+                    targetTag.textContent = '翻译完成';
+                    StatusBar.set('翻译完成', false);
+                } catch (error) {
+                    targetTag.textContent = '翻译失败';
+                    target.value = '翻译失败：' + error.message;
+                    StatusBar.set('翻译失败：' + error.message, false);
+                }
+            },
+
+            /**
+             * 执行截图 OCR 翻译
+             * Execute Screenshot OCR and Translation
+             */
+            async ocrTranslate() {
+                const source = document.getElementById('sourceText');
+                const target = document.getElementById('targetText');
+                const targetTag = document.getElementById('targetTag');
+
+                // 重置界面状态，给用户明确反馈
+                source.value = '';
+                target.value = '';
+                targetTag.textContent = '准备中...';
+
+                StatusBar.set('正在读取剪贴板图片...', true);
+                
+                try {
+                    // 调用 Preload 提供的剪贴板图片服务
+                    const base64 = window.services.getClipboardImage();
+                    
+                    if (!base64) {
+                        throw new Error('未检测到图片，请先截图或复制图片到剪贴板');
+                    }
+                    
+                    targetTag.textContent = 'OCR 识别中...';
+                    
+                    const settings = window.services.getSettings();
+                    const ocrModel = settings.ocrModel || 'deepseek-ai/DeepSeek-OCR';
+                    const imageUrl = 'data:image/png;base64,' + base64;
+
+                    const ocrMessages = [
+                        {
+                            role: 'user',
+                            content: [
+                                { type: 'image_url', image_url: { url: imageUrl } },
+                                { type: 'text', text: '请只输出截图中识别到的文字内容，严格保持原始换行与顺序，不要添加任何解释。' }
+                            ]
+                        }
+                    ];
+
+                    // 调用 OCR
+                    const ocrText = await this.callSiliconFlow(ocrModel, ocrMessages, { temperature: 0, maxTokens: 4096 });
+                    
+                    source.value = ocrText;
+                    targetTag.textContent = '翻译中...';
+                    StatusBar.set('OCR 完成，正在翻译...', true);
+
+                    // 调用翻译
+                    const textModel = settings.textModel || 'deepseek-ai/DeepSeek-V3.2';
+                    const translateMessages = [
+                        {
+                            role: 'system',
+                            content: '你是专业的中英互译助手。用户提供的是从截图中识别出的文本，请自动检测中文或英文，如果是中文则翻译为自然流畅的英文，如果是英文则翻译为自然流畅的中文。仅输出翻译结果本身，不要解释。'
+                        },
+                        {
+                            role: 'user',
+                            content: ocrText
+                        }
+                    ];
+
+                    const translated = await this.callSiliconFlow(textModel, translateMessages, { temperature: 0.3, maxTokens: 4096 });
+                    
+                    target.value = translated;
+                    targetTag.textContent = '翻译完成';
+                    StatusBar.set('截图翻译完成', false);
+                } catch (error) {
+                    targetTag.textContent = '翻译失败';
+                    target.value = '翻译失败：' + error.message;
+                    StatusBar.set('翻译失败：' + error.message, false);
+                }
+            }
+        };
+
+        // 启动应用
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            App.init();
+        } else {
+            document.addEventListener('DOMContentLoaded', () => App.init());
+        }
+    </script>
+</body>
+</html>

@@ -430,7 +430,7 @@
 
         let selectedIndex = 0;
         let actions = [];
-        let currentSelectedText = '';
+        let currentClipboardText = '';
         let contextType = 'text'; // 'text', 'file', 'image', 'url'
 
         // 检测上下文类型
@@ -474,7 +474,7 @@
                     } else if (type === 'text') {
                         if (keywords.includes('文本') || keywords.includes('翻译') || keywords.includes('text') || keywords.includes('搜索')) score += 5;
                         // 翻译插件优先级更高
-                        if (keywords.includes('翻译') && /[\u4e00-\u9fa5]/.test(currentSelectedText) === false) score += 5; // 非中文优先翻译
+                        if (keywords.includes('翻译') && /[\u4e00-\u9fa5]/.test(currentClipboardText) === false) score += 5; // 非中文优先翻译
                     }
 
                     // 保持原有的优先级 (priority 越小越前)
@@ -516,19 +516,19 @@
             try {
                 console.log('🚀 超级面板框架初始化开始');
 
-                // 获取当前选中的文本
-                currentSelectedText = await ipcRenderer.invoke('get-selected-text') || '';
-                console.log('📝 选中文本:', currentSelectedText);
+                // 获取剪贴板文本
+                currentClipboardText = await ipcRenderer.invoke('get-clipboard-text') || '';
+                console.log('📝 剪贴板文本:', currentClipboardText);
 
                 // 检测上下文类型
-                contextType = detectContextType(currentSelectedText);
+                contextType = detectContextType(currentClipboardText);
                 console.log('🔍 上下文类型:', contextType);
 
-                // 显示选中文本信息
-                updateSelectedTextInfo(currentSelectedText, contextType);
+                // 显示剪贴板信息
+                updateClipboardInfo(currentClipboardText, contextType);
 
                 // 从插件API加载所有注册的功能
-                let newActions = await ipcRenderer.invoke('get-super-panel-actions', currentSelectedText);
+                let newActions = await ipcRenderer.invoke('get-super-panel-actions', currentClipboardText);
                 console.log('🔧 重新加载到的功能:', newActions.length, '个');
 
                 // 根据上下文排序
@@ -545,8 +545,8 @@
             }
         }
 
-        // 更新选中文本信息显示
-        function updateSelectedTextInfo(text, type) {
+        // 更新剪贴板信息显示
+        function updateClipboardInfo(text, type) {
             const infoElement = document.getElementById('selected-text-info');
             if (text && text.trim()) {
                 const displayText = text.length > 50 ? text.substring(0, 50) + '...' : text;
@@ -555,7 +555,7 @@
                 if (type === 'directory') typeText = '文件夹';
                 if (type === 'url') typeText = '链接';
 
-                infoElement.textContent = `[${typeText}] ${displayText}`;
+                infoElement.textContent = `[剪贴板:${typeText}] ${displayText}`;
                 infoElement.style.display = 'block';
             } else {
                 infoElement.style.display = 'none';
@@ -737,7 +737,7 @@
                 // 通过插件API执行功能
                 const result = await ipcRenderer.invoke('execute-super-panel-action', {
                     action: action,
-                    selectedText: currentSelectedText
+                    clipboardText: currentClipboardText
                 });
 
                 if (!result.success) {

@@ -29,10 +29,10 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             background-color: var(--bg-color);
             color: var(--text-color);
-            overflow: hidden;
-            height: 100vh;
+            min-height: 100vh;
             display: flex;
             flex-direction: column;
+            overflow-y: auto;
         }
 
         /* 滚动条美化 */
@@ -615,7 +615,6 @@
         #plugins-container {
             flex: 1;
             padding: 24px;
-            overflow-y: auto;
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
             gap: 24px;

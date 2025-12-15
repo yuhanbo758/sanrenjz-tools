@@ -1,6 +1,7 @@
 const { ipcRenderer } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
 // 插件配置
 const PLUGIN_NAME = '图片裁剪工具';
@@ -124,6 +125,19 @@ window.services = {
     
     // 获取系统字体列表
     getSystemFonts: () => {
+        try {
+            // 尝试通过 PowerShell 获取系统字体 (仅 Windows)
+            if (process.platform === 'win32') {
+                const command = `powershell -command "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Add-Type -AssemblyName System.Drawing; (New-Object System.Drawing.Text.InstalledFontCollection).Families.Name"`;
+                // 设置超时防止卡死
+                const output = execSync(command, { encoding: 'utf8', timeout: 3000 });
+                const fonts = output.split(/[\r\n]+/).map(f => f.trim()).filter(f => f);
+                if (fonts.length > 0) return fonts;
+            }
+        } catch (e) {
+            console.error('Failed to load system fonts via PowerShell:', e);
+        }
+
         const systemFonts = [
             'Microsoft YaHei',
             'Microsoft YaHei UI',

@@ -2089,72 +2089,25 @@ ipcMain.handle('test-right-click-function', () => {
     }
 });
 
-// 添加 IPC 处理：获取选中的文本
-ipcMain.handle('get-selected-text', async () => {
+// 添加 IPC 处理：获取剪贴板文本
+ipcMain.handle('get-clipboard-text', () => {
     try {
-        const os = require('os');
-        const fs = require('fs');
-        const path = require('path');
-        const { execSync } = require('child_process');
-        const tempDir = os.tmpdir();
-        const scriptPath = path.join(tempDir, `get_selected_text_${Date.now()}.ps1`);
-
-        const psScript = `
-$ErrorActionPreference = "SilentlyContinue"
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-Add-Type -AssemblyName System.Windows.Forms
-
-$selectedText = ""
-try {
-    $originalClip = [System.Windows.Forms.Clipboard]::GetText()
-    [System.Windows.Forms.SendKeys]::SendWait("^c")
-    Start-Sleep -Milliseconds 100
-    $selectedText = [System.Windows.Forms.Clipboard]::GetText()
-    
-    if ($selectedText -eq $originalClip) {
-        $selectedText = ""
-    }
-    
-    Write-Output $selectedText
-} catch {
-    Write-Output ""
-}`;
-
-        fs.writeFileSync(scriptPath, psScript, { encoding: 'utf8' });
-
-        const command = `powershell -ExecutionPolicy Bypass -NonInteractive -NoProfile -File "${scriptPath}"`;
-        const result = execSync(command, {
-            windowsHide: true,
-            timeout: 3000,
-            encoding: 'utf8'
-        }).toString().trim();
-
-        // 清理临时文件
-        try {
-            if (fs.existsSync(scriptPath)) {
-                fs.unlinkSync(scriptPath);
-            }
-        } catch (e) {
-            console.error('清理PS脚本失败:', e);
-        }
-
-        console.log('获取到选中文本:', result);
-        return result;
-
+        const { clipboard } = require('electron');
+        return clipboard.readText();
     } catch (error) {
-        console.error('获取选中文本失败:', error);
+        console.error('获取剪贴板文本失败:', error);
         return '';
     }
 });
 
 // 已移除重复的 get-super-panel-actions 处理器
 
-// 计算功能与选中文本的匹配度
-function calculateMatchScore(selectedText, feature) {
-    if (!selectedText || !feature) return 0;
+// 计算功能与剪贴板文本的匹配度
+function calculateMatchScore(clipboardText, feature) {
+    if (!clipboardText || !feature) return 0;
 
     let score = 0;
-    const text = selectedText.toLowerCase();
+    const text = clipboardText.toLowerCase();
 
     // 检查命令关键词匹配
     if (feature.cmds) {
@@ -2231,15 +2184,16 @@ function getPluginIcon(pluginName) {
 }
 
 // 添加 IPC 处理：运行插件操作
-ipcMain.handle('run-plugin-action', async (event, { pluginPath, feature, selectedText }) => {
+ipcMain.handle('run-plugin-action', async (event, { pluginPath, feature, clipboardText }) => {
     try {
-        console.log('运行插件操作:', { pluginPath, feature: feature.code, selectedText });
+        console.log('运行插件操作:', { pluginPath, feature: feature.code, clipboardText });
 
         if (pluginManager) {
-            // 传递选中的文本到插件
-            if (selectedText && feature.useSelectedText !== false) {
-                // 可以在这里将选中文本传递给插件
-                feature.selectedText = selectedText;
+            // 传递剪贴板文本到插件
+            if (clipboardText && feature.useClipboardText !== false) {
+                // 可以在这里将剪贴板文本传递给插件
+                feature.clipboardText = clipboardText;
+                feature.payload = clipboardText; // 为了兼容性，也可以设置payload
             }
 
             await pluginManager.runPlugin(pluginPath, [feature]);
@@ -2255,29 +2209,29 @@ ipcMain.handle('run-plugin-action', async (event, { pluginPath, feature, selecte
 });
 
 // 添加 IPC 处理：执行系统命令
-ipcMain.handle('execute-system-command', async (event, { command, args, selectedText }) => {
+ipcMain.handle('execute-system-command', async (event, { command, args, clipboardText }) => {
     try {
-        console.log('执行系统命令:', { command, args, selectedText });
+        console.log('执行系统命令:', { command, args, clipboardText });
 
         const { shell } = require('electron');
 
         switch (command) {
             case 'search-web':
-                const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(args.query)}`;
+                const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(args.query || clipboardText)}`;
                 await shell.openExternal(searchUrl);
                 break;
 
             case 'open-url':
-                await shell.openExternal(args.url);
+                await shell.openExternal(args.url || clipboardText);
                 break;
 
             case 'send-email':
-                const emailUrl = `mailto:${args.email}`;
+                const emailUrl = `mailto:${args.email || clipboardText}`;
                 await shell.openExternal(emailUrl);
                 break;
 
             case 'translate':
-                const translateUrl = `https://translate.google.com/?sl=${args.from}&tl=${args.to}&text=${encodeURIComponent(args.text)}`;
+                const translateUrl = `https://translate.google.com/?sl=${args.from}&tl=${args.to}&text=${encodeURIComponent(args.text || clipboardText)}`;
                 await shell.openExternal(translateUrl);
                 break;
 
@@ -2410,12 +2364,12 @@ ipcMain.handle('clear-super-panel-actions', (event, pluginName) => {
  * - 排序：按类型优先级 dynamic > plugin > custom > builtin
  * - 去重：按 id 去重，保留优先级更高的项
  * @param {Electron.IpcMainInvokeEvent} event IPC 调用事件
- * @param {string} selectedText 当前选中的文本
+ * @param {string} clipboardText 当前剪贴板文本
  * @returns {Promise<Array>} 聚合后的功能列表
  */
-ipcMain.handle('get-super-panel-actions', async (event, selectedText) => {
+ipcMain.handle('get-super-panel-actions', async (event, clipboardText) => {
     try {
-        console.log('🎯 获取超级面板功能，选中文本:', selectedText);
+        console.log('🎯 获取超级面板功能，剪贴板文本:', clipboardText);
 
         // 获取设置中保存的功能列表
         const settings = loadSettings();
@@ -2443,8 +2397,8 @@ ipcMain.handle('get-super-panel-actions', async (event, selectedText) => {
         const builtinActions = await getBuiltinSuperPanelActions();
         allActions = allActions.concat(builtinActions);
 
-        // 4. 获取动态功能（基于选中内容）
-        const dynamicActions = await getDynamicSuperPanelActions(selectedText);
+        // 4. 获取动态功能（基于剪贴板内容）
+        const dynamicActions = await getDynamicSuperPanelActions(clipboardText);
         allActions = allActions.concat(dynamicActions);
 
         console.log(`🔧 总共可用功能: ${allActions.length}个`);
@@ -3370,23 +3324,23 @@ ipcMain.handle('open-add-plugin-dialog', async () => {
 // 删除重复的处理器 - 已在上面统一定义
 
 // 添加 IPC 处理：统一执行超级面板功能
-ipcMain.handle('execute-super-panel-action', async (event, { action, selectedText }) => {
+ipcMain.handle('execute-super-panel-action', async (event, { action, clipboardText }) => {
     try {
         console.log('执行超级面板功能:', action);
 
         // 根据操作类型执行不同的逻辑
         if (action.type === 'builtin') {
             // 执行内置功能
-            return await executeBuiltinAction(action, selectedText);
+            return await executeBuiltinAction(action, clipboardText);
         } else if (action.type === 'custom') {
             // 执行自定义功能
-            return await executeCustomAction(action, selectedText);
+            return await executeCustomAction(action, clipboardText);
         } else if (action.type === 'plugin') {
             // 运行插件
-            return await runPluginAction(action.pluginPath, action.feature, selectedText);
+            return await runPluginAction(action.pluginPath, action.feature, clipboardText);
         } else if (action.type === 'dynamic') {
             // 执行动态功能
-            return await executeDynamicAction(action, selectedText);
+            return await executeDynamicAction(action, clipboardText);
         }
 
         return { success: true };
@@ -3397,7 +3351,7 @@ ipcMain.handle('execute-super-panel-action', async (event, { action, selectedTex
 });
 
 // 执行内置功能
-async function executeBuiltinAction(action, selectedText) {
+async function executeBuiltinAction(action, clipboardText) {
     try {
         const { clipboard } = require('electron');
 
@@ -3447,11 +3401,11 @@ async function executeBuiltinAction(action, selectedText) {
 }
 
 // 执行自定义功能
-async function executeCustomAction(action, selectedText) {
+async function executeCustomAction(action, clipboardText) {
     try {
         if (action.command) {
             // 直接执行系统命令
-            return await executeSystemCommand(action.command, action.args || {}, selectedText);
+            return await executeSystemCommand(action.command, action.args || {}, clipboardText);
         } else if (action.script) {
             // 执行自定义脚本
             try {
@@ -3470,22 +3424,22 @@ async function executeCustomAction(action, selectedText) {
 }
 
 // 执行动态功能
-async function executeDynamicAction(action, selectedText) {
+async function executeDynamicAction(action, clipboardText) {
     try {
         switch (action.action || action.command) {
             case 'search-web':
-                const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(selectedText)}`;
+                const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(clipboardText)}`;
                 require('electron').shell.openExternal(searchUrl);
                 break;
             case 'open-url':
-                require('electron').shell.openExternal(action.args?.url || selectedText);
+                require('electron').shell.openExternal(action.args?.url || clipboardText);
                 break;
             case 'send-email':
-                const emailUrl = `mailto:${action.args?.email || selectedText}`;
+                const emailUrl = `mailto:${action.args?.email || clipboardText}`;
                 require('electron').shell.openExternal(emailUrl);
                 break;
             case 'translate':
-                const translateUrl = `https://translate.google.com/?sl=${action.args?.from || 'auto'}&tl=${action.args?.to || 'en'}&text=${encodeURIComponent(selectedText)}`;
+                const translateUrl = `https://translate.google.com/?sl=${action.args?.from || 'auto'}&tl=${action.args?.to || 'en'}&text=${encodeURIComponent(clipboardText)}`;
                 require('electron').shell.openExternal(translateUrl);
                 break;
             default:
@@ -3580,15 +3534,15 @@ async function getBuiltinSuperPanelActions() {
     ];
 }
 
-// 获取动态超级面板功能（基于选中内容）
-async function getDynamicSuperPanelActions(selectedText) {
+// 获取动态超级面板功能（基于剪贴板内容）
+async function getDynamicSuperPanelActions(clipboardText) {
     const dynamicActions = [];
 
-    if (!selectedText || selectedText.trim() === '') {
+    if (!clipboardText || clipboardText.trim() === '') {
         return dynamicActions;
     }
 
-    const text = selectedText.trim();
+    const text = clipboardText.trim();
 
     // URL 检测
     if (text.match(/^https?:\/\/.+/)) {
@@ -3640,7 +3594,7 @@ async function getDynamicSuperPanelActions(selectedText) {
         dynamicActions.push({
             id: 'translate-zh-en-' + Date.now(),
             title: '翻译到英文',
-            description: '翻译选中的中文文本到英文',
+            description: '翻译剪贴板中的中文文本到英文',
             icon: '🌍',
             type: 'dynamic',
             category: '翻译工具',
@@ -3655,7 +3609,7 @@ async function getDynamicSuperPanelActions(selectedText) {
         dynamicActions.push({
             id: 'translate-en-zh-' + Date.now(),
             title: '翻译到中文',
-            description: '翻译选中的英文文本到中文',
+            description: '翻译剪贴板中的英文文本到中文',
             icon: '🌏',
             type: 'dynamic',
             category: '翻译工具',
@@ -4368,11 +4322,11 @@ ipcMain.handle('close-current-window', (event) => {
 
 // 运行插件功能
 // 函数级注释：
-// - 将选中的文本以 actionContext 传递给插件，从而支持 "over" 模式
+// - 将剪贴板文本以 actionContext 传递给插件，从而支持 "over" 模式
 // - 当 feature.args.quickCommand 存在时，向插件窗口注入 pendingQuickCommand 与 pendingText，
 //   以便 AI 插件在打开后自动应用指定快捷指令
 // - 保持对其它插件通用的执行路径；若插件管理器不可用则返回错误
-async function runPluginAction(pluginPath, feature, selectedText) {
+async function runPluginAction(pluginPath, feature, clipboardText) {
     try {
         if (!pluginManager) {
             console.error('插件管理器未初始化');
@@ -4397,7 +4351,7 @@ async function runPluginAction(pluginPath, feature, selectedText) {
         // 构造上下文对象并安全序列化
         const actionContext = {
             type: 'over',
-            payload: selectedText || '',
+            payload: clipboardText || '',
             featureArgs: feature?.args || null
         };
         const ctxJson = JSON.stringify(actionContext);
@@ -4445,7 +4399,7 @@ async function runPluginAction(pluginPath, feature, selectedText) {
 }
 
 // 执行系统命令
-async function executeSystemCommand(command, args, selectedText) {
+async function executeSystemCommand(command, args, clipboardText) {
     try {
         const { shell } = require('electron');
 
@@ -4463,23 +4417,23 @@ async function executeSystemCommand(command, args, selectedText) {
                 break;
 
             case 'open-url':
-                if (args.url) {
-                    await shell.openExternal(args.url);
+                if (args.url || clipboardText) {
+                    await shell.openExternal(args.url || clipboardText);
                     return { success: true };
                 }
                 break;
 
             case 'search-web':
-                if (args.query) {
-                    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(args.query)}`;
+                if (args.query || clipboardText) {
+                    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(args.query || clipboardText)}`;
                     await shell.openExternal(searchUrl);
                     return { success: true };
                 }
                 break;
 
             case 'send-email':
-                if (args.email) {
-                    const emailUrl = `mailto:${args.email}`;
+                if (args.email || clipboardText) {
+                    const emailUrl = `mailto:${args.email || clipboardText}`;
                     await shell.openExternal(emailUrl);
                     return { success: true };
                 }
