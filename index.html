@@ -1880,21 +1880,25 @@
             try {
                 // 收集插件搜索设置
                 const pluginSearchSettings = {};
-                const searchItems = document.querySelectorAll('.plugin-search-item');
                 
-                searchItems.forEach(item => {
-                    const keywordInput = item.querySelector('.keyword-input');
-                    const enableCheckbox = item.querySelector('input[type="checkbox"]');
-                    const pluginName = keywordInput.dataset.pluginName;
-                    
-                    const keywords = keywordInput.value.split(',')
-                        .map(k => k.trim())
-                        .filter(k => k.length > 0);
-                    
-                    pluginSearchSettings[pluginName] = {
-                        enabled: enableCheckbox.checked,
-                        keywords: keywords
-                    };
+                // 修正：使用正确的类名选择器
+                const managementItems = document.querySelectorAll('.plugin-management-item');
+                
+                managementItems.forEach(item => {
+                    const keywordInput = item.querySelector('.pm-keyword-input');
+                    if (keywordInput) {
+                        const pluginName = keywordInput.dataset.pluginName;
+                        
+                        const keywords = keywordInput.value.split(',')
+                            .map(k => k.trim())
+                            .filter(k => k.length > 0);
+                        
+                        // 新版UI默认启用搜索，除非有专门的开关（目前UI中没有单独的搜索开关）
+                        pluginSearchSettings[pluginName] = {
+                            enabled: true,
+                            keywords: keywords
+                        };
+                    }
                 });
 
                 const settings = {
