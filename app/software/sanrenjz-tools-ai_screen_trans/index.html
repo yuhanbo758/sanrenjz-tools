@@ -579,6 +579,33 @@
                 document.getElementById('closeBtn').addEventListener('click', () => {
                     if (window.services && window.services.closeWindow) window.services.closeWindow();
                 });
+
+                document.addEventListener('paste', (event) => this.handlePaste(event));
+            },
+
+            /**
+             * 处理粘贴事件
+             */
+            async handlePaste(event) {
+                const clipboardData = event.clipboardData || (event.originalEvent && event.originalEvent.clipboardData);
+                if (!clipboardData || !clipboardData.items) return;
+
+                const items = clipboardData.items;
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+                    if (item.kind === 'file' && item.type.startsWith('image/')) {
+                        event.preventDefault(); // 阻止默认行为
+                        const blob = item.getAsFile();
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            const base64 = e.target.result.split(',')[1];
+                            this.switchMode('ocr');
+                            this.ocrTranslate(base64, true); // true 表示直接传入的是 base64
+                        };
+                        reader.readAsDataURL(blob);
+                        return;
+                    }
+                }
             },
 
             /**
@@ -798,8 +825,10 @@
             /**
              * 执行截图 OCR 翻译
              * Execute Screenshot OCR and Translation
+             * @param {string} [input] - 可选：图片路径 或 Base64 数据
+             * @param {boolean} [isBase64] - 可选：是否直接为 Base64 数据
              */
-            async ocrTranslate() {
+            async ocrTranslate(input, isBase64 = false) {
                 const source = document.getElementById('sourceText');
                 const target = document.getElementById('targetText');
                 const targetTag = document.getElementById('targetTag');
@@ -809,11 +838,38 @@
                 target.value = '';
                 targetTag.textContent = '准备中...';
 
-                StatusBar.set('正在读取剪贴板图片...', true);
+                StatusBar.set('正在获取图片...', true);
                 
                 try {
-                    // 调用 Preload 提供的剪贴板图片服务
-                    const base64 = window.services.getClipboardImage();
+                    let base64 = '';
+
+                    if (input) {
+                        if (isBase64) {
+                            base64 = input;
+                        } else {
+                            // 假设是路径，尝试读取
+                            // 如果 input 已经是 base64 (虽然不应该走这里)，也可以尝试判断
+                            if (input.startsWith('data:image')) {
+                                base64 = input.split(',')[1];
+                            } else {
+                                // 尝试作为路径读取
+                                const imgData = window.services.readImageFromPath(input);
+                                if (imgData) {
+                                    base64 = imgData;
+                                } else {
+                                    // 如果读取路径失败，或者 input 不是路径，可能需要 fallback
+                                    console.warn('无法从路径读取图片，尝试作为 Base64 处理');
+                                    base64 = input;
+                                }
+                            }
+                        }
+                    }
+
+                    // 如果没有通过参数传入，则读取剪贴板
+                    if (!base64) {
+                        StatusBar.set('正在读取剪贴板图片...', true);
+                        base64 = window.services.getClipboardImage();
+                    }
                     
                     if (!base64) {
                         throw new Error('未检测到图片，请先截图或复制图片到剪贴板');

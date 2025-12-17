@@ -155,6 +155,25 @@ const services = {
     },
 
     /**
+     * 从路径读取图片
+     * Read image from path
+     */
+    readImageFromPath: (filePath) => {
+        try {
+            if (fs.existsSync(filePath)) {
+                const img = nativeImage.createFromPath(filePath);
+                if (!img.isEmpty()) {
+                    return img.toPNG().toString('base64');
+                }
+            }
+            return null;
+        } catch (error) {
+            console.error('读取图片路径失败:', error);
+            return null;
+        }
+    },
+
+    /**
      * 获取剪贴板图片（返回 Base64）
      * Get image from clipboard as Base64 string
      * Supports: Image data, Data URI text, File path to image
