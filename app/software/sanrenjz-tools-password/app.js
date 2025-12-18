@@ -1428,23 +1428,43 @@ function saveCurrentPassword() {
     }
     
     try {
+        let savedItem;
         if (currentPassword) {
             // 更新现有密码（支持修改分类）
-            db.updatePassword(currentPassword.id, formData, currentPassword.category);
-            currentPassword = { ...currentPassword, ...formData };
+            savedItem = db.updatePassword(currentPassword.id, formData, currentPassword.category);
+            currentPassword = savedItem;
         } else {
             // 添加新密码
-            const newPassword = db.addPassword(formData);
-            currentPassword = newPassword;
+            savedItem = db.addPassword(formData);
+            currentPassword = savedItem;
         }
         
-        // 如果分类已更改，需要切换到新分类
-        if (formData.category !== currentCategory) {
-            switchCategory(formData.category);
+        // 修复：在搜索模式下修改内容导致的刷新问题
+        if (searchMode) {
+            // 更新搜索结果列表中的对应项
+            const searchIndex = searchResults.findIndex(p => p.id === savedItem.id);
+            if (searchIndex !== -1) {
+                searchResults[searchIndex] = savedItem;
+            }
+            
+            // 如果当前选中的分类正好是该条目的分类，更新后台数据
+            if (currentCategory === savedItem.category) {
+                passwords = db.getPasswordsByCategory(currentCategory);
+            }
+            
+            // 刷新视图
+            updateSearchHeader();
+            renderCategories();
+            renderCurrentPasswords();
         } else {
-            // 否则只需刷新当前分类的密码列表
-            loadPasswords(currentCategory);
-            renderCategories(); // 更新分类计数
+            // 如果分类已更改，需要切换到新分类
+            if (formData.category !== currentCategory) {
+                switchCategory(formData.category);
+            } else {
+                // 否则只需刷新当前分类的密码列表
+                loadPasswords(currentCategory);
+                renderCategories(); // 更新分类计数
+            }
         }
         
         showNotification('保存成功');
