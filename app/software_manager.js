@@ -2,7 +2,7 @@ const path = require('path');
 const { spawn, fork } = require('child_process');
 const fs = require('fs');
 const crypto = require('crypto');
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, screen } = require('electron');
 
 class PluginManager {
     constructor(mainWindow) {
@@ -22,6 +22,8 @@ class PluginManager {
             this.pluginPinnedMap = new Map(); // 存储插件窗口的钉住状态
             this.pluginProcesses = new Map(); // 存储插件进程
             this.dynamicFeatures = new Map(); // 存储插件动态注册的功能
+            this.pluginAuxWindows = new Map();
+            this.pluginMeta = new Map();
 
             console.log('PluginManager 初始化成功');
             console.log('插件目录:', this.pluginDir);
@@ -550,8 +552,10 @@ class PluginManager {
         // 窗口关闭时清理状态
         pluginWindow.on('closed', () => {
             console.log(`插件窗口关闭，清理状态: ${pluginName}`);
+            this.closePluginIndicatorWindow(pluginName);
             this.pluginWindows.delete(pluginName);
             this.pluginPinnedMap.delete(pluginName);
+            this.pluginMeta.delete(pluginName);
         });
 
         // 监听窗口最大化/还原状态变化
@@ -1150,9 +1154,133 @@ class PluginManager {
         });
 
         // 存储窗口引用
+        this.pluginMeta.set(pluginName, { pluginPath, pluginConfig });
         this.pluginWindows.set(pluginName, pluginWindow);
         
         return pluginWindow;
+    }
+
+    createOrShowPluginIndicatorWindow(pluginName) {
+        const key = `${pluginName}::indicator`;
+        const existing = this.pluginAuxWindows.get(key);
+        if (existing && !existing.isDestroyed()) {
+            try {
+                if (!existing.isVisible()) existing.showInactive();
+            } catch (_) {
+            }
+            return true;
+        }
+
+        const meta = this.pluginMeta.get(pluginName);
+        if (!meta || !meta.pluginPath || !meta.pluginConfig) return false;
+
+        const pluginPath = meta.pluginPath;
+        const pluginConfig = meta.pluginConfig;
+
+        const mainFile = pluginConfig.main || 'index.html';
+        const mainFilePath = path.join(pluginPath, mainFile);
+
+        const indicatorWindow = new BrowserWindow({
+            width: 72,
+            height: 72,
+            frame: false,
+            transparent: true,
+            resizable: false,
+            minimizable: false,
+            maximizable: false,
+            fullscreenable: false,
+            movable: true,
+            skipTaskbar: true,
+            alwaysOnTop: true,
+            focusable: false,
+            show: false,
+            hasShadow: false,
+            backgroundColor: '#00000000',
+            webPreferences: {
+                nodeIntegration: true,
+                contextIsolation: false,
+                enableRemoteModule: true,
+                webSecurity: false,
+                preload: pluginConfig.preload ? path.join(pluginPath, pluginConfig.preload) : undefined
+            }
+        });
+
+        try {
+            const saved = this.getPluginStorageItem(pluginName, 'indicatorBounds');
+            const display = screen ? screen.getPrimaryDisplay() : null;
+            const workArea = display ? display.workArea : null;
+
+            if (saved && typeof saved === 'object' && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
+                const x = Math.round(saved.x);
+                const y = Math.round(saved.y);
+                indicatorWindow.setPosition(x, y);
+            } else if (workArea) {
+                const x = workArea.x + workArea.width - 72 - 20;
+                const y = workArea.y + workArea.height - 72 - 20;
+                indicatorWindow.setPosition(x, y);
+            }
+        } catch (_) {
+        }
+
+        let lastPos = null;
+        try {
+            indicatorWindow.on('move', () => {
+                try {
+                    if (!indicatorWindow || indicatorWindow.isDestroyed()) return;
+                    const [x, y] = indicatorWindow.getPosition();
+                    lastPos = { x, y };
+                } catch (_) {
+                }
+            });
+
+            indicatorWindow.on('close', () => {
+                try {
+                    if (lastPos && Number.isFinite(lastPos.x) && Number.isFinite(lastPos.y)) {
+                        this.setPluginStorageItem(pluginName, 'indicatorBounds', { x: lastPos.x, y: lastPos.y });
+                    }
+                } catch (_) {
+                }
+            });
+        } catch (_) {
+        }
+
+        try {
+            indicatorWindow.setAlwaysOnTop(true, 'screen-saver');
+        } catch (_) {
+            indicatorWindow.setAlwaysOnTop(true);
+        }
+
+        indicatorWindow.loadFile(mainFilePath, { query: { view: 'indicator' } }).catch(err => {
+            console.error('加载指示器窗口失败:', err);
+        });
+
+        indicatorWindow.once('ready-to-show', () => {
+            try {
+                indicatorWindow.showInactive();
+            } catch (_) {
+                indicatorWindow.show();
+            }
+        });
+
+        indicatorWindow.on('closed', () => {
+            this.pluginAuxWindows.delete(key);
+        });
+
+        this.pluginAuxWindows.set(key, indicatorWindow);
+        return true;
+    }
+
+    closePluginIndicatorWindow(pluginName) {
+        const key = `${pluginName}::indicator`;
+        const win = this.pluginAuxWindows.get(key);
+        if (win && !win.isDestroyed()) {
+            try {
+                win.close();
+            } catch (_) {
+            }
+        }
+        this.pluginAuxWindows.delete(key);
+        return true;
     }
 
     // 执行JavaScript插件（适用于纯JS插件）
@@ -1216,6 +1344,8 @@ class PluginManager {
     // 停止插件
     stopPlugin(pluginName) {
         try {
+            this.closePluginIndicatorWindow(pluginName);
+
             // 关闭插件窗口
             if (this.pluginWindows.has(pluginName)) {
                 const pluginWindow = this.pluginWindows.get(pluginName);
@@ -1228,6 +1358,10 @@ class PluginManager {
             // 清理钉住状态
             if (this.pluginPinnedMap.has(pluginName)) {
                 this.pluginPinnedMap.delete(pluginName);
+            }
+
+            if (this.pluginMeta.has(pluginName)) {
+                this.pluginMeta.delete(pluginName);
             }
 
             // 终止插件进程
@@ -1247,6 +1381,13 @@ class PluginManager {
 
     // 停止所有插件
     stopAllPlugins() {
+        for (const [key, win] of this.pluginAuxWindows) {
+            if (win && !win.isDestroyed()) {
+                try { win.close(); } catch (_) {}
+            }
+        }
+        this.pluginAuxWindows.clear();
+
         // 关闭所有插件窗口
         for (const [pluginName, pluginWindow] of this.pluginWindows) {
             if (!pluginWindow.isDestroyed()) {
@@ -1254,6 +1395,8 @@ class PluginManager {
             }
         }
         this.pluginWindows.clear();
+
+        this.pluginMeta.clear();
 
         // 终止所有插件进程
         for (const [pluginName, pluginProcess] of this.pluginProcesses) {

@@ -2046,6 +2046,18 @@ ipcMain.handle('minimize-plugin-window', (event, pluginName) => {
     }
     return false;
 });
+ipcMain.handle('create-plugin-indicator-window', (event, pluginName) => {
+    if (pluginManager) {
+        return pluginManager.createOrShowPluginIndicatorWindow(pluginName);
+    }
+    return false;
+});
+ipcMain.handle('close-plugin-indicator-window', (event, pluginName) => {
+    if (pluginManager) {
+        return pluginManager.closePluginIndicatorWindow(pluginName);
+    }
+    return false;
+});
 
 // 添加 IPC 处理：最大化/还原插件窗口
 ipcMain.handle('maximize-plugin-window', (event, pluginName) => {

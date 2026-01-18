@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>AI 语音输入法</title>
+    <style>
+        :root {
+            --primary-color: #0078d4;
+            --bg-color: #f3f3f3;
+            --card-bg: #ffffff;
+            --text-color: #333;
+        }
+        body {
+            font-family: "Segoe UI", sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            height: 100vh;
+            box-sizing: border-box;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        body.view-indicator {
+            padding: 0;
+            background: transparent;
+            overflow: hidden;
+        }
+        .container {
+            background: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        body.view-indicator .container {
+            display: none;
+        }
+        .header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h2 { margin: 0; font-size: 18px; }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 77, 77, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 77, 77, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 77, 77, 0); }
+        }
+
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        input[type="text"], input[type="password"], textarea, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .input-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .input-actions input {
+            flex: 1;
+        }
+        .icon-btn {
+            flex: 0 0 auto;
+            width: 38px;
+            height: 34px;
+            padding: 0;
+            border-radius: 6px;
+            background: #f2f2f2;
+            color: #222;
+            border: 1px solid #ddd;
+        }
+        .icon-btn:hover {
+            opacity: 0.9;
+        }
+        .icon-btn:active {
+            transform: translateY(1px);
+        }
+        textarea { resize: vertical; min-height: 80px; }
+        .container button {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .container button:hover { opacity: 0.9; }
+        .container .icon-btn {
+            width: 38px;
+            height: 34px;
+            padding: 0;
+            border-radius: 6px;
+            background: #f2f2f2;
+            color: #222;
+            border: 1px solid #ddd;
+        }
+        .container .icon-btn:hover { opacity: 0.9; }
+        .btn-secondary { background: #666; }
+
+        /* 不影响应用层注入的自定义标题栏按钮 */
+        .custom-title-bar button {
+            color: #222;
+        }
+        
+        .help-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .row > * {
+            flex: 1;
+        }
+        .row .btn {
+            flex: 0 0 auto;
+        }
+
+        .hotkey-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .hotkey-item {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .hotkey-key {
+            flex: 0 0 auto;
+            width: 70px;
+            font-size: 12px;
+            color: #444;
+        }
+
+        #indicator-container {
+            display: none;
+            width: 100vw;
+            height: 100vh;
+            align-items: center;
+            justify-content: center;
+            -webkit-app-region: drag;
+        }
+        body.view-indicator #indicator-container {
+            display: flex;
+        }
+        #indicator-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 999px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            color: #fff;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+            background: rgba(120, 120, 120, 0.92);
+            user-select: none;
+            cursor: move;
+            -webkit-app-region: drag;
+        }
+        #indicator-icon.state-recording {
+            background: rgba(255, 77, 77, 0.95);
+            animation: pulse 1.5s infinite;
+        }
+        #indicator-icon.state-processing {
+            background: rgba(0, 120, 212, 0.95);
+        }
+    </style>
+</head>
+<body>
+    <div id="indicator-container" aria-hidden="true">
+        <div id="indicator-icon" class="state-ready">🎙️</div>
+    </div>
+    <div class="container">
+        <div class="header">
+            <h2>AI 语音输入法</h2>
+            <div>
+                <button id="hide-btn" class="btn-secondary" style="padding: 5px 10px;">隐藏后台运行</button>
+            </div>
+        </div>
+        <div id="settings" style="flex: 1; padding: 20px; overflow-y: auto;">
+            <div class="form-group">
+                <label>AI 模型</label>
+                <select id="model-select">
+                    <option value="gemini">Google Gemini</option>
+                    <option value="qwen">阿里通义千问 (Qwen)</option>
+                </select>
+                <div class="help-text">Gemini：可直接用“音频+提示词”输出最终文本。Qwen：先语音转文字，再用文本模型按提示词处理。</div>
+            </div>
+
+            <div id="gemini-config">
+                <div class="form-group">
+                    <label>Gemini API Key</label>
+                    <div class="input-actions">
+                        <input type="password" id="gemini-key" placeholder="输入 Gemini API Key">
+                        <button type="button" class="icon-btn" id="gemini-key-toggle" title="显示/隐藏">👁</button>
+                        <button type="button" class="icon-btn" id="gemini-key-copy" title="复制">📋</button>
+                    </div>
+                    <div class="help-text"><a href="#" onclick="window.electronAPI.utils.openExternal('https://aistudio.google.com/app/apikey')">获取 Gemini API Key</a></div>
+                </div>
+
+                <div class="form-group">
+                    <label>Gemini 模型</label>
+                    <select id="gemini-model">
+                        <option value="gemini-3-flash-preview">gemini-3-flash-preview（推荐）</option>
+                        <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                        <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+                    </select>
+                    <div class="help-text">不同账号/区域可用模型可能不同；若提示模型不存在，请切换模型重试。</div>
+                </div>
+            </div>
+
+            <div id="qwen-config" style="display: none;">
+                <div class="form-group">
+                    <label>阿里百炼 API Key</label>
+                    <div class="input-actions">
+                        <input type="password" id="qwen-key" placeholder="输入 DashScope API Key">
+                        <button type="button" class="icon-btn" id="qwen-key-toggle" title="显示/隐藏">👁</button>
+                        <button type="button" class="icon-btn" id="qwen-key-copy" title="复制">📋</button>
+                    </div>
+                    <div class="help-text"><a href="#" onclick="window.electronAPI.utils.openExternal('https://help.aliyun.com/zh/model-studio/get-api-key')">获取 API Key</a></div>
+                </div>
+                <div class="form-group">
+                    <label>模型版本</label>
+                    <select id="qwen-model-version">
+                        <option value="qwen3-asr-flash">qwen3-asr-flash (推荐)</option>
+                        <option value="paraformer-v2">paraformer-v2</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label style="display: flex; gap: 8px; align-items: center; font-weight: 400;">
+                        <input type="checkbox" id="qwen-enable-postprocess" /> 启用文本处理（润色/翻译/改写）
+                    </label>
+                    <div class="help-text">默认关闭：仅输出语音转文字结果；开启后会按“系统提示词+文本模型”处理识别文本。</div>
+                </div>
+                <div class="form-group">
+                    <label>文本处理模型</label>
+                    <input type="text" id="qwen-text-model" placeholder="例如: qwen-plus" />
+                    <div class="help-text">用于将“识别结果”按提示词润色/翻译等处理。默认 qwen-plus。</div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>提示词场景</label>
+                <div class="row">
+                    <select id="prompt-profile-select"></select>
+                    <button class="btn" id="prompt-new-btn">新增</button>
+                    <button class="btn btn-secondary" id="prompt-delete-btn">删除</button>
+                </div>
+                <div class="help-text">例如：切换到“翻译”场景时，会返回翻译后的内容。</div>
+            </div>
+
+            <div class="form-group">
+                <label>场景快捷键（Alt+1~Alt+10）</label>
+                <div class="row" style="gap: 12px; align-items: center;">
+                    <label style="display: flex; gap: 8px; align-items: center; font-weight: 400; flex: 0 0 auto;">
+                        <input type="checkbox" id="scene-hotkey-enabled" /> 启用
+                    </label>
+                </div>
+                <div id="scene-hotkey-mapping" class="hotkey-grid" style="margin-top: 10px;">
+                    <div class="hotkey-item"><span class="hotkey-key">Alt+1</span><select id="scene-hotkey-1"></select></div>
+                    <div class="hotkey-item"><span class="hotkey-key">Alt+2</span><select id="scene-hotkey-2"></select></div>
+                    <div class="hotkey-item"><span class="hotkey-key">Alt+3</span><select id="scene-hotkey-3"></select></div>
+                    <div class="hotkey-item"><span class="hotkey-key">Alt+4</span><select id="scene-hotkey-4"></select></div>
+                    <div class="hotkey-item"><span class="hotkey-key">Alt+5</span><select id="scene-hotkey-5"></select></div>
+                    <div class="hotkey-item"><span class="hotkey-key">Alt+6</span><select id="scene-hotkey-6"></select></div>
+                    <div class="hotkey-item"><span class="hotkey-key">Alt+7</span><select id="scene-hotkey-7"></select></div>
+                    <div class="hotkey-item"><span class="hotkey-key">Alt+8</span><select id="scene-hotkey-8"></select></div>
+                    <div class="hotkey-item"><span class="hotkey-key">Alt+9</span><select id="scene-hotkey-9"></select></div>
+                    <div class="hotkey-item"><span class="hotkey-key">Alt+10</span><select id="scene-hotkey-10"></select></div>
+                </div>
+                <div class="help-text">按 Alt+数字 可全局切换提示词场景；未选择时按序号切换。</div>
+            </div>
+
+            <div class="form-group">
+                <label>系统提示词 (Persona)</label>
+                <textarea id="system-prompt" placeholder="例如：请将语音内容翻译成英文并保持专业语气。"></textarea>
+                <div class="help-text">该提示词会影响最终输出（润色/翻译/改写等）。</div>
+            </div>
+
+            <div class="form-group">
+                <label>场景名称（用于新增）</label>
+                <input type="text" id="prompt-new-name" placeholder="例如：转写 / 翻译 / 会议纪要" />
+            </div>
+
+            <div class="form-group">
+                <button id="save-settings-btn">保存设置</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>
