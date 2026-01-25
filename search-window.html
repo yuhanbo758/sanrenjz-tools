@@ -673,7 +673,7 @@
          * 函数级注释：
          * - 插件项：调用主进程 run-plugin，并在未钉住时隐藏搜索窗口（不恢复焦点）
          * - 内容项：
-         *   - 文本片段 text-snippet：仅复制到剪贴板（由主进程 insert-content 完成，并会隐藏搜索窗口），不再尝试自动粘贴
+         *   - 文本片段 text-snippet：回车后直接插入到原输入框光标处
          *   - 其他内容：打开对应插件窗口
          */
         async function selectResult() {
@@ -700,12 +700,11 @@
                 } else if (selectedResult.type === RESULT_TYPES.CONTENT) {
                     // 处理不同类型的内容
                     if (selectedResult.contentType === 'text-snippet') {
-                        // 文本片段：仅复制到剪贴板
-                        console.log('正在处理文本片段(仅复制):', selectedResult.title);
-                        // 复制（主进程会隐藏搜索窗口并提示）
-                        await ipcRenderer.invoke('insert-content', selectedResult);
-                        // 额外提示（可选）：
-                        showNotification(`${selectedResult.title} 已复制，请按 Ctrl+V 粘贴`, 'info');
+                        console.log('正在处理文本片段(直接插入):', selectedResult.title);
+                        await ipcRenderer.invoke('insert-content', {
+                            ...selectedResult,
+                            directInsert: true
+                        });
                     } else {
                         // 其他类型内容（包括命令）：直接打开对应的插件窗口
                         console.log('正在打开插件:', selectedResult.pluginName || '未知插件');

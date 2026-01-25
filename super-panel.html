@@ -469,6 +469,7 @@
                     if (type === 'file' || type === 'directory') {
                         if (keywords.includes('文件') || keywords.includes('file')) score += 10;
                         if (keywords.includes('图片') && type === 'file') score += 5; // 图片文件
+                        if (keywords.includes('终端') || keywords.includes('powershell') || keywords.includes('cmd')) score += 8;
                     } else if (type === 'url') {
                         if (keywords.includes('链接') || keywords.includes('url') || keywords.includes('网页')) score += 10;
                     } else if (type === 'text') {
@@ -876,9 +877,15 @@
         window.addEventListener('blur', () => {
             setTimeout(() => {
                 ipcRenderer.invoke('notify-input-active', false);
-                if (!document.hasFocus()) {
-                    closePanel();
-                }
+                ipcRenderer.invoke('has-super-panel-child-window').then((hasChildWindow) => {
+                    if (!document.hasFocus() && !hasChildWindow) {
+                        closePanel();
+                    }
+                }).catch(() => {
+                    if (!document.hasFocus()) {
+                        closePanel();
+                    }
+                });
             }, 100);
         });
     </script>

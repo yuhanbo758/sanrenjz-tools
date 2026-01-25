@@ -30,6 +30,32 @@ let pluginManager;
 let isPinned = false; // 添加钉住状态
 const pluginPinnedMap = new Map();
 let lastActiveWindow = null; // 记录最后活动的窗口句柄
+let isSuperPanelFocusListenerRegistered = false;
+let superPanelChildWindows = new Set();
+
+function trackSuperPanelChildWindow(windowInstance) {
+    if (!windowInstance) {
+        return;
+    }
+    superPanelChildWindows.add(windowInstance);
+    const cleanup = () => {
+        superPanelChildWindows.delete(windowInstance);
+    };
+    windowInstance.on('closed', cleanup);
+    windowInstance.on('close', cleanup);
+}
+
+function hasActiveSuperPanelChildWindow() {
+    let hasActive = false;
+    for (const win of superPanelChildWindows) {
+        if (win && !win.isDestroyed()) {
+            hasActive = true;
+        } else {
+            superPanelChildWindows.delete(win);
+        }
+    }
+    return hasActive;
+}
 
 // 快捷搜索热键节流控制
 let lastSearchHotkeyTime = 0;
@@ -469,11 +495,11 @@ while ($true) {
             }
         } else {
             if ($isPressed -and $triggered) {
-                # 长按释放后，发送 ESC 键以关闭可能弹出的上下文菜单
-                # 0 = KeyDown, 2 = KeyUp
+                Start-Sleep -Milliseconds 10
                 [Win32.Win32API]::keybd_event($VK_ESCAPE, 0, 0, 0)
                 [Win32.Win32API]::keybd_event($VK_ESCAPE, 0, 2, 0)
                 Write-Output "ESC_SENT"
+                Write-Output "RBUTTON_LONG_PRESS_RELEASE"
             }
             $isPressed = $false
             $triggered = $false
@@ -498,20 +524,35 @@ while ($true) {
             windowsHide: true
         });
 
+        let stdoutBuf = '';
         mouseMonitorProcess.stdout.on('data', (data) => {
-            const output = data.toString();
-            if (output.includes('RBUTTON_LONG_PRESS')) {
-                console.log('检测到右键长按，调用超级面板');
-                // 收到长按信号，开始忽略 ESC，防止释放时发送的 ESC 关闭面板
-                isIgnoreEsc = true;
-                showSuperPanel();
-            }
-            if (output.includes('ESC_SENT')) {
-                 console.log('检测到右键释放，已发送 ESC 关闭菜单');
-                 // ESC 发送后，延迟恢复 ESC 响应，确保面板不被误关
-                 setTimeout(() => {
-                     isIgnoreEsc = false;
-                 }, 200);
+            stdoutBuf += data.toString();
+            const lines = stdoutBuf.split(/\r?\n/);
+            stdoutBuf = lines.pop() || '';
+
+            for (const rawLine of lines) {
+                const line = (rawLine || '').trim();
+                if (!line) continue;
+
+                if (line === 'RBUTTON_LONG_PRESS') {
+                    console.log('检测到右键长按，调用超级面板');
+                    isIgnoreEsc = true;
+                    copySelectedTextToClipboard().finally(() => {
+                        setTimeout(() => {
+                            showSuperPanel({ activate: false });
+                        }, 120);
+                    });
+                    continue;
+                }
+
+                if (line === 'RBUTTON_LONG_PRESS_RELEASE') {
+                    console.log('检测到右键长按释放');
+                    activateSuperPanelWindow();
+                    setTimeout(() => {
+                        isIgnoreEsc = false;
+                    }, 250);
+                    continue;
+                }
             }
         });
 
@@ -539,6 +580,30 @@ function stopMouseMonitor() {
         mouseMonitorProcess.kill();
         mouseMonitorProcess = null;
     }
+}
+
+async function copySelectedTextToClipboard() {
+    if (process.platform !== 'win32') return false;
+    return new Promise((resolve) => {
+        try {
+            const psScript = "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^c')";
+            const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
+            const proc = spawn('powershell', [
+                '-NoProfile',
+                '-ExecutionPolicy', 'Bypass',
+                '-Sta',
+                '-EncodedCommand', encoded
+            ], {
+                windowsHide: true,
+                stdio: ['ignore', 'ignore', 'ignore']
+            });
+
+            proc.on('error', () => resolve(false));
+            proc.on('exit', (code) => resolve(code === 0));
+        } catch (e) {
+            resolve(false);
+        }
+    });
 }
 
 
@@ -595,6 +660,26 @@ function createSuperPanelWindow() {
         remoteMain.enable(superPanelWindow.webContents);
     }
 
+    if (!isSuperPanelFocusListenerRegistered) {
+        app.on('browser-window-focus', (event, win) => {
+            if (!superPanelWindow || superPanelWindow.isDestroyed() || !superPanelWindow.isVisible()) {
+                return;
+            }
+            if (win === superPanelWindow) {
+                return;
+            }
+            const parentWindow = win && typeof win.getParentWindow === 'function' ? win.getParentWindow() : null;
+            if (parentWindow === superPanelWindow) {
+                return;
+            }
+            if (hasActiveSuperPanelChildWindow()) {
+                return;
+            }
+            superPanelWindow.hide();
+        });
+        isSuperPanelFocusListenerRegistered = true;
+    }
+
     // 加载超级面板页面
     const superPanelPath = getResourcePath('super-panel.html');
     console.log('尝试加载超级面板:', superPanelPath);
@@ -618,10 +703,10 @@ function createSuperPanelWindow() {
 
     // 失去焦点时隐藏窗口。'blur' 是主要方式，响应迅速。
     superPanelWindow.on('blur', () => {
-        if (isSuperPanelGracePeriod) {
+        if (isSuperPanelGracePeriod || hasActiveSuperPanelChildWindow()) {
             // 宽限期内失去焦点，延迟再次检查，而不是直接忽略
             setTimeout(() => {
-                if (superPanelWindow && !superPanelWindow.isDestroyed() && !superPanelWindow.isFocused() && !hasActiveInput) {
+                if (superPanelWindow && !superPanelWindow.isDestroyed() && !superPanelWindow.isFocused() && !hasActiveSuperPanelChildWindow()) {
                     console.log('宽限期后检查发现失焦，隐藏面板');
                     superPanelWindow.hide();
                 }
@@ -629,13 +714,7 @@ function createSuperPanelWindow() {
             return;
         }
 
-        if (superPanelWindow && !superPanelWindow.isDestroyed() && superPanelWindow.isVisible()) {
-            // 检查是否有输入框处于活动状态
-            if (hasActiveInput) {
-                console.log('检测到活动输入框，跳过blur隐藏');
-                return; // 有活动输入框时不隐藏
-            }
-
+        if (superPanelWindow && !superPanelWindow.isDestroyed() && superPanelWindow.isVisible() && !hasActiveSuperPanelChildWindow()) {
             console.log('超级面板失去焦点（blur事件），自动隐藏');
             superPanelWindow.hide();
         }
@@ -650,14 +729,8 @@ function createSuperPanelWindow() {
             clearInterval(focusCheckInterval);
         }
         focusCheckInterval = setInterval(() => {
-            if (isSuperPanelGracePeriod) {
+            if (isSuperPanelGracePeriod || hasActiveSuperPanelChildWindow()) {
                 return; // 宽限期内不检查
-            }
-
-            // 检查是否有输入框处于活动状态
-            if (hasActiveInput) {
-                console.log('检测到活动输入框，跳过失焦检查');
-                return; // 有活动输入框时不执行失焦检查
             }
 
             if (superPanelWindow && !superPanelWindow.isDestroyed() && superPanelWindow.isVisible() && !superPanelWindow.isFocused()) {
@@ -688,9 +761,52 @@ function createSuperPanelWindow() {
 }
 
 let isIgnoreEsc = false; // 是否忽略 ESC 键（用于处理右键冲突）
+let isSuperPanelPendingActivation = false;
+let superPanelPendingActivationTimer = null;
+
+function activateSuperPanelWindow() {
+    if (!superPanelWindow || superPanelWindow.isDestroyed() || !superPanelWindow.isVisible()) {
+        return;
+    }
+
+    isSuperPanelPendingActivation = false;
+    if (superPanelPendingActivationTimer) {
+        clearTimeout(superPanelPendingActivationTimer);
+        superPanelPendingActivationTimer = null;
+    }
+
+    superPanelWindow.setAlwaysOnTop(true, 'screen-saver');
+    setTimeout(() => {
+        if (superPanelWindow && !superPanelWindow.isDestroyed()) {
+            superPanelWindow.setAlwaysOnTop(true);
+        }
+    }, 100);
+
+    setTimeout(() => {
+        if (!superPanelWindow || superPanelWindow.isDestroyed()) return;
+
+        superPanelWindow.focus();
+        if (superPanelWindow.webContents) {
+            superPanelWindow.webContents.focus();
+        }
+
+        if (!superPanelWindow.isFocused()) {
+            console.log('⚠️ 尝试强制激活窗口');
+            superPanelWindow.moveTop();
+            superPanelWindow.focus();
+        }
+
+        console.log('✅ 超级面板已激活');
+        setTimeout(() => {
+            isSuperPanelGracePeriod = false;
+        }, 600);
+    }, 30);
+}
 
 // 显示超级面板
-function showSuperPanel() {
+function showSuperPanel(options = {}) {
+    const activate = options && options.activate !== false;
+
     try {
         // 异步记录当前活动窗口句柄，消除UI阻塞
         hasActiveInput = false; // 重置输入框活动状态
@@ -716,6 +832,7 @@ function showSuperPanel() {
     try {
         // 标记进入宽限期，避免立即被 blur 隐藏
         isSuperPanelGracePeriod = true;
+        isSuperPanelPendingActivation = !activate;
         
         // 获取鼠标位置并在鼠标附近显示
         const { screen } = require('electron');
@@ -744,15 +861,13 @@ function showSuperPanel() {
         }
 
         superPanelWindow.setBounds({ x, y, width: windowWidth, height: windowHeight });
-        superPanelWindow.show();
-        
-        // 强制窗口置顶并获取焦点
-        superPanelWindow.setAlwaysOnTop(true, 'screen-saver'); // 提高置顶级别
-        setTimeout(() => {
-             if (superPanelWindow && !superPanelWindow.isDestroyed()) {
-                 superPanelWindow.setAlwaysOnTop(true);
-             }
-        }, 100);
+        if (activate) {
+            superPanelWindow.show();
+        } else if (typeof superPanelWindow.showInactive === 'function') {
+            superPanelWindow.showInactive();
+        } else {
+            superPanelWindow.show();
+        }
 
         // 通知页面刷新（重新获取选中文本）
         if (superPanelWindow.webContents) {
@@ -760,28 +875,21 @@ function showSuperPanel() {
             superPanelWindow.webContents.send('refresh-super-panel');
         }
 
-        // 首先等待窗口显示完成
-        setTimeout(() => {
-            if (superPanelWindow && !superPanelWindow.isDestroyed()) {
-                // 然后再尝试获取焦点
-                superPanelWindow.focus();
-                superPanelWindow.webContents.focus();
-                
-                // 再次确认焦点状态
-                if (!superPanelWindow.isFocused()) {
-                    console.log('⚠️ 尝试强制激活窗口');
-                    superPanelWindow.moveTop();
-                    superPanelWindow.focus();
-                }
-
-                console.log('✅ 超级面板已显示');
+        if (activate) {
+            activateSuperPanelWindow();
+        } else {
+            if (superPanelPendingActivationTimer) {
+                clearTimeout(superPanelPendingActivationTimer);
             }
-
-            // 延长宽限期，以容纳右键释放后的冲突处理
-            setTimeout(() => {
+            superPanelPendingActivationTimer = setTimeout(() => {
+                if (isSuperPanelPendingActivation && superPanelWindow && !superPanelWindow.isDestroyed() && superPanelWindow.isVisible()) {
+                    superPanelWindow.hide();
+                }
+                isSuperPanelPendingActivation = false;
                 isSuperPanelGracePeriod = false;
-            }, 600); 
-        }, 50);
+                superPanelPendingActivationTimer = null;
+            }, 5000);
+        }
 
     } catch (error) {
         console.error('设置超级面板位置失败:', error);
@@ -795,7 +903,7 @@ function showSuperPanel() {
         const y = Math.round((height - windowHeight) / 3);
         superPanelWindow.setBounds({ x, y, width: windowWidth, height: windowHeight });
         superPanelWindow.show();
-        superPanelWindow.focus();
+        activateSuperPanelWindow();
         
         // 出错回退时也要发送刷新请求
         if (superPanelWindow.webContents) {
@@ -881,11 +989,12 @@ function createSearchWindow() {
         }
     }
 
-    // 失去焦点时隐藏窗口（除非被钉住）
+    // 失去焦点时关闭窗口（除非被钉住）
     searchWindow.on('blur', () => {
         if (searchWindow && !searchWindow.isDestroyed() && !isPinned) {
-            console.log('搜索窗口失去焦点，自动隐藏');
-            searchWindow.hide();
+            console.log('搜索窗口失去焦点，自动关闭');
+            restoreFocusToLastActiveWindow();
+            searchWindow.close();
         }
     });
 
@@ -1170,6 +1279,12 @@ function restoreFocusToLastActiveWindow() {
             return;
         }
 
+        const searchHandle = getWindowHandleString(searchWindow);
+        if (searchHandle && (lastActiveWindow.handle === searchHandle || lastActiveWindow.focusHandle === searchHandle)) {
+            console.log('上次活动窗口是搜索窗口，跳过恢复焦点');
+            return;
+        }
+
         const os = require('os');
         const fs = require('fs');
         const path = require('path');
@@ -1179,7 +1294,9 @@ function restoreFocusToLastActiveWindow() {
 
         const ps = [
             '$ErrorActionPreference = "Stop"',
-            '$signature = @"\nusing System;\nusing System.Runtime.InteropServices;\nnamespace Win32 {\n  public static class User32 {\n    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);\n    [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);\n    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);\n    [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);\n    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);\n    [DllImport("user32.dll")] public static extern uint GetCurrentThreadId();\n    [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);\n  }\n}\n"@',
+            '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
+            '$OutputEncoding = [System.Text.Encoding]::UTF8',
+            '$signature = @"\nusing System;\nusing System.Runtime.InteropServices;\nnamespace Win32 {\n  public static class User32 {\n    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);\n    [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);\n    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);\n    [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);\n    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);\n    [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);\n  }\n  public static class Kernel32 {\n    [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();\n  }\n}\n"@',
             'try { Add-Type -TypeDefinition $signature -Language CSharp -ErrorAction Stop } catch {}',
             'if (-not ("Win32.User32" -as [type])) { try { Add-Type -TypeDefinition $signature -Language CSharp -ErrorAction Stop } catch {} }',
             `$rawHandle = ${lastActiveWindow.handle ? `'${lastActiveWindow.handle}'` : "'0'"}`,
@@ -1196,7 +1313,7 @@ function restoreFocusToLastActiveWindow() {
             '  [void][Win32.User32]::ShowWindow($hwnd, 5)',
             '  [void][Win32.User32]::BringWindowToTop($hwnd)',
             '  $targetTid = [Win32.User32]::GetWindowThreadProcessId($hwnd, [ref]([uint32]0))',
-            '  $currentTid = [Win32.User32]::GetCurrentThreadId()',
+            '  $currentTid = [Win32.Kernel32]::GetCurrentThreadId()',
             '  if ($targetTid -ne 0 -and $currentTid -ne 0) { [void][Win32.User32]::AttachThreadInput($currentTid, $targetTid, $true) }',
             '  try { [void][Win32.User32]::SetForegroundWindow($hwnd) } finally { if ($targetTid -ne 0 -and $currentTid -ne 0) { [void][Win32.User32]::AttachThreadInput($currentTid, $targetTid, $false) } }',
             '}'
@@ -1207,6 +1324,23 @@ function restoreFocusToLastActiveWindow() {
         execSync(commandToRun, { windowsHide: true, timeout: 2000, encoding: 'utf8' });
     } catch (error) {
         console.error('恢复焦点失败:', error.message);
+    }
+}
+
+function getWindowHandleString(win) {
+    try {
+        if (!win || win.isDestroyed()) return null;
+        const buffer = win.getNativeWindowHandle();
+        if (!buffer || buffer.length === 0) return null;
+        if (buffer.length >= 8 && typeof buffer.readBigUInt64LE === 'function') {
+            return buffer.readBigUInt64LE(0).toString();
+        }
+        if (buffer.length >= 4 && typeof buffer.readUInt32LE === 'function') {
+            return buffer.readUInt32LE(0).toString();
+        }
+        return buffer.toString('hex');
+    } catch (error) {
+        return null;
     }
 }
 
@@ -1827,28 +1961,58 @@ ipcMain.handle('insert-content', async (event, content) => {
 
         const { clipboard } = require('electron');
 
-        // 复制内容到剪贴板
-        clipboard.writeText(content.content);
-        console.log('文本片段已复制到剪贴板:', content.title);
+        clipboard.writeText(content.content || '');
 
-        // 隐藏搜索窗口并进入冷却
+        const directInsert = content && content.directInsert === true;
+
+        if (!directInsert) {
+            if (searchWindow && !searchWindow.isDestroyed() && searchWindow.isVisible()) {
+                searchWindow.hide();
+                lastSearchHotkeyTime = Date.now();
+                console.log('搜索窗口已隐藏');
+            }
+
+            const { Notification } = require('electron');
+            if (Notification.isSupported()) {
+                new Notification({
+                    title: '复制成功',
+                    body: `"${content.title}" 已复制到剪贴板`,
+                    silent: true
+                }).show();
+            }
+
+            return { success: true, message: '文本片段已复制到剪贴板' };
+        }
+
         if (searchWindow && !searchWindow.isDestroyed() && searchWindow.isVisible()) {
-            searchWindow.hide();
+            searchWindow.close();
             lastSearchHotkeyTime = Date.now();
-            console.log('搜索窗口已隐藏');
         }
 
-        // 显示复制成功通知
-        const { Notification } = require('electron');
-        if (Notification.isSupported()) {
-            new Notification({
-                title: '复制成功',
-                body: `"${content.title}" 已复制到剪贴板`,
-                silent: true
-            }).show();
-        }
+        await new Promise(resolve => setTimeout(resolve, 120));
+        restoreFocusToLastActiveWindow();
+        await new Promise(resolve => setTimeout(resolve, 200));
 
-        return { success: true, message: '文本片段已复制到剪贴板' };
+        await new Promise((resolve, reject) => {
+            const psScript = "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')";
+            const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
+            const proc = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Sta', '-EncodedCommand', encoded], {
+                windowsHide: true,
+                stdio: ['ignore', 'ignore', 'pipe']
+            });
+            let stderr = '';
+            proc.stderr.setEncoding('utf8');
+            proc.stderr.on('data', (chunk) => {
+                stderr += chunk;
+            });
+            proc.on('error', reject);
+            proc.on('exit', (code) => {
+                if (code === 0) resolve();
+                else reject(new Error(stderr || `SendKeys exit code ${code}`));
+            });
+        });
+
+        return { success: true, message: '文本片段已插入' };
     } catch (error) {
         console.error('复制内容失败:', error);
         return { success: false, error: error.message };
@@ -2124,8 +2288,24 @@ function calculateMatchScore(clipboardText, feature) {
     // 检查命令关键词匹配
     if (feature.cmds) {
         feature.cmds.forEach(cmd => {
-            if (text.includes(cmd.toLowerCase())) {
-                score += 10;
+            if (typeof cmd === 'string') {
+                if (text.includes(cmd.toLowerCase())) score += 10;
+                return;
+            }
+            if (cmd && typeof cmd === 'object') {
+                if (cmd.type === 'over') {
+                    const min = typeof cmd.minLength === 'number' ? cmd.minLength : 0;
+                    const max = typeof cmd.maxLength === 'number' ? cmd.maxLength : Infinity;
+                    if (clipboardText.length >= min && clipboardText.length <= max) score += 6;
+                }
+                const label = cmd.label;
+                if (typeof label === 'string') {
+                    if (text.includes(label.toLowerCase())) score += 6;
+                } else if (Array.isArray(label)) {
+                    label.forEach(l => {
+                        if (typeof l === 'string' && text.includes(l.toLowerCase())) score += 4;
+                    });
+                }
             }
         });
     }
@@ -2294,6 +2474,64 @@ ipcMain.handle('close-super-panel', () => {
     }
 });
 
+ipcMain.handle('has-super-panel-child-window', () => {
+    return hasActiveSuperPanelChildWindow();
+});
+
+ipcMain.handle('close-super-panel-child-window', (event, childType) => {
+    try {
+        if (childType === 'clock') {
+            if (clockWindow && !clockWindow.isDestroyed()) {
+                clockWindow.close();
+            }
+            return true;
+        }
+        if (childType === 'image') {
+            if (imagePreviewWindow && !imagePreviewWindow.isDestroyed()) {
+                imagePreviewWindow.close();
+            }
+            return true;
+        }
+
+        const win = BrowserWindow.fromWebContents(event.sender);
+        if (win && !win.isDestroyed()) {
+            win.close();
+            return true;
+        }
+        return false;
+    } catch (error) {
+        console.error('关闭子窗口失败:', error);
+        return false;
+    }
+});
+
+ipcMain.handle('toggle-super-panel-child-window-pin', () => {
+    try {
+        if (!clockWindow || clockWindow.isDestroyed()) {
+            return { success: false, error: '时钟窗口不存在' };
+        }
+        clockWindowPinned = !clockWindowPinned;
+        clockWindow.setAlwaysOnTop(clockWindowPinned, 'screen-saver');
+        return { success: true, pinned: clockWindowPinned };
+    } catch (error) {
+        console.error('切换时钟置顶失败:', error);
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('reveal-path-in-folder', () => {
+    try {
+        if (!lastPreviewImagePath) {
+            return { success: false, error: '无可定位的路径' };
+        }
+        shell.showItemInFolder(lastPreviewImagePath);
+        return { success: true };
+    } catch (error) {
+        console.error('定位路径失败:', error);
+        return { success: false, error: error.message };
+    }
+});
+
 
 
 // ==================== 超级面板插件API ==================== //
@@ -2421,13 +2659,20 @@ ipcMain.handle('get-super-panel-actions', async (event, clipboardText) => {
             const filteredActions = allActions.filter(action => configuredIds.has(action.id));
             console.log(`🎯 已配置功能: ${filteredActions.length}个`);
 
-            // 按配置的顺序排序
             const sortedActions = configuredActions.map(configAction => {
                 const foundAction = allActions.find(action => action.id === configAction.id);
-                return foundAction || configAction; // 使用最新的功能定义，如果找不到就用配置的
-            }).filter(action => action); // 过滤掉空值
+                return foundAction || configAction;
+            }).filter(action => action);
 
-            return sortedActions;
+            const combined = [...(dynamicActions || []), ...sortedActions];
+            const uniqueById = new Map();
+            for (const action of combined) {
+                if (!action || !action.id) continue;
+                if (!uniqueById.has(action.id)) {
+                    uniqueById.set(action.id, action);
+                }
+            }
+            return Array.from(uniqueById.values());
         }
 
         // 否则返回所有功能（首次使用时）
@@ -3312,6 +3557,7 @@ ipcMain.handle('open-add-plugin-dialog', async () => {
 
         // 创建添加插件功能的对话框窗口
         const addPluginWindow = new BrowserWindow(windowOptions);
+        trackSuperPanelChildWindow(addPluginWindow);
 
         // 启用remote模块
         if (remoteMain) {
@@ -3362,6 +3608,284 @@ ipcMain.handle('execute-super-panel-action', async (event, { action, clipboardTe
     }
 });
 
+function normalizeClipboardPath(input) {
+    if (!input || typeof input !== 'string') {
+        return null;
+    }
+    const trimmed = input.trim();
+    if (!trimmed) {
+        return null;
+    }
+    return trimmed.replace(/^"|"$/g, '');
+}
+
+function escapePowerShellSingleQuotedString(value) {
+    return String(value).replace(/'/g, "''");
+}
+
+function openTerminalAtDirectory(targetDirectory) {
+    const dir = targetDirectory || app.getPath('home');
+    if (process.platform !== 'win32') {
+        try {
+            spawn('x-terminal-emulator', [], { cwd: dir, detached: true, stdio: 'ignore' }).unref();
+            return { success: true };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    try {
+        const wt = spawn('wt.exe', ['-d', dir], { detached: true, stdio: 'ignore' });
+        wt.unref();
+        return { success: true };
+    } catch (_) {
+        try {
+            const escapedDir = escapePowerShellSingleQuotedString(dir);
+            const ps = spawn('powershell.exe', ['-NoExit', '-Command', `Set-Location -LiteralPath '${escapedDir}'`], { detached: true, stdio: 'ignore' });
+            ps.unref();
+            return { success: true };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+}
+
+function resolveDirectoryFromPathMaybeFile(targetPath) {
+    if (!targetPath) {
+        return app.getPath('home');
+    }
+
+    try {
+        const cleanPath = normalizeClipboardPath(targetPath);
+        if (!cleanPath) {
+            return app.getPath('home');
+        }
+        if (!path.isAbsolute(cleanPath) || !fs.existsSync(cleanPath)) {
+            return app.getPath('home');
+        }
+        const stat = fs.statSync(cleanPath);
+        if (stat.isDirectory()) {
+            return cleanPath;
+        }
+        return path.dirname(cleanPath);
+    } catch (_) {
+        return app.getPath('home');
+    }
+}
+
+function isImageFilePath(targetPath) {
+    try {
+        const cleanPath = normalizeClipboardPath(targetPath);
+        if (!cleanPath) return false;
+        const ext = path.extname(cleanPath).toLowerCase();
+        return ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.ico', '.tif', '.tiff'].includes(ext);
+    } catch (_) {
+        return false;
+    }
+}
+
+function toFileUrl(filePath) {
+    const normalized = String(filePath).replace(/\\/g, '/');
+    return `file:///${encodeURI(normalized)}`;
+}
+
+function createClockWindowHtml() {
+    return `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>时钟</title>
+  <style>
+    :root { --bg: rgba(20, 20, 24, 0.92); --fg: rgba(255,255,255,0.92); --sub: rgba(255,255,255,0.55); --bd: rgba(255,255,255,0.12); }
+    * { box-sizing: border-box; }
+    body { margin: 0; height: 100vh; background: var(--bg); color: var(--fg); font-family: 'Segoe UI','Microsoft YaHei',sans-serif; border-radius: 16px; overflow: hidden; border: 1px solid var(--bd); user-select: none; -webkit-app-region: drag; }
+    .wrap { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 16px; }
+    .time { font-size: 34px; font-weight: 700; letter-spacing: 1px; }
+    .date { font-size: 12px; color: var(--sub); }
+    .hint { font-size: 11px; color: rgba(255,255,255,0.35); margin-top: 6px; }
+    .btns { position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; -webkit-app-region: no-drag; }
+    .btn { width: 26px; height: 26px; border-radius: 8px; border: 1px solid var(--bd); background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.85); cursor: pointer; font-size: 14px; }
+    .btn:hover { background: rgba(255,255,255,0.12); }
+  </style>
+</head>
+<body>
+  <div class="btns">
+    <button class="btn" id="pin">📌</button>
+    <button class="btn" id="close">✕</button>
+  </div>
+  <div class="wrap">
+    <div class="time" id="time">--:--:--</div>
+    <div class="date" id="date">----</div>
+    <div class="hint">拖动窗口可移动</div>
+  </div>
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    function pad(n){ return String(n).padStart(2,'0'); }
+    function tick(){
+      const now = new Date();
+      const h = pad(now.getHours());
+      const m = pad(now.getMinutes());
+      const s = pad(now.getSeconds());
+      document.getElementById('time').textContent = h + ':' + m + ':' + s;
+      document.getElementById('date').textContent = now.toLocaleString('zh-CN', { weekday:'long', year:'numeric', month:'2-digit', day:'2-digit' });
+    }
+    tick();
+    setInterval(tick, 250);
+
+    document.getElementById('close').addEventListener('click', () => ipcRenderer.invoke('close-super-panel-child-window', 'clock'));
+    document.getElementById('pin').addEventListener('click', () => ipcRenderer.invoke('toggle-super-panel-child-window-pin', 'clock'));
+  </script>
+</body>
+</html>
+`;
+}
+
+let clockWindow = null;
+let clockWindowPinned = false;
+
+function openClockWindow() {
+    if (clockWindow && !clockWindow.isDestroyed()) {
+        clockWindow.show();
+        clockWindow.focus();
+        return { success: true };
+    }
+
+    clockWindowPinned = false;
+    clockWindow = new BrowserWindow({
+        width: 240,
+        height: 150,
+        frame: false,
+        transparent: true,
+        resizable: false,
+        alwaysOnTop: true,
+        skipTaskbar: true,
+        movable: true,
+        parent: superPanelWindow || mainWindow,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+            enableRemoteModule: true
+        }
+    });
+    trackSuperPanelChildWindow(clockWindow);
+    if (remoteMain) {
+        remoteMain.enable(clockWindow.webContents);
+    }
+    clockWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(createClockWindowHtml())}`);
+    clockWindow.on('closed', () => {
+        clockWindow = null;
+        clockWindowPinned = false;
+    });
+    return { success: true };
+}
+
+function createImagePreviewHtml(imageUrl, title) {
+    const safeTitle = String(title || '图片').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${safeTitle}</title>
+  <style>
+    :root { --bg: rgba(18,18,22,0.96); --bd: rgba(255,255,255,0.12); --fg: rgba(255,255,255,0.92); --sub: rgba(255,255,255,0.55); }
+    * { box-sizing: border-box; }
+    body { margin: 0; height: 100vh; background: var(--bg); color: var(--fg); font-family: 'Segoe UI','Microsoft YaHei',sans-serif; overflow: hidden; border-radius: 12px; border: 1px solid var(--bd); }
+    .bar { height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; background: rgba(255,255,255,0.04); border-bottom: 1px solid var(--bd); -webkit-app-region: drag; }
+    .title { font-size: 12px; color: var(--sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%; }
+    .btns { display: flex; gap: 6px; -webkit-app-region: no-drag; }
+    .btn { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--bd); background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.85); cursor: pointer; font-size: 14px; }
+    .btn:hover { background: rgba(255,255,255,0.12); }
+    .stage { height: calc(100vh - 40px); display: flex; align-items: center; justify-content: center; overflow: auto; padding: 14px; }
+    img { max-width: 100%; max-height: 100%; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <div class="title">${safeTitle}</div>
+    <div class="btns">
+      <button class="btn" id="reveal">📁</button>
+      <button class="btn" id="close">✕</button>
+    </div>
+  </div>
+  <div class="stage">
+    <img id="img" src="${imageUrl}" />
+  </div>
+  <script>
+    const { ipcRenderer } = require('electron');
+    document.getElementById('close').addEventListener('click', () => ipcRenderer.invoke('close-super-panel-child-window', 'image'));
+    document.getElementById('reveal').addEventListener('click', () => ipcRenderer.invoke('reveal-path-in-folder'));
+  </script>
+</body>
+</html>
+`;
+}
+
+let imagePreviewWindow = null;
+let lastPreviewImagePath = null;
+
+function openImagePreviewWindow(imagePath) {
+    const cleanPath = normalizeClipboardPath(imagePath);
+    if (!cleanPath || !path.isAbsolute(cleanPath) || !fs.existsSync(cleanPath)) {
+        return { success: false, error: '图片路径无效' };
+    }
+
+    lastPreviewImagePath = cleanPath;
+    const imageUrl = toFileUrl(cleanPath);
+
+    if (imagePreviewWindow && !imagePreviewWindow.isDestroyed()) {
+        imagePreviewWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(createImagePreviewHtml(imageUrl, path.basename(cleanPath)))}`);
+        imagePreviewWindow.show();
+        imagePreviewWindow.focus();
+        return { success: true };
+    }
+
+    imagePreviewWindow = new BrowserWindow({
+        width: 900,
+        height: 650,
+        frame: false,
+        transparent: true,
+        resizable: true,
+        alwaysOnTop: true,
+        parent: superPanelWindow || mainWindow,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+            enableRemoteModule: true
+        }
+    });
+    trackSuperPanelChildWindow(imagePreviewWindow);
+    if (remoteMain) {
+        remoteMain.enable(imagePreviewWindow.webContents);
+    }
+    imagePreviewWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(createImagePreviewHtml(imageUrl, path.basename(cleanPath)))}`);
+    imagePreviewWindow.on('closed', () => {
+        imagePreviewWindow = null;
+        lastPreviewImagePath = null;
+    });
+    return { success: true };
+}
+
+async function pickImageAndOpenPreview(parentWindow) {
+    const result = await dialog.showOpenDialog(parentWindow || superPanelWindow || mainWindow, {
+        title: '选择图片',
+        properties: ['openFile'],
+        filters: [
+            { name: '图片', extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'ico', 'tif', 'tiff'] },
+            { name: '所有文件', extensions: ['*'] }
+        ]
+    });
+
+    if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+        return { success: false, error: '已取消选择' };
+    }
+    return openImagePreviewWindow(result.filePaths[0]);
+}
+
 // 执行内置功能
 async function executeBuiltinAction(action, clipboardText) {
     try {
@@ -3402,6 +3926,52 @@ async function executeBuiltinAction(action, clipboardText) {
                 clipboard.writeText(uuid);
                 console.log('UUID已复制:', uuid);
                 break;
+            case 'open-terminal': {
+                const targetDir = resolveDirectoryFromPathMaybeFile(clipboardText);
+                const result = openTerminalAtDirectory(targetDir);
+                if (!result.success) {
+                    return result;
+                }
+                break;
+            }
+            case 'open-clock': {
+                const result = openClockWindow();
+                if (!result.success) {
+                    return result;
+                }
+                break;
+            }
+            case 'open-image': {
+                const cleanPath = normalizeClipboardPath(clipboardText);
+                if (cleanPath && isImageFilePath(cleanPath) && path.isAbsolute(cleanPath) && fs.existsSync(cleanPath)) {
+                    const result = openImagePreviewWindow(cleanPath);
+                    if (!result.success) {
+                        return result;
+                    }
+                } else {
+                    const result = await pickImageAndOpenPreview(superPanelWindow || mainWindow);
+                    if (!result.success) {
+                        return result;
+                    }
+                }
+                break;
+            }
+            case 'screenshot': {
+                if (process.platform === 'win32') {
+                    try {
+                        await shell.openExternal('ms-screenclip:');
+                    } catch (_) {
+                        try {
+                            exec('snippingtool.exe', () => { });
+                        } catch (error) {
+                            return { success: false, error: error.message };
+                        }
+                    }
+                } else {
+                    return { success: false, error: '当前系统不支持该截图方式' };
+                }
+                break;
+            }
             default:
                 console.log('未知的内置功能:', action.id);
         }
@@ -3443,6 +4013,14 @@ async function executeDynamicAction(action, clipboardText) {
                 const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(clipboardText)}`;
                 require('electron').shell.openExternal(searchUrl);
                 break;
+            case 'search-bing':
+                const bingUrl = `https://www.bing.com/search?q=${encodeURIComponent(clipboardText)}`;
+                require('electron').shell.openExternal(bingUrl);
+                break;
+            case 'search-baidu':
+                const baiduUrl = `https://www.baidu.com/s?wd=${encodeURIComponent(clipboardText)}`;
+                require('electron').shell.openExternal(baiduUrl);
+                break;
             case 'open-url':
                 require('electron').shell.openExternal(action.args?.url || clipboardText);
                 break;
@@ -3454,6 +4032,40 @@ async function executeDynamicAction(action, clipboardText) {
                 const translateUrl = `https://translate.google.com/?sl=${action.args?.from || 'auto'}&tl=${action.args?.to || 'en'}&text=${encodeURIComponent(clipboardText)}`;
                 require('electron').shell.openExternal(translateUrl);
                 break;
+            case 'open-path': {
+                const target = normalizeClipboardPath(action.args?.path || clipboardText);
+                if (target) {
+                    await shell.openPath(target);
+                }
+                break;
+            }
+            case 'reveal-path': {
+                const target = normalizeClipboardPath(action.args?.path || clipboardText);
+                if (target) {
+                    shell.showItemInFolder(target);
+                }
+                break;
+            }
+            case 'open-terminal': {
+                const targetDir = resolveDirectoryFromPathMaybeFile(action.args?.path || clipboardText);
+                const result = openTerminalAtDirectory(targetDir);
+                if (!result.success) {
+                    return result;
+                }
+                break;
+            }
+            case 'open-image-preview': {
+                const target = normalizeClipboardPath(action.args?.path || clipboardText);
+                if (target && isImageFilePath(target) && path.isAbsolute(target) && fs.existsSync(target)) {
+                    const result = openImagePreviewWindow(target);
+                    if (!result.success) {
+                        return result;
+                    }
+                } else {
+                    return { success: false, error: '未检测到有效图片路径' };
+                }
+                break;
+            }
             default:
                 console.log('未知的动态功能:', action.action);
         }
@@ -3542,6 +4154,42 @@ async function getBuiltinSuperPanelActions() {
             type: 'builtin',
             category: '生成工具',
             priority: 6
+        },
+        {
+            id: 'open-terminal',
+            title: '在终端打开',
+            description: '在终端中打开剪贴板路径（文件将打开其所在目录）',
+            icon: '🖥️',
+            type: 'builtin',
+            category: '系统工具',
+            priority: 7
+        },
+        {
+            id: 'open-clock',
+            title: '时钟',
+            description: '打开置顶时钟小窗',
+            icon: '🕒',
+            type: 'builtin',
+            category: '系统工具',
+            priority: 8
+        },
+        {
+            id: 'open-image',
+            title: '图片',
+            description: '预览剪贴板图片路径，或选择图片打开',
+            icon: '🖼️',
+            type: 'builtin',
+            category: '系统工具',
+            priority: 9
+        },
+        {
+            id: 'screenshot',
+            title: '截图',
+            description: '调用系统截图并将结果写入剪贴板',
+            icon: '✂️',
+            type: 'builtin',
+            category: '系统工具',
+            priority: 10
         }
     ];
 }
@@ -3555,6 +4203,84 @@ async function getDynamicSuperPanelActions(clipboardText) {
     }
 
     const text = clipboardText.trim();
+
+    try {
+        const cleanPath = normalizeClipboardPath(text);
+        if (cleanPath && path.isAbsolute(cleanPath) && fs.existsSync(cleanPath)) {
+            const stat = fs.statSync(cleanPath);
+            if (stat.isDirectory()) {
+                dynamicActions.push({
+                    id: 'open-terminal-dir-' + Date.now(),
+                    title: '在终端打开',
+                    description: '在终端中打开该文件夹',
+                    icon: '🖥️',
+                    type: 'dynamic',
+                    category: '文件夹操作',
+                    command: 'open-terminal',
+                    args: { path: cleanPath },
+                    priority: 1
+                });
+                dynamicActions.push({
+                    id: 'open-folder-' + Date.now(),
+                    title: '打开文件夹',
+                    description: '在资源管理器中打开该文件夹',
+                    icon: '📁',
+                    type: 'dynamic',
+                    category: '文件夹操作',
+                    command: 'open-path',
+                    args: { path: cleanPath },
+                    priority: 2
+                });
+            } else {
+                dynamicActions.push({
+                    id: 'open-file-' + Date.now(),
+                    title: '打开文件',
+                    description: '使用系统默认方式打开该文件',
+                    icon: '📄',
+                    type: 'dynamic',
+                    category: '文件操作',
+                    command: 'open-path',
+                    args: { path: cleanPath },
+                    priority: 1
+                });
+                dynamicActions.push({
+                    id: 'reveal-file-' + Date.now(),
+                    title: '定位文件',
+                    description: '在资源管理器中定位该文件',
+                    icon: '📌',
+                    type: 'dynamic',
+                    category: '文件操作',
+                    command: 'reveal-path',
+                    args: { path: cleanPath },
+                    priority: 2
+                });
+                dynamicActions.push({
+                    id: 'open-terminal-file-' + Date.now(),
+                    title: '在终端打开目录',
+                    description: '在终端中打开该文件所在目录',
+                    icon: '🖥️',
+                    type: 'dynamic',
+                    category: '文件操作',
+                    command: 'open-terminal',
+                    args: { path: cleanPath },
+                    priority: 3
+                });
+                if (isImageFilePath(cleanPath)) {
+                    dynamicActions.push({
+                        id: 'preview-image-' + Date.now(),
+                        title: '预览图片',
+                        description: '在小窗中预览该图片',
+                        icon: '🖼️',
+                        type: 'dynamic',
+                        category: '图片操作',
+                        command: 'open-image-preview',
+                        args: { path: cleanPath },
+                        priority: 0
+                    });
+                }
+            }
+        }
+    } catch (_) { }
 
     // URL 检测
     if (text.match(/^https?:\/\/.+/)) {
@@ -3617,7 +4343,7 @@ async function getDynamicSuperPanelActions(clipboardText) {
     }
 
     // 英文文本检测（翻译）
-    if (/^[a-zA-Z\s.,!?'"]+$/.test(text)) {
+    if (/^[a-zA-Z\s.,!?'\"]+$/.test(text)) {
         dynamicActions.push({
             id: 'translate-en-zh-' + Date.now(),
             title: '翻译到中文',
@@ -3628,6 +4354,30 @@ async function getDynamicSuperPanelActions(clipboardText) {
             command: 'translate',
             args: { text: text, from: 'en', to: 'zh' },
             priority: 5
+        });
+    }
+
+    const pluginMatches = [];
+    for (const [pluginName, actions] of superPanelRegistry) {
+        for (const action of actions) {
+            if (!action || !action.feature) continue;
+            let score = calculateMatchScore(text, action.feature);
+            if (action.title && text.includes(action.title.toLowerCase())) score += 6;
+            if (action.description && text.includes(action.description.toLowerCase())) score += 3;
+            if (score > 0) {
+                pluginMatches.push({ action, score, pluginName });
+            }
+        }
+    }
+
+    if (pluginMatches.length > 0) {
+        pluginMatches.sort((a, b) => b.score - a.score);
+        const topPlugins = pluginMatches.slice(0, 6);
+        topPlugins.forEach(item => {
+            dynamicActions.push({
+                ...item.action,
+                priority: Math.min(item.action.priority || 10, 1)
+            });
         });
     }
 
@@ -3642,6 +4392,30 @@ async function getDynamicSuperPanelActions(clipboardText) {
         command: 'search-web',
         args: { query: text },
         priority: 10
+    });
+
+    dynamicActions.push({
+        id: 'search-bing-' + Date.now(),
+        title: '必应搜索',
+        description: `在Bing搜索 "${text.length > 20 ? text.substring(0, 20) + '...' : text}"`,
+        icon: '🧭',
+        type: 'dynamic',
+        category: '搜索工具',
+        command: 'search-bing',
+        args: { query: text },
+        priority: 11
+    });
+
+    dynamicActions.push({
+        id: 'search-baidu-' + Date.now(),
+        title: '百度搜索',
+        description: `在百度搜索 "${text.length > 20 ? text.substring(0, 20) + '...' : text}"`,
+        icon: '🔎',
+        type: 'dynamic',
+        category: '搜索工具',
+        command: 'search-baidu',
+        args: { query: text },
+        priority: 12
     });
 
     return dynamicActions;
@@ -4451,6 +5225,58 @@ async function executeSystemCommand(command, args, clipboardText) {
                 }
                 break;
 
+            case 'open-path': {
+                const target = normalizeClipboardPath(args.path || clipboardText);
+                if (!target) {
+                    return { success: false, error: '缺少必要参数' };
+                }
+                await shell.openPath(target);
+                return { success: true };
+            }
+
+            case 'reveal-path': {
+                const target = normalizeClipboardPath(args.path || clipboardText);
+                if (!target) {
+                    return { success: false, error: '缺少必要参数' };
+                }
+                shell.showItemInFolder(target);
+                return { success: true };
+            }
+
+            case 'open-terminal': {
+                const targetDir = resolveDirectoryFromPathMaybeFile(args.path || clipboardText);
+                const result = openTerminalAtDirectory(targetDir);
+                return result;
+            }
+
+            case 'screenclip': {
+                if (process.platform !== 'win32') {
+                    return { success: false, error: '当前系统不支持该截图方式' };
+                }
+                try {
+                    await shell.openExternal('ms-screenclip:');
+                } catch (_) {
+                    try {
+                        exec('snippingtool.exe', () => { });
+                    } catch (error) {
+                        return { success: false, error: error.message };
+                    }
+                }
+                return { success: true };
+            }
+
+            case 'open-clock': {
+                return openClockWindow();
+            }
+
+            case 'open-image': {
+                const target = normalizeClipboardPath(args.path || clipboardText);
+                if (target && isImageFilePath(target) && path.isAbsolute(target) && fs.existsSync(target)) {
+                    return openImagePreviewWindow(target);
+                }
+                return await pickImageAndOpenPreview(superPanelWindow || mainWindow);
+            }
+
             default:
                 console.log('未知的系统命令:', command);
                 return { success: false, error: '未知的系统命令' };
@@ -4469,8 +5295,8 @@ function createSuperPanelManagerWindow() {
     let windowOptions = {
         width: 800,
         height: 600,
-        modal: false,
-        parent: mainWindow,
+        modal: true,
+        parent: superPanelWindow || mainWindow,
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false,
@@ -4510,6 +5336,7 @@ function createSuperPanelManagerWindow() {
     }
 
     const managerWindow = new BrowserWindow(windowOptions);
+    trackSuperPanelChildWindow(managerWindow);
 
     // 启用remote模块
     if (remoteMain) {
@@ -4533,7 +5360,7 @@ function createSuperPanelSettingsWindow() {
     let windowOptions = {
         width: 600,
         height: 500,
-        modal: false,
+        modal: true,
         parent: superPanelWindow || mainWindow,
         webPreferences: {
             nodeIntegration: true,
@@ -4575,6 +5402,7 @@ function createSuperPanelSettingsWindow() {
     }
 
     const settingsWindow = new BrowserWindow(windowOptions);
+    trackSuperPanelChildWindow(settingsWindow);
 
     // 启用remote模块
     if (remoteMain) {
@@ -5928,6 +6756,46 @@ ipcMain.handle('get-available-custom-actions', async () => {
                 category: '系统工具',
                 command: 'open-app',
                 args: { app: 'notepad.exe' }
+            },
+            {
+                id: 'custom-open-terminal',
+                title: '在终端打开',
+                description: '在终端中打开剪贴板路径（文件将打开其所在目录）',
+                icon: '🖥️',
+                type: 'custom',
+                category: '系统工具',
+                command: 'open-terminal',
+                args: {}
+            },
+            {
+                id: 'custom-clock',
+                title: '时钟',
+                description: '打开置顶时钟小窗',
+                icon: '🕒',
+                type: 'custom',
+                category: '系统工具',
+                command: 'open-clock',
+                args: {}
+            },
+            {
+                id: 'custom-image',
+                title: '图片',
+                description: '预览剪贴板图片路径，或选择图片打开',
+                icon: '🖼️',
+                type: 'custom',
+                category: '系统工具',
+                command: 'open-image',
+                args: {}
+            },
+            {
+                id: 'custom-screenshot',
+                title: '截图',
+                description: '调用系统截图并将结果写入剪贴板',
+                icon: '✂️',
+                type: 'custom',
+                category: '系统工具',
+                command: 'screenclip',
+                args: {}
             },
             {
                 id: 'custom-google-search',

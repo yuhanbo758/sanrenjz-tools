@@ -24,6 +24,7 @@ class PluginManager {
             this.dynamicFeatures = new Map(); // 存储插件动态注册的功能
             this.pluginAuxWindows = new Map();
             this.pluginMeta = new Map();
+            this.pluginCleanupTimers = new Map();
 
             console.log('PluginManager 初始化成功');
             console.log('插件目录:', this.pluginDir);
@@ -418,6 +419,7 @@ class PluginManager {
                     existingWindow.show();
                 }
                 existingWindow.focus();
+                this.clearPluginCleanupTimer(pluginName);
                 
                 // 返回现有窗口，不创建新窗口
                 return existingWindow;
@@ -543,6 +545,7 @@ class PluginManager {
                     if (!currentPinned && pluginWindow && !pluginWindow.isDestroyed() && !pluginWindow.isFocused()) {
                         console.log(`插件 ${pluginName} 因失去焦点而隐藏`);
                         pluginWindow.hide();
+                        this.schedulePluginCleanup(pluginName, 3 * 60 * 1000);
                     }
                 }, 500);
             }
@@ -556,6 +559,7 @@ class PluginManager {
             this.pluginWindows.delete(pluginName);
             this.pluginPinnedMap.delete(pluginName);
             this.pluginMeta.delete(pluginName);
+            this.clearPluginCleanupTimer(pluginName);
         });
 
         // 监听窗口最大化/还原状态变化
@@ -1151,6 +1155,7 @@ class PluginManager {
                     pluginWindow.focus();
                 }
             }, 800); // 增加延迟到800ms，确保搜索窗口焦点恢复完成
+            this.clearPluginCleanupTimer(pluginName);
         });
 
         // 存储窗口引用
@@ -1507,10 +1512,37 @@ class PluginManager {
     minimizePlugin(pluginName) {
         const win = this.pluginWindows.get(pluginName);
         if (win && !win.isDestroyed()) {
-            win.minimize();
-            return true;
+            if (win.isVisible()) {
+                win.minimize();
+                return true;
+            }
+            return false;
         }
         return false;
+    }
+
+    clearPluginCleanupTimer(pluginName) {
+        const timer = this.pluginCleanupTimers.get(pluginName);
+        if (timer) {
+            clearTimeout(timer);
+            this.pluginCleanupTimers.delete(pluginName);
+        }
+    }
+
+    schedulePluginCleanup(pluginName, delayMs) {
+        const pinned = this.pluginPinnedMap.get(pluginName);
+        if (pinned) return;
+        this.clearPluginCleanupTimer(pluginName);
+        const timer = setTimeout(() => {
+            const win = this.pluginWindows.get(pluginName);
+            const currentPinned = this.pluginPinnedMap.get(pluginName);
+            if (!currentPinned && win && !win.isDestroyed() && !win.isVisible()) {
+                console.log(`插件 ${pluginName} 超时未重新打开，执行关闭清理`);
+                this.stopPlugin(pluginName);
+            }
+            this.pluginCleanupTimers.delete(pluginName);
+        }, delayMs);
+        this.pluginCleanupTimers.set(pluginName, timer);
     }
 
     // 最大化/还原插件窗口
