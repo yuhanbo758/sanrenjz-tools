@@ -2721,10 +2721,9 @@ function autoRegisterPluginSuperPanelActions(pluginName, pluginConfig, pluginPat
             pluginPath = pluginManager.getPluginPath(pluginName);
         }
 
-        // 如果还是没有，根据插件名称推算默认路径
-        if (!pluginPath) {
-            const pluginFolderName = getPluginFolderName(pluginName);
-            pluginPath = path.join(__dirname, 'app', 'software', pluginFolderName);
+        const resolvedPluginPath = resolvePluginPathByName(pluginName, pluginPath);
+        if (resolvedPluginPath) {
+            pluginPath = resolvedPluginPath;
         }
 
         console.log(`插件 ${pluginName} 的路径: ${pluginPath}`);
@@ -2882,14 +2881,76 @@ function autoRegisterPluginSuperPanelActions(pluginName, pluginConfig, pluginPat
 
 // 根据插件名称获取文件夹名称
 function getPluginFolderName(pluginName) {
-    const folderNameMap = {
-        '余汉波文本片段助手': 'sanrenjz-tools-text',
-        '密码管理器': 'sanrenjz-tools-password',
-        '插件下载': 'sanrenjz-tools-download_plugin',
-        '余汉波AI助手': 'sanrenjz.tools-ai'
-    };
+    const foundPath = findPluginPathByName(pluginName);
+    if (foundPath) {
+        return path.basename(foundPath);
+    }
 
-    return folderNameMap[pluginName] || pluginName.toLowerCase().replace(/\s+/g, '-');
+    return pluginName ? pluginName.toLowerCase().replace(/\s+/g, '-') : '';
+}
+
+function getPluginRootDirs() {
+    const dirs = [];
+    if (app.isPackaged) {
+        dirs.push(path.join(process.resourcesPath, 'app', 'software'));
+        dirs.push(path.join(process.resourcesPath, 'app.asar', 'app', 'software'));
+    }
+    dirs.push(path.join(app.getAppPath(), 'app', 'software'));
+    dirs.push(path.join(__dirname, 'app', 'software'));
+    return dirs;
+}
+
+function findPluginPathByName(pluginName) {
+    if (!pluginName) return null;
+
+    const pluginDirs = getPluginRootDirs();
+    for (const pluginDir of pluginDirs) {
+        if (!fs.existsSync(pluginDir)) continue;
+        try {
+            const items = fs.readdirSync(pluginDir, { withFileTypes: true });
+            for (const item of items) {
+                if (!item.isDirectory()) continue;
+                const pluginPath = path.join(pluginDir, item.name);
+                const pluginJsonPath = path.join(pluginPath, 'plugin.json');
+                if (!fs.existsSync(pluginJsonPath)) continue;
+                try {
+                    const pluginConfig = JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8'));
+                    const resolvedName = pluginConfig.pluginName || item.name;
+                    if (resolvedName === pluginName) {
+                        return pluginPath;
+                    }
+                } catch (error) {
+                    console.error('读取插件配置失败:', pluginJsonPath, error);
+                }
+            }
+        } catch (error) {
+            console.error('扫描插件目录失败:', pluginDir, error);
+        }
+    }
+
+    return null;
+}
+
+function resolvePluginPathByName(pluginName, pluginPath) {
+    if (pluginPath && fs.existsSync(pluginPath)) {
+        const pluginJsonPath = path.join(pluginPath, 'plugin.json');
+        if (fs.existsSync(pluginJsonPath)) {
+            try {
+                const pluginConfig = JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8'));
+                const resolvedName = pluginConfig.pluginName || path.basename(pluginPath);
+                if (!pluginName || resolvedName === pluginName) {
+                    return pluginPath;
+                }
+            } catch (error) {
+                console.error('读取插件配置失败:', pluginJsonPath, error);
+            }
+        }
+    }
+
+    const foundPath = findPluginPathByName(pluginName);
+    if (foundPath) return foundPath;
+
+    return pluginPath;
 }
 
 // 获取插件默认图标
@@ -3050,47 +3111,51 @@ async function initializePluginSuperPanelActions() {
     try {
         console.log('🔌 开始初始化插件超级面板功能');
 
-        // 扫描插件目录
-        const pluginDir = path.join(__dirname, 'app', 'software');
+        const pluginDirs = getPluginRootDirs();
+        const registered = new Set();
+        let totalFolders = 0;
 
-        if (!fs.existsSync(pluginDir)) {
-            console.log('插件目录不存在:', pluginDir);
-            return;
-        }
+        for (const pluginDir of pluginDirs) {
+            if (!fs.existsSync(pluginDir)) {
+                continue;
+            }
 
-        const pluginFolders = fs.readdirSync(pluginDir).filter(item => {
-            const fullPath = path.join(pluginDir, item);
-            return fs.statSync(fullPath).isDirectory();
-        });
+            const pluginFolders = fs.readdirSync(pluginDir).filter(item => {
+                const fullPath = path.join(pluginDir, item);
+                return fs.statSync(fullPath).isDirectory();
+            });
 
-        console.log(`找到 ${pluginFolders.length} 个插件文件夹`);
+            totalFolders += pluginFolders.length;
 
-        for (const folder of pluginFolders) {
-            try {
-                const pluginPath = path.join(pluginDir, folder);
-                const configPath = path.join(pluginPath, 'plugin.json');
+            for (const folder of pluginFolders) {
+                try {
+                    const pluginPath = path.join(pluginDir, folder);
+                    const configPath = path.join(pluginPath, 'plugin.json');
 
-                if (fs.existsSync(configPath)) {
-                    const pluginConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+                    if (fs.existsSync(configPath)) {
+                        const pluginConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+                        const pluginName = pluginConfig && pluginConfig.pluginName;
 
-                    if (pluginConfig && pluginConfig.pluginName) {
-                        console.log(`🔧 注册插件 ${pluginConfig.pluginName} 的超级面板功能`);
+                        if (pluginName && !registered.has(pluginName)) {
+                            console.log(`🔧 注册插件 ${pluginName} 的超级面板功能`);
 
-                        // 先清除之前的注册（如果有的话）
-                        if (superPanelRegistry.has(pluginConfig.pluginName)) {
-                            superPanelRegistry.delete(pluginConfig.pluginName);
+                            if (superPanelRegistry.has(pluginName)) {
+                                superPanelRegistry.delete(pluginName);
+                            }
+
+                            autoRegisterPluginSuperPanelActions(pluginName, pluginConfig, pluginPath);
+                            registered.add(pluginName);
                         }
-
-                        // 调用自动注册函数，传递插件路径
-                        autoRegisterPluginSuperPanelActions(pluginConfig.pluginName, pluginConfig, pluginPath);
+                    } else {
+                        console.log(`插件 ${folder} 缺少配置文件`);
                     }
-                } else {
-                    console.log(`插件 ${folder} 缺少配置文件`);
+                } catch (error) {
+                    console.error(`处理插件 ${folder} 时出错:`, error);
                 }
-            } catch (error) {
-                console.error(`处理插件 ${folder} 时出错:`, error);
             }
         }
+
+        console.log(`找到 ${totalFolders} 个插件文件夹`);
 
         console.log('✅ 插件超级面板功能初始化完成');
 

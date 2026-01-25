@@ -7,10 +7,19 @@ const { app, BrowserWindow, ipcMain, screen } = require('electron');
 class PluginManager {
     constructor(mainWindow) {
         try {
-            // 插件目录配置
-            this.pluginDir = app.isPackaged
-                ? path.join(process.resourcesPath, 'app', 'software')
-                : path.join(__dirname, 'software');
+            const candidatePluginDirs = app.isPackaged
+                ? [
+                    path.join(process.resourcesPath, 'app', 'software'),
+                    path.join(process.resourcesPath, 'app.asar', 'app', 'software'),
+                    path.join(app.getAppPath(), 'app', 'software'),
+                    path.join(__dirname, 'software')
+                ]
+                : [
+                    path.join(__dirname, 'software'),
+                    path.join(app.getAppPath(), 'app', 'software')
+                ];
+
+            this.pluginDir = candidatePluginDirs.find((dir) => fs.existsSync(dir)) || candidatePluginDirs[0];
                 
             if (!fs.existsSync(this.pluginDir)) {
                 fs.mkdirSync(this.pluginDir, { recursive: true });
@@ -1845,15 +1854,30 @@ class PluginManager {
 
     // 获取插件路径（供外部调用）
     getPluginPath(pluginName) {
-        // 根据插件名称推算插件路径
-        const folderNameMap = {
-            '余汉波文本片段助手': 'sanrenjz-tools-text',
-            '密码管理器': 'sanrenjz-tools-password',
-            '插件下载': 'sanrenjz-tools-download_plugin',
-            '余汉波AI助手': 'sanrenjz.tools-ai'
-        };
-        
-        const folderName = folderNameMap[pluginName] || pluginName.toLowerCase().replace(/\s+/g, '-');
+        if (pluginName && fs.existsSync(this.pluginDir)) {
+            try {
+                const items = fs.readdirSync(this.pluginDir, { withFileTypes: true });
+                for (const item of items) {
+                    if (!item.isDirectory()) continue;
+                    const pluginPath = path.join(this.pluginDir, item.name);
+                    const pluginJsonPath = path.join(pluginPath, 'plugin.json');
+                    if (!fs.existsSync(pluginJsonPath)) continue;
+                    try {
+                        const pluginConfig = JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8'));
+                        const resolvedName = pluginConfig.pluginName || item.name;
+                        if (resolvedName === pluginName) {
+                            return pluginPath;
+                        }
+                    } catch (error) {
+                        console.error('读取插件配置失败:', pluginJsonPath, error);
+                    }
+                }
+            } catch (error) {
+                console.error('扫描插件目录失败:', this.pluginDir, error);
+            }
+        }
+
+        const folderName = pluginName ? pluginName.toLowerCase().replace(/\s+/g, '-') : '';
         return path.join(this.pluginDir, folderName);
     }
 }
