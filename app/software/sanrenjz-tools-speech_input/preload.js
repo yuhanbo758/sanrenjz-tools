@@ -11,7 +11,7 @@ window.electronAPI = {
         remove: (key) => ipcRenderer.sendSync('plugin-storage-remove', PLUGIN_NAME, key)
     },
     window: {
-        hide: () => ipcRenderer.invoke('minimize-plugin-window', PLUGIN_NAME),
+        hide: () => ipcRenderer.invoke('minimize-plugin-window', PLUGIN_NAME, { keepAlive: true, source: 'hide-button' }),
         close: () => ipcRenderer.invoke('close-plugin-window', PLUGIN_NAME),
         minimize: () => ipcRenderer.invoke('minimize-plugin-window', PLUGIN_NAME),
         maximize: () => ipcRenderer.invoke('maximize-plugin-window', PLUGIN_NAME),

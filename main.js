@@ -2204,9 +2204,9 @@ ipcMain.handle('get-plugin-pin-status-window', (event, pluginName) => {
 });
 
 // 添加 IPC 处理：最小化插件窗口
-ipcMain.handle('minimize-plugin-window', (event, pluginName) => {
+ipcMain.handle('minimize-plugin-window', (event, pluginName, options = {}) => {
     if (pluginManager) {
-        return pluginManager.minimizePlugin(pluginName);
+        return pluginManager.minimizePlugin(pluginName, options);
     }
     return false;
 });

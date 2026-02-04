@@ -34,6 +34,7 @@ class PluginManager {
             this.pluginAuxWindows = new Map();
             this.pluginMeta = new Map();
             this.pluginCleanupTimers = new Map();
+            this.pluginBackgroundKeepAlive = new Map();
 
             console.log('PluginManager 初始化成功');
             console.log('插件目录:', this.pluginDir);
@@ -554,7 +555,10 @@ class PluginManager {
                     if (!currentPinned && pluginWindow && !pluginWindow.isDestroyed() && !pluginWindow.isFocused()) {
                         console.log(`插件 ${pluginName} 因失去焦点而隐藏`);
                         pluginWindow.hide();
-                        this.schedulePluginCleanup(pluginName, 3 * 60 * 1000);
+                        const keepAlive = this.pluginBackgroundKeepAlive.get(pluginName) === true;
+                        if (!keepAlive) {
+                            this.schedulePluginCleanup(pluginName, 3 * 60 * 1000);
+                        }
                     }
                 }, 500);
             }
@@ -1169,6 +1173,7 @@ class PluginManager {
 
         // 存储窗口引用
         this.pluginMeta.set(pluginName, { pluginPath, pluginConfig });
+        this.pluginBackgroundKeepAlive.set(pluginName, false);
         this.pluginWindows.set(pluginName, pluginWindow);
         
         return pluginWindow;
@@ -1374,6 +1379,10 @@ class PluginManager {
                 this.pluginPinnedMap.delete(pluginName);
             }
 
+            if (this.pluginBackgroundKeepAlive.has(pluginName)) {
+                this.pluginBackgroundKeepAlive.delete(pluginName);
+            }
+
             if (this.pluginMeta.has(pluginName)) {
                 this.pluginMeta.delete(pluginName);
             }
@@ -1518,9 +1527,16 @@ class PluginManager {
     }
 
     // 最小化插件窗口
-    minimizePlugin(pluginName) {
+    minimizePlugin(pluginName, options = {}) {
         const win = this.pluginWindows.get(pluginName);
         if (win && !win.isDestroyed()) {
+            const keepAlive = options && options.keepAlive === true;
+            if (keepAlive) {
+                this.pluginBackgroundKeepAlive.set(pluginName, true);
+                this.clearPluginCleanupTimer(pluginName);
+                win.hide();
+                return true;
+            }
             if (win.isVisible()) {
                 win.minimize();
                 return true;
@@ -1541,6 +1557,8 @@ class PluginManager {
     schedulePluginCleanup(pluginName, delayMs) {
         const pinned = this.pluginPinnedMap.get(pluginName);
         if (pinned) return;
+        const keepAlive = this.pluginBackgroundKeepAlive.get(pluginName) === true;
+        if (keepAlive) return;
         this.clearPluginCleanupTimer(pluginName);
         const timer = setTimeout(() => {
             const win = this.pluginWindows.get(pluginName);
