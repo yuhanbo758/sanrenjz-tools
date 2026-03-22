@@ -208,8 +208,9 @@
                 <select id="model-select">
                     <option value="gemini">Google Gemini</option>
                     <option value="qwen">阿里通义千问 (Qwen)</option>
+                    <option value="siliconflow">硅基流动 (TeleSpeechASR)</option>
                 </select>
-                <div class="help-text">Gemini：可直接用“音频+提示词”输出最终文本。Qwen：先语音转文字，再用文本模型按提示词处理。</div>
+                <div class="help-text">Gemini：可直接用“音频+提示词”输出最终文本。Qwen：先语音转文字，再用文本模型按提示词处理。硅基流动：调用 TeleSpeechASR 进行语音转文字。</div>
             </div>
 
             <div id="gemini-config">
@@ -261,6 +262,23 @@
                     <label>文本处理模型</label>
                     <input type="text" id="qwen-text-model" placeholder="例如: qwen-plus" />
                     <div class="help-text">用于将“识别结果”按提示词润色/翻译等处理。默认 qwen-plus。</div>
+                </div>
+            </div>
+
+            <div id="siliconflow-config" style="display: none;">
+                <div class="form-group">
+                    <label>硅基流动 API Key</label>
+                    <div class="input-actions">
+                        <input type="password" id="siliconflow-key" placeholder="输入 SiliconFlow API Key">
+                        <button type="button" class="icon-btn" id="siliconflow-key-toggle" title="显示/隐藏">👁</button>
+                        <button type="button" class="icon-btn" id="siliconflow-key-copy" title="复制">📋</button>
+                    </div>
+                    <div class="help-text"><a href="#" onclick="window.electronAPI.utils.openExternal('https://cloud.siliconflow.cn/account/ak')">获取 API Key</a></div>
+                </div>
+                <div class="form-group">
+                    <label>语音模型</label>
+                    <input type="text" id="siliconflow-asr-model" placeholder="例如: TeleAI/TeleSpeechASR" />
+                    <div class="help-text">默认使用 TeleAI/TeleSpeechASR（语音转文本）。</div>
                 </div>
             </div>
 

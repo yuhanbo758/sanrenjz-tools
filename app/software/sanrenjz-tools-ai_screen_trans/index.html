@@ -616,7 +616,6 @@
             async handleEnter(context) {
                 console.log('Handle Enter:', context);
                 
-                // 1. 取消上一次未完成的请求，防止冲突
                 if (this.currentAbortController) {
                     this.currentAbortController.abort();
                 }
@@ -625,21 +624,15 @@
                 context = context || {};
                 const mode = context.mode === 'ocr' ? 'ocr' : 'text';
                 this.switchMode(mode);
-
-                // 2. 清空界面，确保显示的是最新状态
-                document.getElementById('sourceText').value = '';
-                document.getElementById('targetText').value = '';
-                document.getElementById('targetTag').textContent = '等待翻译';
+                this.resetTranslationState();
 
                 if (mode === 'text') {
-                    // 逻辑优化：优先使用 payload (用户选中的文本)，如果没有则强制读取最新剪贴板
                     let textToTranslate = '';
                     
                     if (context.payload && typeof context.payload === 'string') {
                         textToTranslate = context.payload;
                     }
 
-                    // 如果 payload 为空，则读取剪贴板
                     if (!textToTranslate) {
                         const clipboardText = window.services.getClipboardText();
                         if (clipboardText && clipboardText.trim()) {
@@ -655,9 +648,20 @@
                         StatusBar.set('剪贴板为空，请输入文本', false);
                     }
                 } else if (mode === 'ocr') {
-                    // 自动执行剪贴板图片 OCR (ocrTranslate 内部会读取最新剪贴板)
-                    await this.ocrTranslate();
+                    const clipboardImage = window.services.getClipboardImage();
+                    if (!clipboardImage) {
+                        StatusBar.set('未检测到剪贴板图片，请先截图或复制图片', false);
+                        return;
+                    }
+                    await this.ocrTranslate(clipboardImage, true);
                 }
+            },
+
+            resetTranslationState() {
+                document.getElementById('sourceText').value = '';
+                document.getElementById('targetText').value = '';
+                document.getElementById('targetTag').textContent = '等待翻译';
+                StatusBar.set('就绪', false);
             },
 
             /**

@@ -38,10 +38,15 @@ const qwenKeyCopyBtn = document.getElementById('qwen-key-copy');
 const qwenModelVersion = document.getElementById('qwen-model-version');
 const qwenEnablePostProcessInput = document.getElementById('qwen-enable-postprocess');
 const qwenTextModelInput = document.getElementById('qwen-text-model');
+const siliconflowKeyInput = document.getElementById('siliconflow-key');
+const siliconflowKeyToggleBtn = document.getElementById('siliconflow-key-toggle');
+const siliconflowKeyCopyBtn = document.getElementById('siliconflow-key-copy');
+const siliconflowAsrModelInput = document.getElementById('siliconflow-asr-model');
 const systemPromptInput = document.getElementById('system-prompt');
 const saveSettingsBtn = document.getElementById('save-settings-btn');
 const geminiConfig = document.getElementById('gemini-config');
 const qwenConfig = document.getElementById('qwen-config');
+const siliconflowConfig = document.getElementById('siliconflow-config');
 const promptProfileSelect = document.getElementById('prompt-profile-select');
 const promptNewBtn = document.getElementById('prompt-new-btn');
 const promptDeleteBtn = document.getElementById('prompt-delete-btn');
@@ -138,6 +143,8 @@ function loadSettings() {
     const normalizedQwenModel = allowedQwenModels.includes(settings.qwenModel) ? settings.qwenModel : 'qwen3-asr-flash';
     qwenModelVersion.value = normalizedQwenModel;
     qwenTextModelInput.value = settings.qwenTextModel || 'qwen-plus';
+    siliconflowKeyInput.value = settings.siliconflowKey || '';
+    siliconflowAsrModelInput.value = settings.siliconflowAsrModel || 'TeleAI/TeleSpeechASR';
     if (qwenEnablePostProcessInput) {
         qwenEnablePostProcessInput.checked = !!settings.qwenEnablePostProcess;
     }
@@ -155,6 +162,7 @@ function loadSettings() {
     window.electronAPI.storage.set('settings', {
         ...settings,
         qwenModel: normalizedQwenModel,
+        siliconflowAsrModel: siliconflowAsrModelInput.value || 'TeleAI/TeleSpeechASR',
         promptProfiles: profiles,
         activePromptProfileId: activeProfileId,
         sceneHotkeys
@@ -263,9 +271,15 @@ function updateModelVisibility() {
     if (modelSelect.value === 'gemini') {
         geminiConfig.style.display = 'block';
         qwenConfig.style.display = 'none';
-    } else {
+        siliconflowConfig.style.display = 'none';
+    } else if (modelSelect.value === 'qwen') {
         geminiConfig.style.display = 'none';
         qwenConfig.style.display = 'block';
+        siliconflowConfig.style.display = 'none';
+    } else {
+        geminiConfig.style.display = 'none';
+        qwenConfig.style.display = 'none';
+        siliconflowConfig.style.display = 'block';
     }
 }
 
@@ -275,6 +289,7 @@ function setupEventListeners() {
 
     setupSecretField(geminiKeyInput, geminiKeyToggleBtn, geminiKeyCopyBtn);
     setupSecretField(qwenKeyInput, qwenKeyToggleBtn, qwenKeyCopyBtn);
+    setupSecretField(siliconflowKeyInput, siliconflowKeyToggleBtn, siliconflowKeyCopyBtn);
 
     if (qwenEnablePostProcessInput && qwenTextModelInput) {
         qwenEnablePostProcessInput.addEventListener('change', () => {
@@ -359,7 +374,9 @@ function setupEventListeners() {
             qwenKey: qwenKeyInput.value,
             qwenModel: qwenModelVersion.value,
             qwenTextModel: qwenTextModelInput.value,
-            qwenEnablePostProcess: qwenEnablePostProcessInput ? !!qwenEnablePostProcessInput.checked : false
+            qwenEnablePostProcess: qwenEnablePostProcessInput ? !!qwenEnablePostProcessInput.checked : false,
+            siliconflowKey: siliconflowKeyInput.value,
+            siliconflowAsrModel: (siliconflowAsrModelInput.value || '').trim() || 'TeleAI/TeleSpeechASR'
         };
 
         const prev = window.electronAPI.storage.get('settings') || {};
@@ -676,13 +693,15 @@ async function processAudio(blob) {
         let text = '';
         if (model === 'gemini') {
             text = await callGemini(blob, settings.geminiKey, settings.geminiModel || 'gemini-3-flash-preview', prompt);
-        } else {
+        } else if (model === 'qwen') {
             const transcript = await callQwenTranscribe(blob, settings.qwenKey, settings.qwenModel, prompt);
             if (settings.qwenEnablePostProcess) {
                 text = await callQwenPostProcess(transcript, settings.qwenKey, settings.qwenTextModel || 'qwen-plus', prompt);
             } else {
                 text = transcript;
             }
+        } else {
+            text = await callSiliconFlowTranscribe(blob, settings.siliconflowKey, settings.siliconflowAsrModel || 'TeleAI/TeleSpeechASR');
         }
 
         setSpeechState('ready');
@@ -942,6 +961,36 @@ async function callQwenPostProcess(text, apiKey, model, systemPrompt) {
         userText: inputText
     });
     return (out || inputText).trim();
+}
+
+async function callSiliconFlowTranscribe(blob, apiKey, model) {
+    if (!apiKey) throw new Error('硅基流动 API Key 未配置');
+
+    if (!window.electronAPI || !window.electronAPI.siliconflow || typeof window.electronAPI.siliconflow.transcribe !== 'function') {
+        throw new Error('硅基流动初始化失败：缺少 siliconflow.transcribe');
+    }
+
+    let uploadBlob = blob;
+    const wav16k = await convertBlobToWav16kMono(blob);
+    if (wav16k) {
+        uploadBlob = wav16k;
+    } else {
+        const wav = await convertBlobToWavIfPossible(blob);
+        if (wav) {
+            uploadBlob = wav;
+        }
+    }
+
+    const mimeType = (uploadBlob && uploadBlob.type) ? uploadBlob.type : 'audio/wav';
+    const base64Audio = await blobToBase64(uploadBlob);
+
+    const out = await window.electronAPI.siliconflow.transcribe({
+        apiKey,
+        model: model || 'TeleAI/TeleSpeechASR',
+        audioBase64: base64Audio,
+        mimeType
+    });
+    return (out || '').trim();
 }
 
 // Start

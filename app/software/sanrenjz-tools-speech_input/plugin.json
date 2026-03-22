@@ -1,6 +1,6 @@
 {
   "pluginName": "AI语音输入法",
-  "description": "调用大模型进行语音识别和处理，支持Gemini和通义千问",
+  "description": "调用大模型进行语音识别和处理，支持Gemini、通义千问和硅基流动 TeleSpeechASR",
   "version": "1.0.0",
   "author": "余汉波",
   "main": "index.html",

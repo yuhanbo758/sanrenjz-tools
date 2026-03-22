@@ -155,6 +155,24 @@ window.electronAPI = {
             const data = await dashscopePost(apiKey, '/api/v1/services/aigc/text-generation/generation', payload);
             return extractDashscopeText(data) || String(userText || '');
         }
+    },
+    siliconflow: {
+        transcribe: async ({ apiKey, model, audioBase64, mimeType }) => {
+            const key = String(apiKey || '').trim();
+            if (!key) throw new Error('硅基流动 API Key 未配置');
+
+            const raw = String(audioBase64 || '').trim();
+            if (!raw) throw new Error('音频数据为空');
+
+            const fileBuffer = base64ToBuffer(raw);
+            const out = await siliconflowTranscribeMultipart({
+                apiKey: key,
+                model: model || 'TeleAI/TeleSpeechASR',
+                fileBuffer,
+                mimeType: mimeType || 'audio/wav'
+            });
+            return (out || '').trim();
+        }
     }
 };
 
@@ -254,6 +272,48 @@ function buildQueryString(params) {
 function base64ToBuffer(b64) {
     if (!b64) return Buffer.alloc(0);
     return Buffer.from(String(b64), 'base64');
+}
+
+async function siliconflowTranscribeMultipart({ apiKey, model, fileBuffer, mimeType }) {
+    const isWav = String(mimeType || '').toLowerCase().includes('wav');
+    const fileName = `recording-${Date.now()}.${isWav ? 'wav' : 'webm'}`;
+    const { body, contentType } = buildMultipartBody({
+        fields: {
+            model: model || 'TeleAI/TeleSpeechASR'
+        },
+        fileFieldName: 'file',
+        fileName,
+        fileBuffer,
+        fileContentType: mimeType || 'audio/wav'
+    });
+
+    const res = await fetchWithTimeout('https://api.siliconflow.cn/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: {
+            Accept: 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': contentType,
+            'Content-Length': String(body.length)
+        },
+        body
+    }, 120000);
+
+    const text = await res.text();
+    const data = safeJsonParse(text);
+
+    if (!res.ok) {
+        const msg = (data && data.error && data.error.message)
+            || (data && data.message)
+            || (typeof data === 'string' ? data : '')
+            || `HTTP ${res.status}`;
+        throw new Error(`HTTP ${res.status}: ${msg}`);
+    }
+
+    const outText = data && typeof data.text === 'string' ? data.text.trim() : '';
+    if (!outText) {
+        throw new Error('硅基流动未返回可用转写文本');
+    }
+    return outText;
 }
 
 function buildMultipartBody({ fields, fileFieldName, fileName, fileBuffer, fileContentType }) {
