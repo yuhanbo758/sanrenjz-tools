@@ -6,10 +6,18 @@ const http = require('http');
 const https = require('https');
 
 let autoUpdater = null;
+let autoUpdaterLoadError = '';
 try {
     autoUpdater = require('electron-updater').autoUpdater;
 } catch (error) {
-    console.warn('自动更新模块不可用:', error.message || error);
+    autoUpdaterLoadError = error?.stack || error?.message || String(error);
+    console.warn('自动更新模块不可用:', autoUpdaterLoadError);
+}
+
+function assertAutoUpdaterAvailable() {
+    if (autoUpdater) return;
+    const detail = autoUpdaterLoadError ? `: ${autoUpdaterLoadError}` : '';
+    throw new Error(`自动更新模块不可用，请确认安装包已包含 electron-updater 及其依赖${detail}`);
 }
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
@@ -677,7 +685,7 @@ function configureAutoUpdater(source, token = '') {
 }
 
 async function checkForToolsUpdates() {
-    if (!autoUpdater) throw new Error('自动更新模块不可用，请确认 electron-updater 已安装');
+    assertAutoUpdaterAvailable();
     const token = readAccountToken();
     const access = await fetchToolsAccess();
     const preferredSource = access.authenticated && access.canDownloadUpdates ? 'object-storage' : 'github';
@@ -2797,7 +2805,7 @@ ipcMain.handle('update:check', async () => {
 });
 
 ipcMain.handle('update:download', async () => {
-    if (!autoUpdater) throw new Error('自动更新模块不可用');
+    assertAutoUpdaterAvailable();
     if (lastUpdateSource === 'github') {
         const version = String(lastCheckedUpdateInfo?.version || '').trim();
         if (!version) {
@@ -2827,7 +2835,7 @@ ipcMain.handle('update:install', async () => {
         app.quit();
         return { success: true, mode: 'manual-github' };
     }
-    if (!autoUpdater) throw new Error('自动更新模块不可用');
+    assertAutoUpdaterAvailable();
     autoUpdater.quitAndInstall(false, true);
     return { success: true };
 });
