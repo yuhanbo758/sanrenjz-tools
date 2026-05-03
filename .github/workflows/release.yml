@@ -85,7 +85,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-dist
-          path: dist/**
+          path: |
+            dist/*.exe
+            dist/*.blockmap
+            dist/latest*.yml
+            dist/*.yml
           if-no-files-found: error
 
   build-macos:
@@ -116,7 +120,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: macos-dist
-          path: dist/**
+          path: |
+            dist/*-mac-*.zip
+            dist/*-mac-*.zip.blockmap
+            dist/latest*.yml
+            dist/*.yml
           if-no-files-found: error
 
   publish-release:
@@ -146,6 +154,8 @@ jobs:
           TAG: ${{ needs.prepare-release.outputs.tag }}
           TARGET_SHA: ${{ needs.prepare-release.outputs.commit_sha }}
         run: |
+          gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes 2>/dev/null || true
+
           gh release create "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$TARGET_SHA" \
