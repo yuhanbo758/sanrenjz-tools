@@ -23,12 +23,12 @@ jobs:
       commit_sha: ${{ steps.commit.outputs.sha }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: "npm"
@@ -62,12 +62,12 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ needs.prepare-release.outputs.commit_sha }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: "npm"
@@ -82,10 +82,13 @@ jobs:
         run: npm run build-win -- --publish never
 
       - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: windows-dist
-          path: dist/**
+          path: |
+            dist/*-x64.exe
+            dist/*-x64.exe.blockmap
+            dist/latest.yml
           if-no-files-found: error
 
   build-macos:
@@ -93,12 +96,12 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ needs.prepare-release.outputs.commit_sha }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: "npm"
@@ -110,13 +113,16 @@ jobs:
       - name: Build macOS artifacts
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: npm run build-mac -- --publish never
+        run: npx electron-builder --mac zip --publish never
 
       - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: macos-dist
-          path: dist/**
+          path: |
+            dist/*-mac-*.zip
+            dist/*-mac-*.zip.blockmap
+            dist/latest-mac.yml
           if-no-files-found: error
 
   publish-release:
@@ -127,13 +133,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download Windows artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: windows-dist
           path: release-assets/windows
 
       - name: Download macOS artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: macos-dist
           path: release-assets/macos
@@ -146,6 +152,8 @@ jobs:
           TAG: ${{ needs.prepare-release.outputs.tag }}
           TARGET_SHA: ${{ needs.prepare-release.outputs.commit_sha }}
         run: |
+          gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes 2>/dev/null || true
+
           gh release create "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$TARGET_SHA" \

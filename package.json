@@ -1,6 +1,6 @@
 {
   "name": "sanrenjz-tools",
-  "version": "2.9.0",
+  "version": "2.14.0",
   "description": "三人聚智效率工具 - 基于JavaScript的插件平台",
   "main": "main.js",
   "scripts": {
@@ -128,7 +128,7 @@
       ],
       "icon": "build/icon.ico",
       "requestedExecutionLevel": "asInvoker",
-      "artifactName": "${productName}-${version}-win-${arch}.${ext}"
+      "artifactName": "sanrenjz-tools-${version}-win-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -147,7 +147,7 @@
       "language": "2052",
       "deleteAppDataOnUninstall": false,
       "runAfterFinish": true,
-      "artifactName": "${productName}-${version}-${arch}.${ext}"
+      "artifactName": "sanrenjz-tools-${version}-${arch}.${ext}"
     },
     "mac": {
       "target": [
@@ -172,7 +172,7 @@
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "icon": "build/icon.icns",
-      "artifactName": "${productName}-${version}-mac-${arch}.${ext}"
+      "artifactName": "sanrenjz-tools-${version}-mac-${arch}.${ext}"
     },
     "dmg": {
       "title": "三人聚智效率工具",
@@ -212,7 +212,7 @@
       ],
       "category": "Utility",
       "icon": "build/icon.png",
-      "artifactName": "${productName}-${version}-linux-${arch}.${ext}",
+      "artifactName": "sanrenjz-tools-${version}-linux-${arch}.${ext}",
       "desktop": {
         "Name": "三人聚智效率工具",
         "Comment": "基于JavaScript的插件平台",
