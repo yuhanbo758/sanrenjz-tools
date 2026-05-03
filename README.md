@@ -746,7 +746,7 @@ npm run dev
 
 ### 开发指南
 
-详细的插件开发指南请参考：[插件开发AI提示词文档](./sanrenjz-tools插件开发AI提示词，只需增加需求，便可开发属于自己的插件.md)
+详细的插件开发指南请参考根目录下的 AI 提示词文档，该文档包含完整的插件开发规范和示例代码，可直接用于 AI 辅助开发。
 
 ## 🛠 故障排除
 
@@ -803,8 +803,7 @@ sanrenjz-tools/
 │   ├── 🖼️ icon.png               # Linux 图标
 │   └── 📄 entitlements.mac.plist  # macOS 权限配置
 ├── 📖 README.md                   # 项目说明
-├── 📖 使用说明.md                  # 详细使用说明
-└── 📖 sanrenjz-tools插件开发AI提示词，只需增加需求，便可开发属于自己的插件.md
+└── 📖 sanrenjz-tools插件开发AI提示词.md  # 插件开发 AI 辅助提示词
 ```
 
 ## 🤝 贡献指南

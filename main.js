@@ -1,7 +1,21 @@
-const { app, BrowserWindow, ipcMain, globalShortcut, Menu, Tray, nativeImage, shell, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, Menu, Tray, nativeImage, shell, dialog, session, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { exec, spawn } = require('child_process');
+const http = require('http');
+const https = require('https');
+
+let autoUpdater = null;
+try {
+    autoUpdater = require('electron-updater').autoUpdater;
+} catch (error) {
+    console.warn('自动更新模块不可用:', error.message || error);
+}
+
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+    app.quit();
+}
 
 // 初始化remote模块 - 需要在app ready之后
 let remoteMain;
@@ -33,6 +47,24 @@ let lastActiveWindow = null; // 记录最后活动的窗口句柄
 let isSuperPanelFocusListenerRegistered = false;
 let superPanelChildWindows = new Set();
 
+const SHOP_BASE_URL = process.env.SANRENJZ_TOOLS_SHOP_BASE_URL || 'https://shop.sanrenjz.com';
+const SHOP_MEMBER_CENTER_URL = `${SHOP_BASE_URL}/member-center`;
+const SHOP_TOOLS_STORE_URL = `${SHOP_BASE_URL}/tools`;
+const SHOP_HOSTNAME = new URL(SHOP_BASE_URL).hostname;
+const SHOP_DOWNLOAD_HOSTNAME = 'xz.sanrenjz.com';
+const TOOLS_UPDATE_GENERIC_URL = process.env.SANRENJZ_TOOLS_UPDATE_GENERIC_URL || 'https://xz.sanrenjz.com/Download/tools/';
+const TOOLS_GITHUB_OWNER = 'yuhanbo758';
+const TOOLS_GITHUB_REPO = 'sanrenjz-tools';
+const TOOLS_GITHUB_RELEASES_API = `https://api.github.com/repos/${TOOLS_GITHUB_OWNER}/${TOOLS_GITHUB_REPO}/releases`;
+const ACCOUNT_TOKEN_FILE = 'account-token.bin';
+const BUILTIN_BROWSER_PARTITION = 'persist:sanrenjz-tools-shop';
+const SUPPORTED_PLUGIN_DOWNLOAD_EXTENSIONS = new Set(['.zip']);
+let cachedAccount = null;
+let lastUpdateSource = 'github';
+let lastCheckedUpdateInfo = null;
+let pendingManualUpdate = null;
+let builtinSessionEventsBound = false;
+
 function trackSuperPanelChildWindow(windowInstance) {
     if (!windowInstance) {
         return;
@@ -55,6 +87,620 @@ function hasActiveSuperPanelChildWindow() {
         }
     }
     return hasActive;
+}
+
+function toSerializable(value) {
+    if (value == null) return value;
+    try {
+        return JSON.parse(JSON.stringify(value));
+    } catch (_) {
+        if (value instanceof Error) {
+            return { message: value.message || String(value), stack: value.stack || '' };
+        }
+        return { message: String(value) };
+    }
+}
+
+function sendRendererEvent(channel, payload = {}) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(channel, toSerializable(payload));
+    }
+}
+
+function ensureDir(dirPath) {
+    fs.mkdirSync(dirPath, { recursive: true });
+    return dirPath;
+}
+
+function sanitizeFileName(fileName) {
+    return String(fileName || 'download')
+        .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+        .replace(/\s+/g, ' ')
+        .trim() || 'download';
+}
+
+function normalizeAssetName(value) {
+    return String(value || '').trim().toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]+/g, '');
+}
+
+function getBuiltinSession() {
+    return session.fromPartition(BUILTIN_BROWSER_PARTITION);
+}
+
+function isShopDomain(domain) {
+    const normalized = String(domain || '').replace(/^\./, '').toLowerCase();
+    return normalized === SHOP_HOSTNAME || normalized.endsWith(`.${SHOP_HOSTNAME}`);
+}
+
+function isShopUrl(rawUrl) {
+    try {
+        return isShopDomain(new URL(rawUrl).hostname);
+    } catch (_) {
+        return false;
+    }
+}
+
+function isPluginDownloadUrl(rawUrl) {
+    try {
+        const hostname = new URL(rawUrl).hostname.toLowerCase();
+        return isShopDomain(hostname) || hostname === SHOP_DOWNLOAD_HOSTNAME;
+    } catch (_) {
+        return false;
+    }
+}
+
+function isSupportedPluginDownload(fileName) {
+    return SUPPORTED_PLUGIN_DOWNLOAD_EXTENSIONS.has(path.extname(String(fileName || '')).toLowerCase());
+}
+
+function isDirectPluginDownloadUrl(rawUrl) {
+    try {
+        const parsed = new URL(rawUrl);
+        return parsed.hostname.toLowerCase() === SHOP_DOWNLOAD_HOSTNAME || isSupportedPluginDownload(parsed.pathname);
+    } catch (_) {
+        return false;
+    }
+}
+
+function getPluginInstallDir() {
+    if (pluginManager?.pluginDir) return pluginManager.pluginDir;
+    return app.isPackaged
+        ? path.join(process.resourcesPath, 'app', 'software')
+        : path.join(__dirname, 'app', 'software');
+}
+
+function uniquePath(filePath) {
+    if (!fs.existsSync(filePath)) return filePath;
+    const parsed = path.parse(filePath);
+    let counter = 1;
+    while (true) {
+        const candidate = path.join(parsed.dir, `${parsed.name}_${counter}${parsed.ext}`);
+        if (!fs.existsSync(candidate)) return candidate;
+        counter += 1;
+    }
+}
+
+function removePath(targetPath) {
+    try { fs.rmSync(targetPath, { recursive: true, force: true }); } catch (_) { }
+}
+
+function findPluginRoots(rootDir) {
+    const matches = [];
+    const queue = [rootDir];
+    while (queue.length) {
+        const current = queue.shift();
+        if (!fs.existsSync(current)) continue;
+        const pluginJsonPath = path.join(current, 'plugin.json');
+        if (fs.existsSync(pluginJsonPath)) {
+            matches.push(current);
+            continue;
+        }
+        for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+            if (entry.isDirectory() && entry.name !== 'node_modules' && entry.name !== '.git') {
+                queue.push(path.join(current, entry.name));
+            }
+        }
+    }
+    return matches;
+}
+
+function copyDirectoryContents(sourceDir, targetDir) {
+    fs.mkdirSync(targetDir, { recursive: true });
+    fs.cpSync(sourceDir, targetDir, { recursive: true, force: true });
+}
+
+function extractArchive(archivePath, destinationDir) {
+    fs.mkdirSync(destinationDir, { recursive: true });
+    return new Promise((resolve, reject) => {
+        const archive = archivePath.replace(/'/g, "''");
+        const destination = destinationDir.replace(/'/g, "''");
+        const child = spawn('powershell.exe', [
+            '-NoLogo',
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            `$OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new(); Expand-Archive -LiteralPath '${archive}' -DestinationPath '${destination}' -Force`
+        ], {
+            windowsHide: true,
+            env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' }
+        });
+        let stderr = '';
+        child.stderr.on('data', (chunk) => { stderr += chunk.toString('utf8'); });
+        child.on('error', reject);
+        child.on('exit', (code) => {
+            if (code === 0) resolve();
+            else reject(new Error(stderr.trim() || '解压插件包失败'));
+        });
+    });
+}
+
+async function installDownloadedPlugin(downloadPath) {
+    const fileName = path.basename(downloadPath);
+    const ext = path.extname(fileName).toLowerCase();
+    if (!isSupportedPluginDownload(fileName)) {
+        throw new Error(`暂不支持自动安装 ${ext || '该类型'} 文件，请下载 zip 插件包`);
+    }
+
+    const installDir = getPluginInstallDir();
+    const downloadsDir = path.dirname(downloadPath);
+    const extractDir = uniquePath(path.join(downloadsDir, `${path.parse(fileName).name}_unzipped`));
+    try {
+        await extractArchive(downloadPath, extractDir);
+        const pluginRoots = findPluginRoots(extractDir);
+        if (pluginRoots.length === 0) {
+            throw new Error('下载内容中没有找到 plugin.json，无法识别为插件');
+        }
+        const installed = [];
+        for (const pluginRoot of pluginRoots) {
+            const pluginConfig = JSON.parse(fs.readFileSync(path.join(pluginRoot, 'plugin.json'), 'utf8'));
+            const pluginName = sanitizeFileName(pluginConfig.pluginName || path.basename(pluginRoot));
+            const targetDir = path.join(installDir, pluginName);
+            removePath(targetDir);
+            copyDirectoryContents(pluginRoot, targetDir);
+            installed.push({ name: pluginName, path: targetDir });
+        }
+        return installed;
+    } finally {
+        removePath(extractDir);
+        removePath(downloadPath);
+    }
+}
+
+function sendPluginDownloadEvent(payload = {}) {
+    sendRendererEvent('plugins:download', payload);
+}
+
+function bindBuiltinSessionEvents() {
+    if (builtinSessionEventsBound) return;
+    builtinSessionEventsBound = true;
+    const builtinSession = getBuiltinSession();
+    builtinSession.on('will-download', (event, item, webContents) => {
+        const sourceUrl = item.getURL() || webContents?.getURL() || '';
+        const fileName = sanitizeFileName(item.getFilename());
+        if (!isPluginDownloadUrl(sourceUrl) && !isSupportedPluginDownload(fileName)) return;
+        if (!isSupportedPluginDownload(fileName)) {
+            event.preventDefault();
+            sendPluginDownloadEvent({ type: 'error', fileName, message: '仅支持自动安装 zip 插件包' });
+            return;
+        }
+        const downloadsDir = ensureDir(path.join(getPluginInstallDir(), '.downloads'));
+        const savePath = uniquePath(path.join(downloadsDir, fileName));
+        item.setSavePath(savePath);
+        sendPluginDownloadEvent({ type: 'started', fileName: path.basename(savePath) });
+        item.on('done', async (_downloadEvent, state) => {
+            if (state !== 'completed') {
+                sendPluginDownloadEvent({ type: 'error', fileName: path.basename(savePath), message: `下载未完成：${state}` });
+                return;
+            }
+            try {
+                const installed = await installDownloadedPlugin(savePath);
+                sendPluginDownloadEvent({ type: 'completed', fileName: path.basename(savePath), installed });
+                sendRendererEvent('plugins:changed', { installed });
+            } catch (error) {
+                sendPluginDownloadEvent({ type: 'error', fileName: path.basename(savePath), message: error.message || String(error) });
+            }
+        });
+    });
+}
+
+function tokenPath() {
+    return path.join(app.getPath('userData'), ACCOUNT_TOKEN_FILE);
+}
+
+function saveAccountToken(token) {
+    const file = tokenPath();
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const encrypted = safeStorage && safeStorage.isEncryptionAvailable()
+        ? safeStorage.encryptString(String(token))
+        : Buffer.from(String(token), 'utf8');
+    fs.writeFileSync(file, encrypted);
+}
+
+function readAccountToken() {
+    const file = tokenPath();
+    if (!fs.existsSync(file)) return '';
+    const data = fs.readFileSync(file);
+    try {
+        if (safeStorage && safeStorage.isEncryptionAvailable()) {
+            return safeStorage.decryptString(data);
+        }
+    } catch (_) { }
+    return data.toString('utf8');
+}
+
+function clearAccountToken() {
+    try { fs.unlinkSync(tokenPath()); } catch (_) { }
+}
+
+async function readTokenFromWebContents(webContents) {
+    if (!webContents || webContents.isDestroyed()) return '';
+    try {
+        if (!isShopUrl(webContents.getURL())) return '';
+        const token = await webContents.executeJavaScript(`(() => {
+            try { return String(window.localStorage.getItem('token') || ''); }
+            catch (_) { return ''; }
+        })()`, true);
+        return String(token || '').trim();
+    } catch (_) {
+        return '';
+    }
+}
+
+async function syncAccountFromWebContents(webContents) {
+    const token = await readTokenFromWebContents(webContents);
+    if (token) {
+        saveAccountToken(token);
+    } else if (isShopUrl(webContents?.getURL?.())) {
+        clearAccountToken();
+    }
+    cachedAccount = await loadAccountSnapshot();
+    sendRendererEvent('account:changed', cachedAccount || { authenticated: false, canDownloadUpdates: false, user: null });
+    return cachedAccount;
+}
+
+async function clearShopSession() {
+    const builtinSession = getBuiltinSession();
+    try {
+        await builtinSession.clearStorageData({ origin: SHOP_BASE_URL, storages: ['localstorage'] });
+    } catch (_) { }
+    const cookies = await builtinSession.cookies.get({ url: SHOP_BASE_URL });
+    for (const cookie of cookies) {
+        const domain = String(cookie.domain || '').replace(/^\./, '');
+        const protocol = cookie.secure ? 'https://' : 'http://';
+        const cookieUrl = `${protocol}${domain}${cookie.path || '/'}`;
+        try { await builtinSession.cookies.remove(cookieUrl, cookie.name); } catch (_) { }
+    }
+}
+
+async function shopRequest(apiPath, options = {}) {
+    const fetchImpl = global.fetch;
+    if (typeof fetchImpl !== 'function') {
+        throw new Error('当前 Electron 运行时不支持 fetch');
+    }
+    const headers = {
+        Accept: 'application/json, text/plain, */*',
+        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(options.headers || {})
+    };
+    const token = String(options.token || '').trim();
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const response = await fetchImpl(`${SHOP_BASE_URL}${apiPath}`, {
+        method: options.method || 'GET',
+        headers,
+        body: options.body ? JSON.stringify(options.body) : undefined
+    });
+    const text = await response.text();
+    let payload = {};
+    try { payload = text ? JSON.parse(text) : {}; } catch (_) { payload = { raw: text }; }
+    if (!response.ok) {
+        throw new Error(payload?.message || payload?.error || payload?.detail || `请求失败: ${response.status}`);
+    }
+    return payload;
+}
+
+async function shopSessionRequest(apiPath, options = {}) {
+    const token = String(options.token || readAccountToken() || '').trim();
+    if (!token) throw new Error('未登录');
+    const builtinSession = getBuiltinSession();
+    if (typeof builtinSession.fetch !== 'function') {
+        return shopRequest(apiPath, { ...options, token });
+    }
+    const headers = {
+        Accept: 'application/json, text/plain, */*',
+        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        Authorization: `Bearer ${token}`,
+        ...(options.headers || {})
+    };
+    const response = await builtinSession.fetch(`${SHOP_BASE_URL}${apiPath}`, {
+        method: options.method || 'GET',
+        headers,
+        body: options.body ? JSON.stringify(options.body) : undefined,
+        credentials: 'include'
+    });
+    const text = await response.text();
+    let payload = {};
+    try { payload = text ? JSON.parse(text) : {}; } catch (_) { payload = { raw: text }; }
+    if (!response.ok) {
+        throw new Error(payload?.message || payload?.error || payload?.detail || `请求失败: ${response.status}`);
+    }
+    return payload;
+}
+
+function isToolsMember(accessPayload) {
+    const payload = accessPayload?.data || accessPayload || {};
+    if (payload.canDownloadUpdates === true) return true;
+    if (payload.entitlements?.canDownloadUpdates === true) return true;
+    const memberships = payload.entitlements?.activeMemberships || payload.activeMemberships || [];
+    return memberships.some((item) => {
+        const key = item?.planKey || item?.typeCategory || item?.category || item;
+        return key === 'tools' || key === 'all';
+    });
+}
+
+async function loadAccountSnapshotFromSession() {
+    try {
+        const token = readAccountToken();
+        if (!token) return { authenticated: false, canDownloadUpdates: false };
+        const [me, access] = await Promise.all([
+            shopSessionRequest('/api/users/electron/me?typeCategory=tools', { token }),
+            shopSessionRequest('/api/users/electron/access?typeCategory=tools', { token })
+        ]);
+        return {
+            authenticated: true,
+            user: toSerializable(me?.user || me?.data?.user || me?.data || me),
+            canDownloadUpdates: isToolsMember(access)
+        };
+    } catch (error) {
+        return { authenticated: false, canDownloadUpdates: false, error: error.message || String(error) };
+    }
+}
+
+async function fetchToolsAccess() {
+    const sessionAccess = await loadAccountSnapshotFromSession();
+    if (sessionAccess.authenticated) {
+        return {
+            authenticated: true,
+            canDownloadUpdates: Boolean(sessionAccess.canDownloadUpdates)
+        };
+    }
+    const token = readAccountToken();
+    if (!token) return { authenticated: false, canDownloadUpdates: false };
+    try {
+        const payload = await shopRequest('/api/users/electron/access?typeCategory=tools', { token });
+        return { authenticated: true, canDownloadUpdates: isToolsMember(payload) };
+    } catch (error) {
+        return { authenticated: false, canDownloadUpdates: false, error: error.message || String(error) };
+    }
+}
+
+async function loadAccountSnapshot() {
+    const sessionSnapshot = await loadAccountSnapshotFromSession();
+    if (sessionSnapshot.authenticated) return sessionSnapshot;
+    const token = readAccountToken();
+    if (!token) return { authenticated: false, canDownloadUpdates: false, user: null };
+    try {
+        const [me, access] = await Promise.all([
+            shopRequest('/api/users/electron/me?typeCategory=tools', { token }),
+            fetchToolsAccess()
+        ]);
+        return {
+            authenticated: true,
+            user: toSerializable(me?.user || me?.data?.user || me?.data || me),
+            canDownloadUpdates: Boolean(access.canDownloadUpdates)
+        };
+    } catch (error) {
+        return { authenticated: false, canDownloadUpdates: false, user: null, error: error.message || String(error) };
+    }
+}
+
+function openBuiltinBrowserWindow(url) {
+    bindBuiltinSessionEvents();
+    const browserWin = new BrowserWindow({
+        width: 1100,
+        height: 750,
+        minWidth: 640,
+        minHeight: 480,
+        title: '程序小店',
+        icon: getIconPath(),
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            session: getBuiltinSession()
+        }
+    });
+    browserWin.loadURL(url);
+    const syncAccountState = () => {
+        syncAccountFromWebContents(browserWin.webContents).catch(() => { });
+    };
+    browserWin.webContents.on('did-finish-load', syncAccountState);
+    browserWin.webContents.on('did-navigate-in-page', syncAccountState);
+    browserWin.webContents.on('did-navigate', syncAccountState);
+    browserWin.webContents.on('will-navigate', (event, targetUrl) => {
+        if (!isDirectPluginDownloadUrl(targetUrl)) return;
+        event.preventDefault();
+        browserWin.webContents.downloadURL(targetUrl);
+    });
+    browserWin.webContents.setWindowOpenHandler(({ url: newUrl }) => {
+        if (isDirectPluginDownloadUrl(newUrl)) {
+            browserWin.webContents.downloadURL(newUrl);
+            return { action: 'deny' };
+        }
+        openBuiltinBrowserWindow(newUrl);
+        return { action: 'deny' };
+    });
+    browserWin.webContents.on('page-title-updated', (_event, title) => {
+        browserWin.setTitle(title || '程序小店');
+    });
+    return browserWin;
+}
+
+function sendUpdateEvent(type, payload = {}) {
+    sendRendererEvent('update:status', { type, source: lastUpdateSource, ...payload });
+}
+
+async function fetchGithubReleaseByVersion(version) {
+    const fetchImpl = global.fetch;
+    if (typeof fetchImpl !== 'function') {
+        throw new Error('当前 Electron 运行时不支持 GitHub Release 查询');
+    }
+    const tag = String(version || '').trim().replace(/^v/i, '');
+    if (!tag) throw new Error('缺少可下载的版本号，请先重新检查更新');
+    const response = await fetchImpl(`${TOOLS_GITHUB_RELEASES_API}/tags/v${encodeURIComponent(tag)}`, {
+        headers: {
+            Accept: 'application/vnd.github+json',
+            'User-Agent': 'sanrenjz-tools-updater'
+        }
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(payload?.message || `查询 GitHub Release 失败: ${response.status}`);
+    }
+    return payload;
+}
+
+function resolveGithubInstallerAsset(releasePayload, version) {
+    const assets = Array.isArray(releasePayload?.assets) ? releasePayload.assets : [];
+    const normalizedVersion = String(version || '').trim().replace(/^v/i, '');
+    const expectedNames = [
+        `Sanrenjz-Tools-Setup-${normalizedVersion}-x64.exe`,
+        `Sanrenjz Tools Setup ${normalizedVersion} x64.exe`,
+        `sanrenjz-tools-${normalizedVersion}-x64.exe`,
+        `三人聚智效率工具-${normalizedVersion}-x64.exe`,
+        `三人聚智效率工具-${normalizedVersion}-win-x64.exe`
+    ];
+    const expectedNameSet = new Set(expectedNames.map((item) => normalizeAssetName(item)));
+    let asset = assets.find((item) => expectedNameSet.has(normalizeAssetName(item?.name)));
+    if (!asset) {
+        asset = assets.find((item) => {
+            const name = String(item?.name || '');
+            return /\.exe$/i.test(name) && name.includes(normalizedVersion) && !/portable/i.test(name);
+        });
+    }
+    if (!asset?.browser_download_url) {
+        throw new Error(`未找到 ${normalizedVersion} 对应的安装包资源`);
+    }
+    return asset;
+}
+
+function downloadFileWithRedirects(url, destinationPath, onProgress, redirectCount = 0) {
+    if (redirectCount > 5) return Promise.reject(new Error('下载重定向次数过多'));
+    return new Promise((resolve, reject) => {
+        const transport = String(url).startsWith('https:') ? https : http;
+        const request = transport.get(url, {
+            headers: {
+                'User-Agent': 'sanrenjz-tools-updater',
+                Accept: 'application/octet-stream'
+            }
+        }, (response) => {
+            const statusCode = Number(response.statusCode || 0);
+            const redirectLocation = response.headers.location;
+            if ([301, 302, 303, 307, 308].includes(statusCode) && redirectLocation) {
+                response.resume();
+                resolve(downloadFileWithRedirects(new URL(redirectLocation, url).toString(), destinationPath, onProgress, redirectCount + 1));
+                return;
+            }
+            if (statusCode !== 200) {
+                response.resume();
+                reject(new Error(`下载安装包失败，状态码: ${statusCode}`));
+                return;
+            }
+            fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
+            const fileStream = fs.createWriteStream(destinationPath);
+            const totalBytes = Number(response.headers['content-length'] || 0);
+            let receivedBytes = 0;
+            let settled = false;
+            const fail = (error) => {
+                if (settled) return;
+                settled = true;
+                try { fileStream.destroy(); } catch (_) { }
+                try { fs.unlinkSync(destinationPath); } catch (_) { }
+                reject(error);
+            };
+            response.on('data', (chunk) => {
+                receivedBytes += chunk.length;
+                if (typeof onProgress === 'function') {
+                    onProgress({
+                        percent: totalBytes > 0 ? (receivedBytes / totalBytes) * 100 : 0,
+                        transferred: receivedBytes,
+                        total: totalBytes
+                    });
+                }
+            });
+            response.on('error', fail);
+            fileStream.on('error', fail);
+            fileStream.on('finish', () => {
+                if (settled) return;
+                settled = true;
+                fileStream.close(() => resolve(destinationPath));
+            });
+            response.pipe(fileStream);
+        });
+        request.on('error', (error) => {
+            try { fs.unlinkSync(destinationPath); } catch (_) { }
+            reject(error);
+        });
+    });
+}
+
+async function downloadGithubReleaseInstaller(version) {
+    const releasePayload = await fetchGithubReleaseByVersion(version);
+    const installerAsset = resolveGithubInstallerAsset(releasePayload, version);
+    const updatesDir = ensureDir(path.join(app.getPath('userData'), 'updates'));
+    const targetPath = path.join(updatesDir, sanitizeFileName(installerAsset.name || `Sanrenjz-Tools-Setup-${version}-x64.exe`));
+    pendingManualUpdate = null;
+    sendUpdateEvent('download-progress', {
+        progress: { percent: 0, transferred: 0, total: Number(installerAsset.size || 0) }
+    });
+    await downloadFileWithRedirects(installerAsset.browser_download_url, targetPath, (progress) => {
+        sendUpdateEvent('download-progress', { progress });
+    });
+    pendingManualUpdate = { installerPath: targetPath, version: String(version || '').trim(), source: 'github' };
+    sendUpdateEvent('downloaded', {
+        info: lastCheckedUpdateInfo,
+        message: '安装包已下载，点击“安装重启”启动安装程序'
+    });
+    return { success: true, path: targetPath, mode: 'manual-github' };
+}
+
+function configureAutoUpdater(source, token = '') {
+    if (!autoUpdater) return;
+    autoUpdater.autoDownload = false;
+    autoUpdater.autoInstallOnAppQuit = true;
+    const useGenericFeed = source === 'object-storage';
+    autoUpdater.requestHeaders = useGenericFeed && token ? { Authorization: `Bearer ${token}` } : {};
+    lastUpdateSource = useGenericFeed ? 'object-storage' : 'github';
+    if (useGenericFeed) {
+        autoUpdater.setFeedURL({ provider: 'generic', url: TOOLS_UPDATE_GENERIC_URL });
+    } else {
+        autoUpdater.setFeedURL({ provider: 'github', owner: TOOLS_GITHUB_OWNER, repo: TOOLS_GITHUB_REPO });
+    }
+}
+
+async function checkForToolsUpdates() {
+    if (!autoUpdater) throw new Error('自动更新模块不可用，请确认 electron-updater 已安装');
+    const token = readAccountToken();
+    const access = await fetchToolsAccess();
+    const preferredSource = access.authenticated && access.canDownloadUpdates ? 'object-storage' : 'github';
+    configureAutoUpdater(preferredSource, token);
+    const result = await autoUpdater.checkForUpdates();
+    lastCheckedUpdateInfo = toSerializable(result?.updateInfo || null);
+    pendingManualUpdate = null;
+    return {
+        success: true,
+        source: lastUpdateSource,
+        canDownloadUpdates: Boolean(access.canDownloadUpdates),
+        updateInfo: lastCheckedUpdateInfo
+    };
+}
+
+function bindAutoUpdaterEvents() {
+    if (!autoUpdater) return;
+    autoUpdater.on('checking-for-update', () => sendUpdateEvent('checking'));
+    autoUpdater.on('update-available', (info) => sendUpdateEvent('available', { info }));
+    autoUpdater.on('update-not-available', (info) => sendUpdateEvent('not-available', { info }));
+    autoUpdater.on('download-progress', (progress) => sendUpdateEvent('download-progress', { progress }));
+    autoUpdater.on('update-downloaded', (info) => sendUpdateEvent('downloaded', { info }));
+    autoUpdater.on('error', (error) => sendUpdateEvent('error', { message: error.message || String(error) }));
 }
 
 // 快捷搜索热键节流控制
@@ -2104,6 +2750,88 @@ ipcMain.handle('save-settings', (event, settings) => {
     }
 });
 
+ipcMain.handle('get-version', () => app.getVersion());
+
+ipcMain.handle('account:login', async () => {
+    openBuiltinBrowserWindow(SHOP_MEMBER_CENTER_URL);
+    return { success: true, loginMode: 'browser', url: SHOP_MEMBER_CENTER_URL };
+});
+
+ipcMain.handle('account:logout', async () => {
+    await clearShopSession();
+    clearAccountToken();
+    cachedAccount = null;
+    sendRendererEvent('account:changed', { authenticated: false, canDownloadUpdates: false, user: null, reason: 'logout' });
+    return { authenticated: false, canDownloadUpdates: false, user: null };
+});
+
+ipcMain.handle('account:me', async () => {
+    cachedAccount = await loadAccountSnapshot();
+    return toSerializable(cachedAccount);
+});
+
+ipcMain.handle('account:access', async () => {
+    return toSerializable(await fetchToolsAccess());
+});
+
+ipcMain.handle('shop:open-member-center', async () => {
+    openBuiltinBrowserWindow(SHOP_MEMBER_CENTER_URL);
+    return { success: true };
+});
+
+ipcMain.handle('shop:open-tools-store', async () => {
+    openBuiltinBrowserWindow(SHOP_TOOLS_STORE_URL);
+    return { success: true };
+});
+
+ipcMain.handle('open-plugin-install-directory', async () => {
+    const pluginDir = getPluginInstallDir();
+    fs.mkdirSync(pluginDir, { recursive: true });
+    const error = await shell.openPath(pluginDir);
+    if (error) throw new Error(error);
+    return { success: true, path: pluginDir };
+});
+
+ipcMain.handle('update:check', async () => {
+    return checkForToolsUpdates();
+});
+
+ipcMain.handle('update:download', async () => {
+    if (!autoUpdater) throw new Error('自动更新模块不可用');
+    if (lastUpdateSource === 'github') {
+        const version = String(lastCheckedUpdateInfo?.version || '').trim();
+        if (!version) {
+            throw new Error('尚未获得可下载的新版本，请先检查更新');
+        }
+        return downloadGithubReleaseInstaller(version);
+    }
+    pendingManualUpdate = null;
+    await autoUpdater.downloadUpdate();
+    return { success: true, mode: 'electron-updater' };
+});
+
+ipcMain.handle('update:install', async () => {
+    if (pendingManualUpdate?.installerPath) {
+        const installerPath = pendingManualUpdate.installerPath;
+        if (!fs.existsSync(installerPath)) {
+            pendingManualUpdate = null;
+            throw new Error('已下载的安装包不存在，请重新下载更新');
+        }
+        const child = spawn(installerPath, [], {
+            detached: true,
+            stdio: 'ignore',
+            windowsHide: false
+        });
+        child.unref();
+        pendingManualUpdate = null;
+        app.quit();
+        return { success: true, mode: 'manual-github' };
+    }
+    if (!autoUpdater) throw new Error('自动更新模块不可用');
+    autoUpdater.quitAndInstall(false, true);
+    return { success: true };
+});
+
 // 隐藏搜索窗口
 ipcMain.handle('hide-search-window', async (event, options = {}) => {
     if (searchWindow && !searchWindow.isDestroyed()) {
@@ -3394,9 +4122,30 @@ ipcMain.on('plugin-auto-separate-changed', (event, { pluginName, value }) => {
 
 // 应用程序生命周期事件
 
+app.on('second-instance', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+        createWindow();
+        return;
+    }
+    if (!mainWindow.isVisible()) {
+        mainWindow.show();
+    }
+    if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+    }
+    mainWindow.focus();
+    mainWindow.setAlwaysOnTop(true);
+    setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.setAlwaysOnTop(false);
+        }
+    }, 100);
+});
+
 // 当Electron完成初始化时创建窗口
 app.whenReady().then(async () => {
     try {
+        if (!gotSingleInstanceLock) return;
         configureLoggingAndCache();
         // 初始化remote模块
         if (remoteMain) {
@@ -3410,6 +4159,8 @@ app.whenReady().then(async () => {
         PluginManager = require(app.isPackaged
             ? path.join(process.resourcesPath, 'app', 'software_manager.js')
             : './app/software_manager.js');
+        bindAutoUpdaterEvents();
+        bindBuiltinSessionEvents();
 
         // 在应用准备就绪时就设置空菜单，确保所有平台都生效
         Menu.setApplicationMenu(null);

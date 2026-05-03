@@ -11,6 +11,7 @@
     "build-win": "electron-builder --win --x64",
     "build-mac": "electron-builder --mac",
     "build-linux": "electron-builder --linux",
+    "release-win": "electron-builder --win --x64 --publish always",
     "dist": "npm run build-all",
     "clean": "rimraf dist build-output *.log *.tmp *.temp settings.json plugin-data user-data",
     "rebuild": "npm run clean && npm install && npm start",
@@ -36,7 +37,8 @@
   ],
   "dependencies": {
     "@electron/remote": "^2.1.2",
-    "axios": "^1.6.5"
+    "axios": "^1.6.5",
+    "electron-updater": "^6.8.3"
   },
   "devDependencies": {
     "electron": "^25.9.8",
@@ -190,8 +192,10 @@
     "publish": {
       "provider": "github",
       "owner": "yuhanbo758",
-      "repo": "sanrenjz-tools"
-    }
+      "repo": "sanrenjz-tools",
+      "releaseType": "release"
+    },
+    "generateUpdatesFilesForAllChannels": true
   },
   "homepage": "https://github.com/yuhanbo758/sanrenjz-tools",
   "bugs": {

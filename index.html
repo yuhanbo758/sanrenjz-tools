@@ -115,6 +115,105 @@
             background-color: #e6f7ff;
         }
 
+        .account-menu {
+            position: relative;
+        }
+
+        .avatar-button {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 1px solid #d9d9d9;
+            background: linear-gradient(135deg, #1890ff, #52c41a);
+            color: #fff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            position: relative;
+            overflow: hidden;
+            padding: 0;
+        }
+
+        .avatar-button img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .avatar-button.member::after {
+            content: 'tools';
+            position: absolute;
+            right: -8px;
+            bottom: -8px;
+            padding: 1px 5px;
+            border-radius: 999px;
+            background: #52c41a;
+            color: #fff;
+            font-size: 10px;
+            line-height: 14px;
+            border: 1px solid #fff;
+        }
+
+        .account-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 44px;
+            min-width: 220px;
+            background: #fff;
+            border: 1px solid #e8e8e8;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+            z-index: 100;
+            overflow: hidden;
+        }
+
+        .account-dropdown.show {
+            display: block;
+        }
+
+        .account-summary {
+            padding: 14px 16px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .account-name {
+            font-weight: 600;
+            color: #262626;
+            margin-bottom: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .account-status {
+            font-size: 12px;
+            color: #8c8c8c;
+        }
+
+        .account-dropdown button {
+            width: 100%;
+            padding: 10px 16px;
+            border: 0;
+            background: #fff;
+            color: #262626;
+            text-align: left;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .account-dropdown button:hover {
+            background: #f5f5f5;
+        }
+
+        .account-dropdown button.danger {
+            color: #ff4d4f;
+            border-top: 1px solid #f0f0f0;
+        }
+
         /* Modal Styles */
         .modal {
             display: none;
@@ -229,6 +328,172 @@
             font-size: 20px;
             font-weight: 600;
             color: var(--text-color);
+        }
+
+        .plugin-details-content {
+            width: 880px;
+            max-width: 96vw;
+            height: 680px;
+            max-height: 90vh;
+        }
+
+        .plugin-details-content h2 {
+            padding: 24px 28px 16px;
+            margin: 0;
+            font-size: 20px;
+            border-bottom: 1px solid var(--border-color, #eee);
+            flex-shrink: 0;
+        }
+
+        #plugin-details-body {
+            flex: 1;
+            overflow-y: auto;
+            color: var(--text-color);
+            padding: 20px 28px 24px;
+        }
+
+        .plugin-details-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .plugin-details-meta span {
+            padding: 5px 10px;
+            border-radius: 999px;
+            background: #f5f7fa;
+            color: #595959;
+            font-size: 13px;
+        }
+
+        .plugin-details-desc {
+            margin-bottom: 20px;
+            padding: 14px 16px;
+            background: linear-gradient(180deg, #fafcff 0%, #f7faff 100%);
+            border: 1px solid #e6f4ff;
+            border-radius: 12px;
+            line-height: 1.8;
+            color: #262626;
+        }
+
+        .plugin-details-section {
+            margin-top: 22px;
+        }
+
+        .plugin-details-section-title {
+            margin: 0 0 12px;
+            font-size: 18px;
+            font-weight: 600;
+            color: #262626;
+        }
+
+        .plugin-feature-card {
+            padding: 14px 16px;
+            border: 1px solid #edf0f2;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            background: #fafafa;
+        }
+
+        .plugin-feature-title {
+            font-weight: 600;
+            color: #262626;
+            margin-bottom: 6px;
+        }
+
+        .plugin-feature-desc {
+            color: #595959;
+            line-height: 1.7;
+        }
+
+        .plugin-feature-cmds {
+            margin-top: 10px;
+            color: #8c8c8c;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .plugin-doc-content {
+            background: #fcfcfd;
+            border: 1px solid #eef1f4;
+            border-radius: 14px;
+            padding: 20px 22px;
+            line-height: 1.8;
+            font-size: 14px;
+            color: #262626;
+        }
+
+        .plugin-doc-content h1,
+        .plugin-doc-content h2,
+        .plugin-doc-content h3,
+        .plugin-doc-content h4 {
+            margin: 1.2em 0 0.6em;
+            color: #1f1f1f;
+            line-height: 1.35;
+        }
+
+        .plugin-doc-content h1 {
+            font-size: 24px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .plugin-doc-content h2 {
+            font-size: 20px;
+        }
+
+        .plugin-doc-content h3 {
+            font-size: 17px;
+        }
+
+        .plugin-doc-content p {
+            margin: 0.7em 0;
+        }
+
+        .plugin-doc-content ul,
+        .plugin-doc-content ol {
+            margin: 0.7em 0;
+            padding-left: 1.5em;
+        }
+
+        .plugin-doc-content li {
+            margin: 0.3em 0;
+        }
+
+        .plugin-doc-content pre {
+            margin: 1em 0;
+            padding: 14px 16px;
+            background: #0f172a;
+            color: #e2e8f0;
+            border-radius: 12px;
+            overflow-x: auto;
+            line-height: 1.6;
+        }
+
+        .plugin-doc-content code {
+            font-family: Consolas, Monaco, 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        .plugin-doc-content :not(pre) > code {
+            padding: 2px 6px;
+            background: #f4f6f8;
+            color: #c7254e;
+            border-radius: 6px;
+        }
+
+        .plugin-doc-content blockquote {
+            margin: 1em 0;
+            padding: 10px 14px;
+            border-left: 4px solid #91caff;
+            background: #f6fbff;
+            color: #595959;
+            border-radius: 8px;
+        }
+
+        .plugin-doc-content strong {
+            color: #1f1f1f;
         }
 
         /* Plugin Management Styles */
@@ -539,6 +804,79 @@
 
         .path-input-group button {
             flex-shrink: 0;
+        }
+
+        .update-modal-content {
+            width: 480px;
+            max-width: 95vw;
+        }
+
+        .update-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 10px 0;
+            border-bottom: 1px solid #f5f5f5;
+        }
+
+        .update-source-tag {
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: #e6f7ff;
+            color: #1890ff;
+            font-size: 12px;
+        }
+
+        .update-source-tag.member-source {
+            background: #f6ffed;
+            color: #52c41a;
+        }
+
+        .update-progress-wrap {
+            margin-top: 18px;
+            height: 8px;
+            border-radius: 999px;
+            background: #f0f0f0;
+            overflow: hidden;
+        }
+
+        .update-progress-bar {
+            width: 0;
+            height: 100%;
+            background: linear-gradient(90deg, #1890ff, #52c41a);
+            transition: width 0.2s;
+        }
+
+        .update-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 22px;
+        }
+
+        .update-actions button {
+            padding: 8px 14px;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            background: #fff;
+            cursor: pointer;
+        }
+
+        .update-actions button.primary {
+            border-color: #1890ff;
+            background: #1890ff;
+            color: #fff;
+        }
+
+        .update-actions button.success {
+            border-color: #52c41a;
+            background: #52c41a;
+            color: #fff;
+        }
+
+        .update-actions button:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
         }
 
         .settings-section {
@@ -890,6 +1228,22 @@
             <button class="header-button" id="docs-btn">文档</button>
             <button class="header-button" id="contact-btn">联系我们</button>
             <button class="header-button" id="settings-btn">设置</button>
+            <div class="account-menu" id="account-menu">
+                <button class="avatar-button" id="avatar-btn" title="账号">
+                    <img src="file:///D:/wenjian/python/develop/sanrenjz-tools/build/icon.png" alt="账号头像">
+                </button>
+                <div class="account-dropdown" id="account-dropdown">
+                    <div class="account-summary">
+                        <div class="account-name" id="account-name">未登录</div>
+                        <div class="account-status" id="account-status">登录后可同步 tools 会员更新权限</div>
+                    </div>
+                    <button id="account-login-btn">登录程序小店</button>
+                    <button id="account-refresh-btn">刷新会员状态</button>
+                    <button id="check-update-btn">检查更新</button>
+                    <button id="open-tools-store-btn">打开 tools 商品页</button>
+                    <button id="account-logout-btn" class="danger">退出登录</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -944,6 +1298,16 @@
                                     <button id="reset-plugin-data-path-btn" class="danger" style="white-space: nowrap;">重置默认</button>
                                 </div>
                                 <div class="setting-description">插件设置和缓存数据存储在此位置，每个插件的设置会保存为独立的JSON文件</div>
+                            </div>
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="setting-label">插件存放位置：</div>
+                            <div class="setting-control">
+                                <div class="path-input-group">
+                                    <button id="open-plugin-install-folder-btn">打开本地插件文件夹</button>
+                                </div>
+                                <div class="setting-description">插件安装目录，开发环境为 app/software，打包后为 resources/app/software</div>
                             </div>
                         </div>
                     </div>
@@ -1061,6 +1425,34 @@
         </div>
     </div>
 
+    <!-- 更新弹窗 -->
+    <div id="update-modal" class="modal">
+        <div class="modal-content update-modal-content">
+            <button class="close-button">&times;</button>
+            <h2>应用更新</h2>
+            <div class="update-row">
+                <span>当前版本</span>
+                <span id="current-version">-</span>
+            </div>
+            <div class="update-row">
+                <span>更新源</span>
+                <span class="update-source-tag" id="update-source">GitHub Releases</span>
+            </div>
+            <div class="update-row">
+                <span>状态</span>
+                <span id="update-message">尚未检查</span>
+            </div>
+            <div class="update-progress-wrap">
+                <div class="update-progress-bar" id="update-progress-bar"></div>
+            </div>
+            <div class="update-actions">
+                <button id="update-check-btn">检查更新</button>
+                <button id="update-download-btn" class="primary" disabled>下载</button>
+                <button id="update-install-btn" class="success" disabled>安装重启</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const { ipcRenderer, shell } = require('electron');
         const fs = require('fs');
@@ -1081,6 +1473,146 @@
                     }
                 }
             };
+        }
+
+        const accountState = {
+            authenticated: false,
+            canDownloadUpdates: false,
+            user: null
+        };
+
+        const updateState = {
+            source: 'github',
+            available: false,
+            downloaded: false,
+            progress: 0,
+            message: '尚未检查'
+        };
+
+        function getDisplayUserName(user) {
+            user = user || {};
+            return user.nickname || user.name || user.username || user.email || '已登录用户';
+        }
+
+        function updateAccountUI(account) {
+            Object.assign(accountState, account || { authenticated: false, canDownloadUpdates: false, user: null });
+            const avatarBtn = document.getElementById('avatar-btn');
+            const accountName = document.getElementById('account-name');
+            const accountStatus = document.getElementById('account-status');
+            const loginBtn = document.getElementById('account-login-btn');
+            const logoutBtn = document.getElementById('account-logout-btn');
+            const refreshBtn = document.getElementById('account-refresh-btn');
+
+            avatarBtn.classList.toggle('member', Boolean(accountState.canDownloadUpdates));
+            accountName.textContent = accountState.authenticated ? getDisplayUserName(accountState.user) : '未登录';
+            accountStatus.textContent = accountState.authenticated
+                ? (accountState.canDownloadUpdates ? 'tools 会员，可使用对象存储更新' : '已登录，暂无 tools 会员更新权限')
+                : '登录后可同步 tools 会员更新权限';
+            loginBtn.style.display = accountState.authenticated ? 'none' : 'block';
+            logoutBtn.style.display = accountState.authenticated ? 'block' : 'none';
+            refreshBtn.style.display = accountState.authenticated ? 'block' : 'none';
+        }
+
+        async function loadAccount() {
+            try {
+                const account = await ipcRenderer.invoke('account:me');
+                updateAccountUI(account);
+            } catch (error) {
+                console.error('加载账号状态失败:', error);
+                updateAccountUI({ authenticated: false, canDownloadUpdates: false, user: null });
+            }
+        }
+
+        function setUpdateButtons() {
+            document.getElementById('update-download-btn').disabled = !updateState.available;
+            document.getElementById('update-install-btn').disabled = !updateState.downloaded;
+        }
+
+        function updateUpdateUI() {
+            const sourceEl = document.getElementById('update-source');
+            sourceEl.textContent = updateState.source === 'object-storage' ? '会员对象存储' : 'GitHub Releases';
+            sourceEl.classList.toggle('member-source', updateState.source === 'object-storage');
+            document.getElementById('update-message').textContent = updateState.message || '尚未检查';
+            document.getElementById('update-progress-bar').style.width = `${Math.max(0, Math.min(100, updateState.progress || 0))}%`;
+            setUpdateButtons();
+        }
+
+        function handleUpdateStatus(payload) {
+            if (!payload) return;
+            updateState.source = payload.source || updateState.source;
+            if (payload.type === 'checking') {
+                updateState.available = false;
+                updateState.downloaded = false;
+                updateState.progress = 0;
+                updateState.message = '正在检查更新...';
+            } else if (payload.type === 'available') {
+                updateState.available = true;
+                updateState.downloaded = false;
+                updateState.progress = 0;
+                updateState.message = `发现新版本 ${payload.info?.version || ''}`.trim();
+            } else if (payload.type === 'not-available') {
+                updateState.available = false;
+                updateState.downloaded = false;
+                updateState.progress = 0;
+                updateState.message = '当前已是最新版本';
+            } else if (payload.type === 'download-progress') {
+                updateState.progress = Number(payload.progress?.percent || 0);
+                updateState.message = '正在下载更新...';
+            } else if (payload.type === 'downloaded') {
+                updateState.downloaded = true;
+                updateState.progress = 100;
+                updateState.message = payload.message || '更新已下载，重启后安装';
+            } else if (payload.type === 'error') {
+                updateState.message = payload.message || '更新失败';
+                showNotification('更新失败', updateState.message, 'error');
+            }
+            updateUpdateUI();
+        }
+
+        async function showUpdateModal(checkNow = false) {
+            const updateModal = document.getElementById('update-modal');
+            updateModal.classList.add('show');
+            try {
+                document.getElementById('current-version').textContent = await ipcRenderer.invoke('get-version');
+            } catch (_) { }
+            updateUpdateUI();
+            if (checkNow) await checkUpdate();
+        }
+
+        async function checkUpdate() {
+            const button = document.getElementById('update-check-btn');
+            button.disabled = true;
+            updateState.message = '正在检查更新...';
+            updateUpdateUI();
+            try {
+                const result = await ipcRenderer.invoke('update:check');
+                updateState.source = result?.source || 'github';
+            } catch (error) {
+                updateState.message = error.message || '检查更新失败';
+                showNotification('检查更新失败', updateState.message, 'error');
+            } finally {
+                button.disabled = false;
+                updateUpdateUI();
+            }
+        }
+
+        async function downloadUpdate() {
+            const button = document.getElementById('update-download-btn');
+            button.disabled = true;
+            try {
+                await ipcRenderer.invoke('update:download');
+            } catch (error) {
+                showNotification('下载更新失败', error.message || '下载更新失败', 'error');
+                updateUpdateUI();
+            }
+        }
+
+        async function installUpdate() {
+            try {
+                await ipcRenderer.invoke('update:install');
+            } catch (error) {
+                showNotification('安装更新失败', error.message || '安装更新失败', 'error');
+            }
         }
         
         // 加载Font Awesome图标（改为本地加载）
@@ -1333,8 +1865,95 @@
         }
 
         // 插件商店按钮点击事件
-        document.getElementById('store-btn').addEventListener('click', () => {
-            shell.openExternal('https://jy.sanrenjz.com');
+        document.getElementById('store-btn').addEventListener('click', async () => {
+            try {
+                await ipcRenderer.invoke('shop:open-tools-store');
+            } catch (error) {
+                shell.openExternal('https://shop.sanrenjz.com/tools');
+            }
+        });
+
+        const accountDropdown = document.getElementById('account-dropdown');
+        document.getElementById('avatar-btn').addEventListener('click', (event) => {
+            event.stopPropagation();
+            accountDropdown.classList.toggle('show');
+        });
+
+        document.addEventListener('click', (event) => {
+            if (!event.target.closest('#account-menu')) {
+                accountDropdown.classList.remove('show');
+            }
+        });
+
+        document.getElementById('account-login-btn').addEventListener('click', async () => {
+            accountDropdown.classList.remove('show');
+            try {
+                await ipcRenderer.invoke('account:login');
+                showNotification('登录', '已打开程序小店登录页，完成登录后会自动同步账号状态', 'info');
+            } catch (error) {
+                showNotification('登录失败', error.message || '无法打开登录页', 'error');
+            }
+        });
+
+        document.getElementById('account-refresh-btn').addEventListener('click', async () => {
+            accountDropdown.classList.remove('show');
+            await loadAccount();
+            showNotification('刷新完成', '会员状态已刷新', 'success');
+        });
+
+        document.getElementById('account-logout-btn').addEventListener('click', async () => {
+            accountDropdown.classList.remove('show');
+            try {
+                const account = await ipcRenderer.invoke('account:logout');
+                updateAccountUI(account);
+                showNotification('已退出', '账号已退出登录', 'success');
+            } catch (error) {
+                showNotification('退出失败', error.message || '退出登录失败', 'error');
+            }
+        });
+
+        document.getElementById('check-update-btn').addEventListener('click', async () => {
+            accountDropdown.classList.remove('show');
+            await showUpdateModal(true);
+        });
+
+        document.getElementById('open-tools-store-btn').addEventListener('click', async () => {
+            accountDropdown.classList.remove('show');
+            try {
+                await ipcRenderer.invoke('shop:open-tools-store');
+            } catch (error) {
+                shell.openExternal('https://shop.sanrenjz.com/tools');
+            }
+        });
+
+        document.getElementById('update-check-btn').addEventListener('click', checkUpdate);
+        document.getElementById('update-download-btn').addEventListener('click', downloadUpdate);
+        document.getElementById('update-install-btn').addEventListener('click', installUpdate);
+
+        ipcRenderer.on('account:changed', (_event, payload) => {
+            updateAccountUI(payload);
+        });
+
+        ipcRenderer.on('update:status', (_event, payload) => {
+            handleUpdateStatus(payload);
+        });
+
+        ipcRenderer.on('plugins:download', (_event, payload) => {
+            if (payload?.type === 'started') {
+                showNotification('插件下载', `${payload.fileName || '插件包'} 开始下载`, 'info');
+            } else if (payload?.type === 'completed') {
+                const names = Array.isArray(payload.installed)
+                    ? payload.installed.map(item => item.name).join('、')
+                    : '插件';
+                showNotification('插件已安装', `${names} 已解压到本地插件文件夹`, 'success');
+                loadPlugins(true);
+            } else if (payload?.type === 'error') {
+                showNotification('插件安装失败', payload.message || '下载或安装插件失败', 'error');
+            }
+        });
+
+        ipcRenderer.on('plugins:changed', () => {
+            loadPlugins(true);
         });
 
         // H5工具按钮点击事件
@@ -1847,6 +2466,19 @@
             }
         });
 
+        // 打开本地插件文件夹
+        document.getElementById('open-plugin-install-folder-btn').addEventListener('click', async () => {
+            try {
+                const result = await ipcRenderer.invoke('open-plugin-install-directory');
+                if (result?.success) {
+                    showNotification('成功', '已打开本地插件文件夹', 'success');
+                }
+            } catch (error) {
+                console.error('打开本地插件文件夹失败:', error);
+                showNotification('错误', '打开本地插件文件夹失败: ' + error.message, 'error');
+            }
+        });
+
         // 重置插件数据存储路径
         document.getElementById('reset-plugin-data-path-btn').addEventListener('click', async () => {
             try {
@@ -1925,6 +2557,7 @@
 
         // 初始加载
         loadPlugins(true);
+        loadAccount();
 
         // 定期刷新插件列表（改为10秒一次，并添加防抖）
         setInterval(() => {
@@ -1988,15 +2621,129 @@
                 const titleEl = document.getElementById('plugin-details-title');
                 const bodyEl = document.getElementById('plugin-details-body');
 
+                const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                }[char]));
+
+                const renderInlineMarkdown = (text) => escapeHtml(text)
+                    .replace(/`([^`]+)`/g, '<code>$1</code>')
+                    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+
+                const renderMarkdown = (markdown) => {
+                    const normalized = String(markdown || '').replace(/\r\n/g, '\n');
+                    const lines = normalized.split('\n');
+                    const blocks = [];
+                    let paragraph = [];
+                    let listBuffer = [];
+                    let listType = null;
+                    let inCodeBlock = false;
+                    let codeBuffer = [];
+
+                    const flushParagraph = () => {
+                        if (!paragraph.length) return;
+                        blocks.push(`<p>${renderInlineMarkdown(paragraph.join(' '))}</p>`);
+                        paragraph = [];
+                    };
+
+                    const flushList = () => {
+                        if (!listBuffer.length) return;
+                        const items = listBuffer.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join('');
+                        blocks.push(`<${listType}>${items}</${listType}>`);
+                        listBuffer = [];
+                        listType = null;
+                    };
+
+                    const flushCodeBlock = () => {
+                        if (!codeBuffer.length) return;
+                        blocks.push(`<pre><code>${escapeHtml(codeBuffer.join('\n'))}</code></pre>`);
+                        codeBuffer = [];
+                    };
+
+                    for (const line of lines) {
+                        const trimmed = line.trim();
+
+                        if (trimmed.startsWith('```')) {
+                            flushParagraph();
+                            flushList();
+                            if (inCodeBlock) {
+                                flushCodeBlock();
+                                inCodeBlock = false;
+                            } else {
+                                inCodeBlock = true;
+                            }
+                            continue;
+                        }
+
+                        if (inCodeBlock) {
+                            codeBuffer.push(line);
+                            continue;
+                        }
+
+                        if (!trimmed) {
+                            flushParagraph();
+                            flushList();
+                            continue;
+                        }
+
+                        const headingMatch = trimmed.match(/^(#{1,4})\s+(.*)$/);
+                        if (headingMatch) {
+                            flushParagraph();
+                            flushList();
+                            const level = Math.min(4, headingMatch[1].length);
+                            blocks.push(`<h${level}>${renderInlineMarkdown(headingMatch[2])}</h${level}>`);
+                            continue;
+                        }
+
+                        const blockquoteMatch = trimmed.match(/^>\s?(.*)$/);
+                        if (blockquoteMatch) {
+                            flushParagraph();
+                            flushList();
+                            blocks.push(`<blockquote>${renderInlineMarkdown(blockquoteMatch[1])}</blockquote>`);
+                            continue;
+                        }
+
+                        const unorderedMatch = trimmed.match(/^[-*+]\s+(.*)$/);
+                        if (unorderedMatch) {
+                            flushParagraph();
+                            if (listType && listType !== 'ul') flushList();
+                            listType = 'ul';
+                            listBuffer.push(unorderedMatch[1]);
+                            continue;
+                        }
+
+                        const orderedMatch = trimmed.match(/^\d+\.\s+(.*)$/);
+                        if (orderedMatch) {
+                            flushParagraph();
+                            if (listType && listType !== 'ol') flushList();
+                            listType = 'ol';
+                            listBuffer.push(orderedMatch[1]);
+                            continue;
+                        }
+
+                        paragraph.push(trimmed);
+                    }
+
+                    flushParagraph();
+                    flushList();
+                    flushCodeBlock();
+
+                    return blocks.join('');
+                };
+
                 titleEl.textContent = plugin.name || '插件详情';
 
                 const baseInfoHtml = `
-                    <div style="margin-bottom:12px; color:#595959; font-size:14px;">
-                        ${plugin.version ? `<span style='margin-right:12px;'>版本：${plugin.version}</span>` : ''}
-                        ${plugin.author ? `<span style='margin-right:12px;'>作者：${plugin.author}</span>` : ''}
-                        ${plugin.category ? `<span>分类：${plugin.category}</span>` : ''}
+                    <div class="plugin-details-meta">
+                        ${plugin.version ? `<span>版本：${escapeHtml(plugin.version)}</span>` : ''}
+                        ${plugin.author ? `<span>作者：${escapeHtml(plugin.author)}</span>` : ''}
+                        ${plugin.category ? `<span>分类：${escapeHtml(plugin.category)}</span>` : ''}
                     </div>
-                    <div style="margin-bottom:16px; font-size:14px; line-height:1.7; color:#262626;">${plugin.description || '暂无简介'}</div>
+                    <div class="plugin-details-desc">${escapeHtml(plugin.description || '暂无简介')}</div>
                 `;
 
                 // 构建功能列表
@@ -2004,18 +2751,22 @@
                 const features = Array.isArray(plugin.features) ? plugin.features : [];
                 if (features.length > 0) {
                     const items = features.map(f => {
-                        const cmds = Array.isArray(f.cmds) && f.cmds.length ? `<div style='color:#8c8c8c;'>命令：${f.cmds.join('，')}</div>` : '';
+                        const cmds = Array.isArray(f.cmds) && f.cmds.length
+                            ? `<div class='plugin-feature-cmds'>命令：${escapeHtml(f.cmds.join('，'))}</div>`
+                            : '';
                         return `
-                            <div style='padding:12px; border:1px solid #f0f0f0; border-radius:8px; margin-bottom:10px; background:#fafafa;'>
-                                <div style='font-weight:600; color:#262626;'>${f.explain || f.code || '未命名功能'}</div>
-                                <div style='color:#595959; margin-top:6px;'>${f.description || ''}</div>
+                            <div class='plugin-feature-card'>
+                                <div class='plugin-feature-title'>${escapeHtml(f.explain || f.code || '未命名功能')}</div>
+                                <div class='plugin-feature-desc'>${escapeHtml(f.description || '')}</div>
                                 ${cmds}
                             </div>
                         `;
                     }).join('');
                     featuresHtml = `
-                        <h3 style='margin:16px 0 10px;'>功能列表</h3>
+                        <section class='plugin-details-section'>
+                        <h3 class='plugin-details-section-title'>功能列表</h3>
                         ${items}
+                        </section>
                     `;
                 }
 
@@ -2030,8 +2781,10 @@
                     if (found.length) {
                         const content = fs.readFileSync(found[0], 'utf8');
                         docsHtml = `
-                            <h3 style='margin:16px 0 10px;'>文档</h3>
-                            <pre style='white-space:pre-wrap; word-wrap:break-word; background:#fafafa; border:1px solid #f0f0f0; border-radius:8px; padding:12px; font-size:13px;'>${content.replace(/[<>]/g, c => ({'<':'&lt;','>':'&gt;'}[c]))}</pre>
+                            <section class='plugin-details-section'>
+                            <h3 class='plugin-details-section-title'>文档</h3>
+                            <div class='plugin-doc-content'>${renderMarkdown(content)}</div>
+                            </section>
                         `;
                     }
                 } catch {}
