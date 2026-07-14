@@ -1,0 +1,20 @@
+{
+  "id": "svg-workbench",
+  "folder": "sanrenjz-tools-svg-workbench",
+  "name": "SVG 工作台",
+  "description": "预览、格式化、轻量压缩 SVG 并导出 PNG。",
+  "category": "设计工具",
+  "keywords": [
+    "svg",
+    "svg压缩",
+    "svg转png"
+  ],
+  "batch": 3,
+  "order": 29,
+  "kind": "image",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

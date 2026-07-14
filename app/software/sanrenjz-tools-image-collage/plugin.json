@@ -1,0 +1,40 @@
+{
+  "pluginName": "图片拼接",
+  "description": "将多张图片横向、纵向或按宫格拼接。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "图片工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-image-collage",
+      "explain": "图片拼接",
+      "description": "将多张图片横向、纵向或按宫格拼接。",
+      "cmds": [
+        "图片拼接",
+        "长图",
+        "宫格图"
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": false,
+      "category": "图片工具",
+      "priority": 20,
+      "useClipboardText": false
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

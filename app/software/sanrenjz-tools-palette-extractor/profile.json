@@ -1,0 +1,20 @@
+{
+  "id": "palette-extractor",
+  "folder": "sanrenjz-tools-palette-extractor",
+  "name": "色板提取器",
+  "description": "从图片中提取主色并生成可复制色板。",
+  "category": "设计工具",
+  "keywords": [
+    "提取颜色",
+    "色板",
+    "主色"
+  ],
+  "batch": 3,
+  "order": 26,
+  "kind": "image",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "id": "qr-barcode",
+  "folder": "sanrenjz-tools-qr-barcode",
+  "name": "二维码与条码工具",
+  "description": "本地生成二维码并识别图片中的二维码。",
+  "category": "图片工具",
+  "keywords": [
+    "二维码",
+    "qr code",
+    "二维码识别"
+  ],
+  "batch": 3,
+  "order": 28,
+  "kind": "image",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

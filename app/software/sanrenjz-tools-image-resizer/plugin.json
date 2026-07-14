@@ -1,0 +1,40 @@
+{
+  "pluginName": "图片尺寸调整",
+  "description": "按固定尺寸或比例批量缩放图片。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "图片工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-image-resizer",
+      "explain": "图片尺寸调整",
+      "description": "按固定尺寸或比例批量缩放图片。",
+      "cmds": [
+        "图片尺寸",
+        "缩放图片",
+        "resize"
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": false,
+      "category": "图片工具",
+      "priority": 20,
+      "useClipboardText": false
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

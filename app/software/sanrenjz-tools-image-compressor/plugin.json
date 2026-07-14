@@ -1,0 +1,40 @@
+{
+  "pluginName": "图片压缩器",
+  "description": "批量压缩图片并实时对比质量和体积。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "图片工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-image-compressor",
+      "explain": "图片压缩器",
+      "description": "批量压缩图片并实时对比质量和体积。",
+      "cmds": [
+        "图片压缩",
+        "压缩图片",
+        "image compress"
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": false,
+      "category": "图片工具",
+      "priority": 20,
+      "useClipboardText": false
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

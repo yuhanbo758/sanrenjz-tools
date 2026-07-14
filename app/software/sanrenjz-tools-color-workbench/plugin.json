@@ -1,0 +1,50 @@
+{
+  "pluginName": "颜色工作台",
+  "description": "转换 HEX、RGB、HSL 并检查颜色对比度。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "设计工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-color-workbench",
+      "explain": "颜色工作台",
+      "description": "转换 HEX、RGB、HSL 并检查颜色对比度。",
+      "cmds": [
+        "颜色转换",
+        "对比度",
+        "hex",
+        "rgb",
+        {
+          "type": "over",
+          "label": [
+            "用颜色工作台处理",
+            "颜色工作台"
+          ],
+          "minLength": 1,
+          "maxLength": 200000
+        }
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": true,
+      "category": "设计工具",
+      "priority": 20,
+      "useClipboardText": true
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

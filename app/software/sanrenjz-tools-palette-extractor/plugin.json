@@ -1,0 +1,40 @@
+{
+  "pluginName": "色板提取器",
+  "description": "从图片中提取主色并生成可复制色板。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "设计工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-palette-extractor",
+      "explain": "色板提取器",
+      "description": "从图片中提取主色并生成可复制色板。",
+      "cmds": [
+        "提取颜色",
+        "色板",
+        "主色"
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": false,
+      "category": "设计工具",
+      "priority": 20,
+      "useClipboardText": false
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

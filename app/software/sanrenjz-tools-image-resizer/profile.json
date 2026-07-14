@@ -1,0 +1,20 @@
+{
+  "id": "image-resizer",
+  "folder": "sanrenjz-tools-image-resizer",
+  "name": "图片尺寸调整",
+  "description": "按固定尺寸或比例批量缩放图片。",
+  "category": "图片工具",
+  "keywords": [
+    "图片尺寸",
+    "缩放图片",
+    "resize"
+  ],
+  "batch": 3,
+  "order": 23,
+  "kind": "image",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

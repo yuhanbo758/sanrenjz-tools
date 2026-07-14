@@ -1,0 +1,20 @@
+{
+  "id": "screenshot-beautifier",
+  "folder": "sanrenjz-tools-screenshot-beautifier",
+  "name": "截图美化器",
+  "description": "为截图添加背景、阴影、圆角、留白和设备画框。",
+  "category": "图片工具",
+  "keywords": [
+    "截图美化",
+    "图片加背景",
+    "screenshot"
+  ],
+  "batch": 3,
+  "order": 30,
+  "kind": "image",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

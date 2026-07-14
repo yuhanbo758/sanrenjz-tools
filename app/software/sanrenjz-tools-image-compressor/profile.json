@@ -1,0 +1,20 @@
+{
+  "id": "image-compressor",
+  "folder": "sanrenjz-tools-image-compressor",
+  "name": "图片压缩器",
+  "description": "批量压缩图片并实时对比质量和体积。",
+  "category": "图片工具",
+  "keywords": [
+    "图片压缩",
+    "压缩图片",
+    "image compress"
+  ],
+  "batch": 3,
+  "order": 21,
+  "kind": "image",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "id": "color-workbench",
+  "folder": "sanrenjz-tools-color-workbench",
+  "name": "颜色工作台",
+  "description": "转换 HEX、RGB、HSL 并检查颜色对比度。",
+  "category": "设计工具",
+  "keywords": [
+    "颜色转换",
+    "对比度",
+    "hex",
+    "rgb"
+  ],
+  "batch": 3,
+  "order": 27,
+  "kind": "image",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}
