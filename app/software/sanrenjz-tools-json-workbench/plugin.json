@@ -1,0 +1,49 @@
+{
+  "pluginName": "JSON 工作台",
+  "description": "格式化、压缩、校验、路径查询和树形查看 JSON。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "开发工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-json-workbench",
+      "explain": "JSON 工作台",
+      "description": "格式化、压缩、校验、路径查询和树形查看 JSON。",
+      "cmds": [
+        "json",
+        "JSON格式化",
+        "json校验",
+        {
+          "type": "over",
+          "label": [
+            "用JSON 工作台处理",
+            "JSON 工作台"
+          ],
+          "minLength": 1,
+          "maxLength": 200000
+        }
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": true,
+      "category": "开发工具",
+      "priority": 20,
+      "useClipboardText": true
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

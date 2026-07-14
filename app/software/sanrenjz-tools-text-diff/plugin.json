@@ -1,0 +1,49 @@
+{
+  "pluginName": "文本差异对比",
+  "description": "提供行级和字符级文本差异对比及结果导出。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "开发工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-text-diff",
+      "explain": "文本差异对比",
+      "description": "提供行级和字符级文本差异对比及结果导出。",
+      "cmds": [
+        "文本对比",
+        "diff",
+        "代码对比",
+        {
+          "type": "over",
+          "label": [
+            "用文本差异对比处理",
+            "文本差异对比"
+          ],
+          "minLength": 1,
+          "maxLength": 200000
+        }
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": true,
+      "category": "开发工具",
+      "priority": 20,
+      "useClipboardText": true
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

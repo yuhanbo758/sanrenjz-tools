@@ -1,0 +1,21 @@
+{
+  "id": "hash-hmac",
+  "folder": "sanrenjz-tools-hash-hmac",
+  "name": "哈希与 HMAC",
+  "description": "生成 MD5、SHA 系列摘要和 HMAC，并进行摘要比对。",
+  "category": "开发工具",
+  "keywords": [
+    "哈希",
+    "md5",
+    "sha256",
+    "hmac"
+  ],
+  "batch": 1,
+  "order": 5,
+  "kind": "text",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

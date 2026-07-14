@@ -1,0 +1,21 @@
+{
+  "id": "codec-assistant",
+  "folder": "sanrenjz-tools-codec-assistant",
+  "name": "编解码助手",
+  "description": "处理 Base64、URL、Unicode、HTML 实体和 Hex。",
+  "category": "开发工具",
+  "keywords": [
+    "编解码",
+    "base64",
+    "url编码",
+    "unicode"
+  ],
+  "batch": 1,
+  "order": 4,
+  "kind": "text",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "id": "xml-workbench",
+  "folder": "sanrenjz-tools-xml-workbench",
+  "name": "XML 工作台",
+  "description": "格式化、压缩、校验和查询 XML 节点。",
+  "category": "开发工具",
+  "keywords": [
+    "xml",
+    "XML格式化",
+    "xml校验"
+  ],
+  "batch": 1,
+  "order": 3,
+  "kind": "text",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

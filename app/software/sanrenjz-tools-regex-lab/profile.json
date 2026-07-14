@@ -1,0 +1,20 @@
+{
+  "id": "regex-lab",
+  "folder": "sanrenjz-tools-regex-lab",
+  "name": "正则实验室",
+  "description": "实时测试正则匹配、替换、分组和常用表达式。",
+  "category": "开发工具",
+  "keywords": [
+    "正则",
+    "regex",
+    "正则替换"
+  ],
+  "batch": 1,
+  "order": 8,
+  "kind": "text",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

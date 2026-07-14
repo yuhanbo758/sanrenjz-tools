@@ -1,0 +1,49 @@
+{
+  "pluginName": "ID 生成器",
+  "description": "批量生成 UUID、NanoID 和安全随机字符串。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "开发工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-id-generator",
+      "explain": "ID 生成器",
+      "description": "批量生成 UUID、NanoID 和安全随机字符串。",
+      "cmds": [
+        "uuid",
+        "随机字符串",
+        "id生成",
+        {
+          "type": "over",
+          "label": [
+            "用ID 生成器处理",
+            "ID 生成器"
+          ],
+          "minLength": 1,
+          "maxLength": 200000
+        }
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": true,
+      "category": "开发工具",
+      "priority": 20,
+      "useClipboardText": true
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

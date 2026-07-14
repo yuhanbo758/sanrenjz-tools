@@ -1,0 +1,50 @@
+{
+  "pluginName": "哈希与 HMAC",
+  "description": "生成 MD5、SHA 系列摘要和 HMAC，并进行摘要比对。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "开发工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-hash-hmac",
+      "explain": "哈希与 HMAC",
+      "description": "生成 MD5、SHA 系列摘要和 HMAC，并进行摘要比对。",
+      "cmds": [
+        "哈希",
+        "md5",
+        "sha256",
+        "hmac",
+        {
+          "type": "over",
+          "label": [
+            "用哈希与 HMAC处理",
+            "哈希与 HMAC"
+          ],
+          "minLength": 1,
+          "maxLength": 200000
+        }
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": true,
+      "category": "开发工具",
+      "priority": 20,
+      "useClipboardText": true
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

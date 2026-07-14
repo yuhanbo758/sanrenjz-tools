@@ -1,0 +1,20 @@
+{
+  "id": "jwt-inspector",
+  "folder": "sanrenjz-tools-jwt-inspector",
+  "name": "JWT 检查器",
+  "description": "本地解码 JWT、检查有效期并验证 HMAC 签名。",
+  "category": "开发工具",
+  "keywords": [
+    "jwt",
+    "token解码",
+    "jwt验证"
+  ],
+  "batch": 1,
+  "order": 9,
+  "kind": "text",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

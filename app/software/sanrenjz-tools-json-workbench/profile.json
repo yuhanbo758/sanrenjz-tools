@@ -1,0 +1,20 @@
+{
+  "id": "json-workbench",
+  "folder": "sanrenjz-tools-json-workbench",
+  "name": "JSON 工作台",
+  "description": "格式化、压缩、校验、路径查询和树形查看 JSON。",
+  "category": "开发工具",
+  "keywords": [
+    "json",
+    "JSON格式化",
+    "json校验"
+  ],
+  "batch": 1,
+  "order": 1,
+  "kind": "text",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}
