@@ -34,6 +34,7 @@ for(const plugin of catalog){
   const expected=plugin.type==='suite'?plugin.tools.map(id=>`plugin-market-${id}`):[`plugin-market-${plugin.id}`];
   for(const code of expected)if(!manifest.features?.some(feature=>feature.code===code))fail(`${plugin.folder}: 缺少旧入口 ${code}`);
   const html=fs.readFileSync(path.join(directory,'index.html'),'utf8');
+  if(plugin.type==='ai'&&!html.includes('data-business'))fail(`${plugin.folder}: 缺少独立业务交互层`);
   if(/<(?:script|link)[^>]+(?:src|href)=["']https?:/i.test(html))fail(`${plugin.folder}: 引用了远程脚本或样式`);
   if(!/html,body\s*\{[^}]*height:100%[^}]*overflow:hidden/s.test(html))fail(`${plugin.folder}: 未禁止页面级滚动`);
   if(!html.includes('padding-top:32px'))fail(`${plugin.folder}: 未给主程序窗口控制栏留出空间`);
