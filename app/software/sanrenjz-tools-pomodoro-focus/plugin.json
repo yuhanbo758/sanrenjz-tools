@@ -1,0 +1,40 @@
+{
+  "pluginName": "番茄专注",
+  "description": "管理专注与休息周期并保存每日统计。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "效率工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-pomodoro-focus",
+      "explain": "番茄专注",
+      "description": "管理专注与休息周期并保存每日统计。",
+      "cmds": [
+        "番茄钟",
+        "专注",
+        "pomodoro"
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": false,
+      "category": "效率工具",
+      "priority": 20,
+      "useClipboardText": false
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

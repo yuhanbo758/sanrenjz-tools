@@ -1,0 +1,20 @@
+{
+  "id": "pomodoro-focus",
+  "folder": "sanrenjz-tools-pomodoro-focus",
+  "name": "番茄专注",
+  "description": "管理专注与休息周期并保存每日统计。",
+  "category": "效率工具",
+  "keywords": [
+    "番茄钟",
+    "专注",
+    "pomodoro"
+  ],
+  "batch": 4,
+  "order": 34,
+  "kind": "productivity",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

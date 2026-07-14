@@ -1,0 +1,40 @@
+{
+  "pluginName": "书签启动器",
+  "description": "分类管理网址，通过别名搜索并快速打开。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "效率工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-bookmark-launcher",
+      "explain": "书签启动器",
+      "description": "分类管理网址，通过别名搜索并快速打开。",
+      "cmds": [
+        "书签",
+        "网址启动",
+        "bookmark"
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": false,
+      "category": "效率工具",
+      "priority": 20,
+      "useClipboardText": false
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

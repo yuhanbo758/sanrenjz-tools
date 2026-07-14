@@ -1,0 +1,20 @@
+{
+  "id": "calculation-paper",
+  "folder": "sanrenjz-tools-calculation-paper",
+  "name": "计算稿纸",
+  "description": "逐行计算表达式、保存变量和复制结果。",
+  "category": "效率工具",
+  "keywords": [
+    "计算稿纸",
+    "计算器",
+    "calc"
+  ],
+  "batch": 4,
+  "order": 35,
+  "kind": "productivity",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

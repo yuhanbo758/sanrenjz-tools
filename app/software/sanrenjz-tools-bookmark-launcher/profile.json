@@ -1,0 +1,20 @@
+{
+  "id": "bookmark-launcher",
+  "folder": "sanrenjz-tools-bookmark-launcher",
+  "name": "书签启动器",
+  "description": "分类管理网址，通过别名搜索并快速打开。",
+  "category": "效率工具",
+  "keywords": [
+    "书签",
+    "网址启动",
+    "bookmark"
+  ],
+  "batch": 4,
+  "order": 39,
+  "kind": "productivity",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

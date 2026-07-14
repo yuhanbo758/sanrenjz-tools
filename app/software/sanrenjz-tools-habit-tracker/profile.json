@@ -1,0 +1,20 @@
+{
+  "id": "habit-tracker",
+  "folder": "sanrenjz-tools-habit-tracker",
+  "name": "习惯追踪器",
+  "description": "每日习惯打卡、连续天数和本地统计。",
+  "category": "效率工具",
+  "keywords": [
+    "习惯",
+    "打卡",
+    "habit"
+  ],
+  "batch": 4,
+  "order": 40,
+  "kind": "productivity",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

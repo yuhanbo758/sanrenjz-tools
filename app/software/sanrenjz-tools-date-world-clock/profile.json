@@ -1,0 +1,20 @@
+{
+  "id": "date-world-clock",
+  "folder": "sanrenjz-tools-date-world-clock",
+  "name": "日期与世界时钟",
+  "description": "进行日期推算、工作日计算和世界时区查看。",
+  "category": "效率工具",
+  "keywords": [
+    "世界时钟",
+    "日期计算",
+    "工作日"
+  ],
+  "batch": 4,
+  "order": 37,
+  "kind": "productivity",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

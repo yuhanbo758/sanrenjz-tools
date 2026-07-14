@@ -1,0 +1,20 @@
+{
+  "id": "unit-converter",
+  "folder": "sanrenjz-tools-unit-converter",
+  "name": "单位换算器",
+  "description": "换算长度、面积、重量、容量、速度和温度。",
+  "category": "效率工具",
+  "keywords": [
+    "单位换算",
+    "长度换算",
+    "温度换算"
+  ],
+  "batch": 4,
+  "order": 36,
+  "kind": "productivity",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

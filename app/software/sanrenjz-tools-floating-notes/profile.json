@@ -1,0 +1,20 @@
+{
+  "id": "floating-notes",
+  "folder": "sanrenjz-tools-floating-notes",
+  "name": "悬浮便签",
+  "description": "创建可置顶、调色和自动保存的多张桌面便签。",
+  "category": "记录工具",
+  "keywords": [
+    "便签",
+    "悬浮便签",
+    "sticky note"
+  ],
+  "batch": 4,
+  "order": 32,
+  "kind": "productivity",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

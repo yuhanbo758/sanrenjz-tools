@@ -1,0 +1,40 @@
+{
+  "pluginName": "Markdown 笔记",
+  "description": "本地 Markdown 笔记、实时预览、标签和全文搜索。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "记录工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-markdown-notes",
+      "explain": "Markdown 笔记",
+      "description": "本地 Markdown 笔记、实时预览、标签和全文搜索。",
+      "cmds": [
+        "markdown笔记",
+        "笔记",
+        "md"
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": false,
+      "category": "记录工具",
+      "priority": 20,
+      "useClipboardText": false
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

@@ -51,6 +51,22 @@ async function smokePlugin(plugin) {
     })()`);
     if (result.statusClass.includes('error') || (!result.canvasWidth && !result.cards && !result.output)) pageErrors.push(`图片核心流程未产生结果：${JSON.stringify(result)}`);
   }
+  if (plugin.batch === 4) {
+    const result = await window.webContents.executeJavaScript(`(async () => {
+      if (profile.id === 'calculation-paper') elements.input.value = 'a = 2 + 3\\na * 4';
+      else if (profile.id === 'unit-converter') { elements.input.value = '1000'; state.values.unitType = 'length'; state.values.fromUnit = 'm'; state.values.toUnit = 'km'; }
+      else if (profile.id === 'date-world-clock') elements.input.value = '2026-07-14';
+      else if (profile.id === 'pomodoro-focus') state.remaining = 1;
+      else {
+        state.values.title = state.values.title || '冒烟测试记录'; state.values.project = state.values.project || '测试项目'; state.values.url = 'https://example.com';
+        elements.input.value = '仅保存在冒烟测试内存中的内容';
+      }
+      await run(!['calculation-paper','unit-converter','date-world-clock','pomodoro-focus'].includes(profile.id));
+      if (state.timer) { clearInterval(state.timer); state.timer = null; }
+      return { statusClass: elements.status.className, cards: elements.cards.children.length, output: state.output || elements.output.textContent };
+    })()`);
+    if (result.statusClass.includes('error') || (!result.cards && !result.output)) pageErrors.push(`效率工具核心流程未产生结果：${JSON.stringify(result)}`);
+  }
   window.destroy();
   if (!state.hasApi || state.profileId !== plugin.id || state.title !== plugin.name || pageErrors.length) {
     throw new Error(`${plugin.name} 加载失败：${JSON.stringify({ state, pageErrors })}`);

@@ -1,0 +1,20 @@
+{
+  "id": "todo-list",
+  "folder": "sanrenjz-tools-todo-list",
+  "name": "待办清单",
+  "description": "管理分组、优先级、截止日期和完成归档。",
+  "category": "效率工具",
+  "keywords": [
+    "待办",
+    "todo",
+    "任务清单"
+  ],
+  "batch": 4,
+  "order": 33,
+  "kind": "productivity",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

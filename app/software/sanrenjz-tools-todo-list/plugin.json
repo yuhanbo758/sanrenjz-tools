@@ -1,0 +1,40 @@
+{
+  "pluginName": "待办清单",
+  "description": "管理分组、优先级、截止日期和完成归档。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "效率工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-todo-list",
+      "explain": "待办清单",
+      "description": "管理分组、优先级、截止日期和完成归档。",
+      "cmds": [
+        "待办",
+        "todo",
+        "任务清单"
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": false,
+      "category": "效率工具",
+      "priority": 20,
+      "useClipboardText": false
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}
