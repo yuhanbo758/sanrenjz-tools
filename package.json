@@ -16,6 +16,7 @@
     "clean": "rimraf dist build-output *.log *.tmp *.temp settings.json plugin-data user-data",
     "rebuild": "npm run clean && npm install && npm start",
     "test": "echo \"启动应用进行测试...\" && npm start",
+    "test:logic": "node tests/logic.test.js",
     "preinstall": "echo \"检查Node.js环境...\"",
     "postinstall": "echo \"依赖安装完成，可以运行 npm start 启动应用\""
   },

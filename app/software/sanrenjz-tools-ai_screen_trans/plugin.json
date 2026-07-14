@@ -1,7 +1,7 @@
 {
   "pluginName": "AI 屏幕翻译",
-  "description": "基于硅基流动 DeepSeek 模型的文本与截图翻译插件，支持中英互译与OCR识别。",
-  "version": "1.0.1",
+  "description": "支持框选截图、独立 OCR 识别与复制、可选翻译和 OpenAI 兼容供应商目录。",
+  "version": "1.2.0",
   "author": "余汉波",
   "category": "AI 工具",
   "main": "index.html",
@@ -10,16 +10,16 @@
   "features": [
     {
       "code": "ai-screen-text-translate",
-      "explain": "DeepSeek 文本翻译",
+      "explain": "DeepSeek V4 文本翻译",
       "description": "选中文本或复制文本后使用，自动进行中英互译",
       "cmds": [
         "翻译",
         "文本翻译",
         "translate",
-        "DeepSeek",
+        "DeepSeek V4",
         {
           "type": "over",
-          "label": "DeepSeek 翻译",
+          "label": "AI 文本翻译",
           "minLength": 1,
           "maxLength": 10000
         }
@@ -36,15 +36,17 @@
     },
     {
       "code": "ai-screen-ocr-translate",
-      "explain": "DeepSeek 截图翻译",
-      "description": "复制图片或截图到剪贴板后使用，自动识别翻译",
+      "explain": "框选截图，识别或翻译",
+      "description": "直接框选屏幕区域，可仅 OCR 并复制原文，也可继续翻译",
       "cmds": [
         "截图翻译",
+        "截图识别",
+        "OCR识别",
         "OCR翻译",
         "screen translate",
         {
           "type": "img",
-          "label": "DeepSeek 截图翻译"
+          "label": "AI 截图翻译"
         }
       ],
       "icon": "logo.ico",
@@ -54,6 +56,7 @@
         "linux"
       ],
       "mode": "none",
+      "startHidden": true,
       "superPanel": true,
       "priority": 100
     }

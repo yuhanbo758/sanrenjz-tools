@@ -1,9 +1,12 @@
-const { app, BrowserWindow, ipcMain, globalShortcut, Menu, Tray, nativeImage, shell, dialog, session, safeStorage } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, Menu, Tray, nativeImage, shell, dialog, session, safeStorage, desktopCapturer } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { exec, spawn } = require('child_process');
 const http = require('http');
 const https = require('https');
+const { detectTextContextTypes } = require(app.isPackaged
+    ? path.join(process.resourcesPath, 'app', 'super_panel_context.js')
+    : './app/super_panel_context');
 
 let autoUpdater = null;
 let autoUpdaterLoadError = '';
@@ -45,6 +48,8 @@ let PluginManager;
 let mainWindow;
 let searchWindow;
 let superPanelWindow; // 超级面板窗口
+let activeRegionCapture = null; // 当前跨屏框选截图会话
+const pluginPromptWindowStates = new Map(); // 截图完成后的底部确认条窗口状态
 let isSuperPanelGracePeriod = false; // 超级面板显示宽限期
 let hasActiveInput = false; // 跟踪是否有活动输入框
 let wasTextInputBeforeSearch = false; // 记录打开搜索窗口前是否聚焦在文本输入控件上
@@ -727,12 +732,9 @@ const defaultSettings = {
     autoStart: false,
     pinHotkey: 'Ctrl+D', // 钉住快捷键
     enableRightClickPanel: true, // 启用右键长按面板
-    rightClickDelay: 100, // 右键长按延迟时间（毫秒）
+    rightClickDelay: 350, // 右键长按延迟时间（毫秒），降低普通右键误触概率
     // 超级面板快捷键（为空则不注册）
     superPanelHotkey: '',
-    // 启用中键长按面板与延迟
-    enableMiddleClickPanel: false,
-    middleClickDelay: 100,
     customPluginDataPath: null // 自定义插件数据存储路径
 };
 
@@ -785,32 +787,53 @@ function saveSettings(settings) {
     }
 }
 
-// 获取文本片段
+// 文本片段目录缓存。搜索窗口只读取内存目录，磁盘变化通过 fs.watch 防抖失效。
+const textSnippetCache = {
+    pathsKey: '', items: [], dirty: true, loading: null, watchers: []
+};
+
+function closeTextSnippetWatchers() {
+    for (const watcher of textSnippetCache.watchers) {
+        try { watcher.close(); } catch (_) { }
+    }
+    textSnippetCache.watchers = [];
+}
+
+function invalidateTextSnippetCache(reason = 'unknown') {
+    textSnippetCache.dirty = true;
+    invalidateSearchCatalog(`text-snippets:${reason}`);
+}
+
+function watchTextSnippetPaths(pathsToWatch) {
+    closeTextSnippetWatchers();
+    for (const folderPath of pathsToWatch) {
+        try {
+            const watcher = fs.watch(folderPath, { recursive: process.platform === 'win32' }, () => {
+                invalidateTextSnippetCache('filesystem-change');
+            });
+            watcher.on('error', error => console.warn('文本片段目录监听失败:', error.message));
+            textSnippetCache.watchers.push(watcher);
+        } catch (error) {
+            console.warn(`无法监听文本片段目录 ${folderPath}:`, error.message);
+        }
+    }
+}
+
+/**
+ * 异步读取文本片段目录。
+ * 禁止使用同步文件 API，避免快捷搜索初始化时阻塞 Electron 主进程事件循环。
+ */
 async function getTextSnippets(pluginPath) {
     try {
-        console.log('=== 开始获取余汉波文本片段 ===');
-        console.log('插件路径:', pluginPath);
-
-        // 从插件管理器的持久化存储中读取设置
         let actualPaths = [];
-        let settingsFound = false;
-
         try {
             if (pluginManager) {
-                // 从插件的持久化存储中获取设置
                 const settings = pluginManager.getPluginStorageItem('余汉波文本片段助手', 'snippets-settings');
-                console.log('从存储中获取到设置:', settings);
-
                 if (settings) {
-                    // 支持新版多路径和旧版单一路径
                     if (Array.isArray(settings.snippetsPaths) && settings.snippetsPaths.length > 0) {
-                        actualPaths = settings.snippetsPaths.filter(p => p && fs.existsSync(p));
-                        console.log('使用新版多路径设置:', actualPaths);
-                        settingsFound = actualPaths.length > 0;
-                    } else if (settings.snippetsPath && fs.existsSync(settings.snippetsPath)) {
+                        actualPaths = settings.snippetsPaths.filter(Boolean);
+                    } else if (settings.snippetsPath) {
                         actualPaths = [settings.snippetsPath];
-                        console.log('使用旧版单一路径设置:', actualPaths);
-                        settingsFound = true;
                     }
                 }
             }
@@ -818,91 +841,76 @@ async function getTextSnippets(pluginPath) {
             console.error('从存储中读取设置失败:', error);
         }
 
-        // 如果没有找到插件的设置，显示提示信息
-        if (!settingsFound) {
-            console.log('❌ 未找到插件的设置或路径无效');
-            console.log('💡 请在余汉波文本片段助手插件中设置文件夹路径');
-            console.log('   打开插件 → 点击设置 → 添加文本片段文件夹路径');
+        const existingPaths = [];
+        for (const candidate of actualPaths) {
+            try {
+                const stat = await fs.promises.stat(candidate);
+                if (stat.isDirectory()) existingPaths.push(candidate);
+            } catch (_) { }
+        }
+
+        const pathsKey = JSON.stringify(existingPaths.slice().sort());
+        if (pathsKey !== textSnippetCache.pathsKey) {
+            textSnippetCache.pathsKey = pathsKey;
+            textSnippetCache.dirty = true;
+            watchTextSnippetPaths(existingPaths);
+        }
+
+        if (!textSnippetCache.dirty) return textSnippetCache.items;
+        if (textSnippetCache.loading) return textSnippetCache.loading;
+        if (existingPaths.length === 0) {
+            textSnippetCache.items = [];
+            textSnippetCache.dirty = false;
             return [];
         }
 
-        console.log('✅ 最终使用的文本片段路径:', actualPaths);
-
-        const allSnippets = [];
-
-        // 扫描每个路径中的.md文件
-        for (const folderPath of actualPaths) {
-            console.log(`开始扫描文件夹: ${folderPath}`);
-
-            try {
-                // 递归扫描函数
-                function scanDirectory(dir, maxDepth = 2, currentDepth = 0) {
-                    if (!fs.existsSync(dir) || currentDepth >= maxDepth) return;
-
-                    const items = fs.readdirSync(dir);
-                    console.log(`文件夹 ${dir} 中的项目:`, items.slice(0, 10)); // 只显示前10个
-
-                    for (const item of items) {
-                        const fullPath = path.join(dir, item);
-                        try {
-                            const stat = fs.statSync(fullPath);
-
-                            if (stat.isFile() && path.extname(item).toLowerCase() === '.md') {
-                                try {
-                                    const content = fs.readFileSync(fullPath, 'utf8');
-                                    const fileName = path.basename(item, '.md');
-
-                                    console.log(`✅ 读取MD文件: ${fileName}, 内容长度: ${content.length}`);
-
-                                    // 生成预览文本（去掉Markdown语法）
-                                    let preview = content
-                                        .replace(/^#+\s*/gm, '') // 去掉标题标记
-                                        .replace(/\*\*(.*?)\*\*/g, '$1') // 去掉加粗标记
-                                        .replace(/\*(.*?)\*/g, '$1') // 去掉斜体标记
-                                        .replace(/`(.*?)`/g, '$1') // 去掉代码标记
-                                        .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1') // 去掉链接标记，保留文本
-                                        .replace(/\n+/g, ' ') // 将换行符替换为空格
-                                        .trim();
-
-                                    // 截取预览长度
-                                    if (preview.length > 150) {
-                                        preview = preview.substring(0, 150) + '...';
-                                    }
-
-                                    allSnippets.push({
-                                        title: fileName,
-                                        content: content,
-                                        preview: preview || `${fileName} - Markdown文档`,
-                                        path: fullPath,
-                                        type: 'text-snippet' // 明确标记类型
-                                    });
-                                } catch (error) {
-                                    console.error(`❌ 读取文件 ${fullPath} 失败:`, error);
-                                }
-                            } else if (stat.isDirectory() && currentDepth < maxDepth - 1) {
-                                // 递归搜索子目录，但限制深度
-                                scanDirectory(fullPath, maxDepth, currentDepth + 1);
-                            }
-                        } catch (error) {
-                            console.error(`❌ 处理项目 ${fullPath} 失败:`, error);
-                        }
-                    }
+        textSnippetCache.loading = (async () => {
+            const allSnippets = [];
+            async function scanDirectory(dir, maxDepth = 2, currentDepth = 0) {
+                if (currentDepth >= maxDepth) return;
+                let entries = [];
+                try {
+                    entries = await fs.promises.readdir(dir, { withFileTypes: true });
+                } catch (error) {
+                    console.warn(`扫描文本片段目录失败 ${dir}:`, error.message);
+                    return;
                 }
-
-                scanDirectory(folderPath);
-            } catch (error) {
-                console.error(`扫描文件夹 ${folderPath} 失败:`, error);
+                await Promise.all(entries.map(async entry => {
+                    const fullPath = path.join(dir, entry.name);
+                    if (entry.isDirectory() && currentDepth < maxDepth - 1) {
+                        await scanDirectory(fullPath, maxDepth, currentDepth + 1);
+                        return;
+                    }
+                    if (!entry.isFile() || path.extname(entry.name).toLowerCase() !== '.md') return;
+                    try {
+                        const content = await fs.promises.readFile(fullPath, 'utf8');
+                        const fileName = path.basename(entry.name, '.md');
+                        let preview = content
+                            .replace(/^#+\s*/gm, '')
+                            .replace(/\*\*(.*?)\*\*/g, '$1')
+                            .replace(/\*(.*?)\*/g, '$1')
+                            .replace(/`(.*?)`/g, '$1')
+                            .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+                            .replace(/\n+/g, ' ')
+                            .trim();
+                        if (preview.length > 150) preview = `${preview.slice(0, 150)}...`;
+                        allSnippets.push({ title: fileName, content, preview: preview || `${fileName} - Markdown文档`, path: fullPath, type: 'text-snippet' });
+                    } catch (error) {
+                        console.warn(`读取文本片段失败 ${fullPath}:`, error.message);
+                    }
+                }));
             }
-        }
 
-        console.log(`🎉 最终找到 ${allSnippets.length} 个文本片段`);
+            await Promise.all(existingPaths.map(folderPath => scanDirectory(folderPath)));
+            allSnippets.sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'));
+            textSnippetCache.items = allSnippets;
+            textSnippetCache.dirty = false;
+            console.log(`文本片段搜索缓存已刷新，共 ${allSnippets.length} 项`);
+            return allSnippets;
+        })();
 
-        // 按文件名排序
-        allSnippets.sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'));
-
-        console.log('=== 文本片段获取完成 ===');
-
-        return allSnippets;
+        try { return await textSnippetCache.loading; }
+        finally { textSnippetCache.loading = null; }
     } catch (error) {
         console.error('获取文本片段失败:', error);
         return [];
@@ -1107,61 +1115,94 @@ function startMouseMonitor() {
     if (!settings.enableRightClickPanel) return;
 
     const scriptPath = path.join(app.getPath('userData'), 'mouse-monitor.ps1');
-    const delay = settings.rightClickDelay || 300;
+    const delay = settings.rightClickDelay || 350;
 
-    // 更加稳健的PowerShell脚本，避免不必要的资源消耗
+    // 使用 WH_MOUSE_LL 低层钩子区分短按、长按和右键拖动。
+    // 短按在释放时回放正常右键；长按整段吞掉，因此不会再与系统菜单争抢。
     const psScript = `
 $ErrorActionPreference = "SilentlyContinue"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$VK_RBUTTON = 0x02
-$VK_ESCAPE = 0x1B
 $threshold = ${delay}
+$source = @'
+using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Threading;
+using System.Windows.Forms;
 
-$signature = @'
-[DllImport("user32.dll")]
-public static extern short GetAsyncKeyState(int vKey);
-[DllImport("user32.dll")]
-public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, int dwExtraInfo);
-'@
+public static class SanrenjzMouseHook {
+    private const int WH_MOUSE_LL = 14;
+    private const int WM_MOUSEMOVE = 0x0200;
+    private const int WM_RBUTTONDOWN = 0x0204;
+    private const int WM_RBUTTONUP = 0x0205;
+    private const uint MOUSEEVENTF_RIGHTDOWN = 0x0008;
+    private const uint MOUSEEVENTF_RIGHTUP = 0x0010;
+    private const uint LLMHF_INJECTED = 0x00000001;
+    private static IntPtr hook = IntPtr.Zero;
+    private static HookProc callback = HookCallback;
+    private static bool tracking;
+    private static long pressedAt;
+    private static int startX;
+    private static int startY;
+    private static int threshold;
 
-try { Add-Type -MemberDefinition $signature -Name 'Win32API' -Namespace 'Win32' } catch {}
-
-$isPressed = $false
-$pressTime = 0
-$triggered = $false
-
-while ($true) {
-    try {
-        $state = [Win32.Win32API]::GetAsyncKeyState($VK_RBUTTON)
-        $down = ($state -band 0x8000) -ne 0
-
-        if ($down) {
-            if (-not $isPressed) {
-                $isPressed = $true
-                $pressTime = [Environment]::TickCount
-                $triggered = $false
-            } elseif (-not $triggered) {
-                $elapsed = [Environment]::TickCount - $pressTime
-                if ($elapsed -ge $threshold) {
-                    $triggered = $true
-                    Write-Output "RBUTTON_LONG_PRESS"
-                }
-            }
-        } else {
-            if ($isPressed -and $triggered) {
-                Start-Sleep -Milliseconds 10
-                [Win32.Win32API]::keybd_event($VK_ESCAPE, 0, 0, 0)
-                [Win32.Win32API]::keybd_event($VK_ESCAPE, 0, 2, 0)
-                Write-Output "ESC_SENT"
-                Write-Output "RBUTTON_LONG_PRESS_RELEASE"
-            }
-            $isPressed = $false
-            $triggered = $false
+    public static void Start(int longPressThreshold) {
+        threshold = Math.Max(100, longPressThreshold);
+        using (Process process = Process.GetCurrentProcess())
+        using (ProcessModule module = process.MainModule) {
+            hook = SetWindowsHookEx(WH_MOUSE_LL, callback, GetModuleHandle(module.ModuleName), 0);
         }
-    } catch {}
-    
-    Start-Sleep -Milliseconds 20
+        if (hook == IntPtr.Zero) throw new InvalidOperationException("SetWindowsHookEx failed");
+        try { Application.Run(); }
+        finally { UnhookWindowsHookEx(hook); }
+    }
+
+    private static IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam) {
+        if (nCode < 0) return CallNextHookEx(hook, nCode, wParam, lParam);
+        MSLLHOOKSTRUCT data = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
+        if ((data.flags & LLMHF_INJECTED) != 0) return CallNextHookEx(hook, nCode, wParam, lParam);
+        int message = wParam.ToInt32();
+        if (message == WM_RBUTTONDOWN) {
+            tracking = true;
+            pressedAt = Environment.TickCount;
+            startX = data.pt.x;
+            startY = data.pt.y;
+            return new IntPtr(1);
+        }
+        if (message == WM_MOUSEMOVE && tracking && (Math.Abs(data.pt.x - startX) > 8 || Math.Abs(data.pt.y - startY) > 8)) {
+            tracking = false;
+            mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, UIntPtr.Zero);
+            return CallNextHookEx(hook, nCode, wParam, lParam);
+        }
+        if (message == WM_RBUTTONUP && tracking) {
+            tracking = false;
+            long elapsed = unchecked(Environment.TickCount - pressedAt);
+            if (elapsed >= threshold) Console.WriteLine("RBUTTON_LONG_PRESS_RELEASE");
+            else ReplayRightClick();
+            return new IntPtr(1);
+        }
+        return CallNextHookEx(hook, nCode, wParam, lParam);
+    }
+
+    private static void ReplayRightClick() {
+        ThreadPool.QueueUserWorkItem(_ => {
+            mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, UIntPtr.Zero);
+            mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, UIntPtr.Zero);
+        });
+    }
+
+    private delegate IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam);
+    [StructLayout(LayoutKind.Sequential)] private struct POINT { public int x; public int y; }
+    [StructLayout(LayoutKind.Sequential)] private struct MSLLHOOKSTRUCT { public POINT pt; public uint mouseData; public uint flags; public uint time; public UIntPtr dwExtraInfo; }
+    [DllImport("user32.dll", SetLastError = true)] private static extern IntPtr SetWindowsHookEx(int idHook, HookProc proc, IntPtr module, uint threadId);
+    [DllImport("user32.dll")] private static extern bool UnhookWindowsHookEx(IntPtr hook);
+    [DllImport("user32.dll")] private static extern IntPtr CallNextHookEx(IntPtr hook, int nCode, IntPtr wParam, IntPtr lParam);
+    [DllImport("kernel32.dll", CharSet = CharSet.Auto)] private static extern IntPtr GetModuleHandle(string moduleName);
+    [DllImport("user32.dll")] private static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
 }
+'@
+Add-Type -TypeDefinition $source -ReferencedAssemblies System.Windows.Forms
+[SanrenjzMouseHook]::Start($threshold)
 `;
 
     try {
@@ -1188,23 +1229,9 @@ while ($true) {
                 const line = (rawLine || '').trim();
                 if (!line) continue;
 
-                if (line === 'RBUTTON_LONG_PRESS') {
-                    console.log('检测到右键长按，调用超级面板');
-                    isIgnoreEsc = true;
-                    copySelectedTextToClipboard().finally(() => {
-                        setTimeout(() => {
-                            showSuperPanel({ activate: false });
-                        }, 120);
-                    });
-                    continue;
-                }
-
                 if (line === 'RBUTTON_LONG_PRESS_RELEASE') {
-                    console.log('检测到右键长按释放');
-                    activateSuperPanelWindow();
-                    setTimeout(() => {
-                        isIgnoreEsc = false;
-                    }, 250);
+                    console.log('检测到右键长按释放，采集选区后打开超级面板');
+                    captureSelectedTextForPanel().then(context => showSuperPanel({ context }));
                     continue;
                 }
             }
@@ -1460,6 +1487,7 @@ function activateSuperPanelWindow() {
 // 显示超级面板
 function showSuperPanel(options = {}) {
     const activate = options && options.activate !== false;
+    const panelContext = options && options.context ? options.context : null;
 
     try {
         // 异步记录当前活动窗口句柄，消除UI阻塞
@@ -1523,10 +1551,10 @@ function showSuperPanel(options = {}) {
             superPanelWindow.show();
         }
 
-        // 通知页面刷新（重新获取选中文本）
+        // 鼠标长按路径直接发送已采集的选区；快捷键路径仍允许页面读取剪贴板作为兼容回退。
         if (superPanelWindow.webContents) {
-            console.log('📤 发送刷新面板请求');
-            superPanelWindow.webContents.send('refresh-super-panel');
+            if (panelContext) superPanelWindow.webContents.send('super-panel-context', panelContext);
+            else superPanelWindow.webContents.send('refresh-super-panel');
         }
 
         if (activate) {
@@ -1561,7 +1589,8 @@ function showSuperPanel(options = {}) {
         
         // 出错回退时也要发送刷新请求
         if (superPanelWindow.webContents) {
-            superPanelWindow.webContents.send('refresh-super-panel');
+            if (panelContext) superPanelWindow.webContents.send('super-panel-context', panelContext);
+            else superPanelWindow.webContents.send('refresh-super-panel');
         }
     }
 }
@@ -2221,6 +2250,107 @@ ipcMain.handle('get-plugin-list', async () => {
     return [];
 });
 
+// 快捷搜索统一目录缓存：插件、命令和文本片段只在失效后重新构建。
+const searchCatalogCache = { version: 0, dirty: true, data: null, loading: null };
+
+function invalidateSearchCatalog(reason = 'unknown') {
+    searchCatalogCache.dirty = true;
+    searchCatalogCache.version += 1;
+    if (searchWindow && !searchWindow.isDestroyed()) {
+        searchWindow.webContents.send('search-catalog-invalidated', { reason, version: searchCatalogCache.version });
+    }
+}
+
+/**
+ * 采集当前选区并恢复用户原剪贴板。
+ * 先写入唯一标记可以区分“没有选区”和“选中的文本恰好与旧剪贴板相同”。
+ */
+async function captureSelectedTextForPanel() {
+    const { clipboard } = require('electron');
+    const snapshot = {
+        text: clipboard.readText(),
+        html: clipboard.readHTML(),
+        rtf: clipboard.readRTF(),
+        bookmark: clipboard.readBookmark(),
+        image: clipboard.readImage()
+    };
+    const marker = `__SANRENJZ_SELECTION_${Date.now()}_${Math.random().toString(16).slice(2)}__`;
+    try {
+        clipboard.writeText(marker);
+        await copySelectedTextToClipboard();
+        await new Promise(resolve => setTimeout(resolve, 80));
+        const copiedText = clipboard.readText();
+        const copiedImage = clipboard.readImage();
+        return {
+            text: copiedText === marker ? '' : copiedText,
+            hasImage: copiedText === marker && copiedImage && !copiedImage.isEmpty(),
+            source: 'selection'
+        };
+    } finally {
+        try { clipboard.write(snapshot); } catch (error) { console.warn('恢复剪贴板失败:', error.message); }
+    }
+}
+
+function toFileUrl(filePath) {
+    return `file:///${String(filePath || '').replace(/\\/g, '/').replace(/^\/+/, '')}`;
+}
+
+async function resolvePluginLogoUrl(pluginPath) {
+    for (const fileName of ['logo.ico', 'logo.png']) {
+        const candidate = path.join(pluginPath, fileName);
+        try {
+            await fs.promises.access(candidate, fs.constants.R_OK);
+            return toFileUrl(candidate);
+        } catch (_) { }
+    }
+    return '';
+}
+
+async function buildSearchCatalog() {
+    const plugins = pluginManager ? await pluginManager.getPluginList() : [];
+    const currentSettings = loadSettings();
+    const contentGroups = await Promise.all(plugins.map(plugin => getPluginContents(plugin.path)));
+    const normalizedPlugins = await Promise.all(plugins.map(async plugin => {
+        const customSettings = currentSettings.pluginSearchSettings?.[plugin.name];
+        const customKeywords = customSettings?.enabled && Array.isArray(customSettings.keywords) ? customSettings.keywords : [];
+        return {
+            ...plugin,
+            logoUrl: await resolvePluginLogoUrl(plugin.path),
+            searchText: [plugin.name, plugin.description, ...customKeywords].filter(Boolean).join('\n').toLowerCase()
+        };
+    }));
+    const contents = [];
+    contentGroups.forEach((group, pluginIndex) => {
+        const plugin = plugins[pluginIndex];
+        for (const content of group) {
+            contents.push({
+                ...content,
+                pluginName: plugin.name,
+                pluginPath: plugin.path,
+                logoUrl: normalizedPlugins[pluginIndex].logoUrl,
+                contentType: content.type || 'unknown',
+                type: 'content',
+                searchTitle: String(content.title || '').toLowerCase(),
+                searchBody: `${content.content || ''}\n${content.preview || ''}`.toLowerCase()
+            });
+        }
+    });
+    return { version: searchCatalogCache.version, plugins: normalizedPlugins, contents };
+}
+
+ipcMain.handle('search-catalog-get', async (event, options = {}) => {
+    if (!searchCatalogCache.dirty && searchCatalogCache.data && !options.force) return searchCatalogCache.data;
+    if (searchCatalogCache.loading) return searchCatalogCache.loading;
+    searchCatalogCache.loading = buildSearchCatalog()
+        .then(data => {
+            searchCatalogCache.data = data;
+            searchCatalogCache.dirty = false;
+            return data;
+        })
+        .finally(() => { searchCatalogCache.loading = null; });
+    return searchCatalogCache.loading;
+});
+
 // 注册插件动态功能
 ipcMain.handle('register-plugin-features', async (event, pluginName, features) => {
     /**
@@ -2271,7 +2401,9 @@ ipcMain.handle('register-plugin-features', async (event, pluginName, features) =
         })) : [];
 
         if (pluginManager) {
-            return pluginManager.registerDynamicFeatures(pluginName, safeFeatures);
+            const result = pluginManager.registerDynamicFeatures(pluginName, safeFeatures);
+            invalidateSearchCatalog(`dynamic-features:${pluginName}`);
+            return result;
         }
         return false;
     } catch (error) {
@@ -2325,6 +2457,7 @@ ipcMain.handle('uninstall-plugin', async (event, pluginName) => {
             const result = await pluginManager.uninstallPlugin(pluginName);
             // 如果卸载成功，同时也清除超级面板中的相关功能
             if (result.success) {
+                invalidateSearchCatalog(`plugin-uninstalled:${pluginName}`);
                 if (superPanelRegistry.has(pluginName)) {
                     superPanelRegistry.delete(pluginName);
                     notifySuperPanelUpdate();
@@ -2375,7 +2508,9 @@ ipcMain.handle('add-plugin-to-super-panel', async (event, pluginName) => {
 ipcMain.handle('reload-plugin', async (event, pluginPath) => {
     try {
         if (pluginManager) {
-            return await pluginManager.reloadPlugin(pluginPath);
+            const result = await pluginManager.reloadPlugin(pluginPath);
+            invalidateSearchCatalog(`plugin-reloaded:${pluginPath}`);
+            return result;
         }
         return null;
     } catch (error) {
@@ -2396,7 +2531,7 @@ ipcMain.handle('close-plugin-window', (event, pluginName) => {
 });
 
 // 获取插件内容（如文本片段）
-ipcMain.handle('get-plugin-contents', async (event, pluginPath) => {
+async function getPluginContents(pluginPath) {
     try {
         const pluginJsonPath = path.join(pluginPath, 'plugin.json');
 
@@ -2405,7 +2540,7 @@ ipcMain.handle('get-plugin-contents', async (event, pluginPath) => {
             return [];
         }
 
-        const pluginConfig = JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8'));
+        const pluginConfig = JSON.parse(await fs.promises.readFile(pluginJsonPath, 'utf8'));
         const allContents = [];
 
         console.log(`正在处理插件: ${pluginConfig.pluginName}`);
@@ -2600,7 +2735,9 @@ ipcMain.handle('get-plugin-contents', async (event, pluginPath) => {
         console.error('获取插件内容失败:', error);
         return [];
     }
-});
+}
+
+ipcMain.handle('get-plugin-contents', async (event, pluginPath) => getPluginContents(pluginPath));
 
 // 插入内容（文本片段等）
 ipcMain.handle('insert-content', async (event, content) => {
@@ -3002,6 +3139,163 @@ ipcMain.handle('test-right-click-function', () => {
 });
 
 // 添加 IPC 处理：获取剪贴板文本
+function finishRegionCapture(result) {
+    if (!activeRegionCapture) return;
+    const session = activeRegionCapture;
+    activeRegionCapture = null;
+    for (const overlay of session.overlays) {
+        try { if (!overlay.isDestroyed()) overlay.destroy(); } catch (_) { }
+    }
+    try {
+        if (session.restoreOwner && session.owner && !session.owner.isDestroyed()) {
+            session.owner.show();
+            session.owner.focus();
+        }
+    } catch (_) { }
+    session.resolve(result);
+}
+
+ipcMain.on('screenshot-region-cancel', () => finishRegionCapture({ cancelled: true }));
+
+ipcMain.on('screenshot-region-selected', (event, payload) => {
+    if (!activeRegionCapture || !payload?.rect) return;
+    const sourceInfo = activeRegionCapture.sources.get(String(payload.displayId));
+    if (!sourceInfo) return finishRegionCapture({ cancelled: true, error: '找不到截图对应的显示器' });
+    const { thumbnail, display } = sourceInfo;
+    const imageSize = thumbnail.getSize();
+    const scaleX = imageSize.width / display.bounds.width;
+    const scaleY = imageSize.height / display.bounds.height;
+    const cropRect = {
+        x: Math.max(0, Math.round(payload.rect.x * scaleX)),
+        y: Math.max(0, Math.round(payload.rect.y * scaleY)),
+        width: Math.max(1, Math.min(imageSize.width, Math.round(payload.rect.width * scaleX))),
+        height: Math.max(1, Math.min(imageSize.height, Math.round(payload.rect.height * scaleY)))
+    };
+    if (cropRect.x + cropRect.width > imageSize.width) cropRect.width = imageSize.width - cropRect.x;
+    if (cropRect.y + cropRect.height > imageSize.height) cropRect.height = imageSize.height - cropRect.y;
+    const cropped = thumbnail.crop(cropRect);
+    const croppedSize = cropped.getSize();
+    finishRegionCapture({
+        cancelled: false,
+        dataUrl: cropped.toDataURL(),
+        width: croppedSize.width,
+        height: croppedSize.height
+    });
+});
+
+ipcMain.handle('capture-screen-region', async (event, options = {}) => {
+    if (activeRegionCapture) finishRegionCapture({ cancelled: true, error: '已开始新的截图会话' });
+    const owner = BrowserWindow.fromWebContents(event.sender);
+    if (owner && !owner.isDestroyed()) owner.hide();
+    await new Promise(resolve => setTimeout(resolve, 120));
+
+    const { screen } = require('electron');
+    const displays = screen.getAllDisplays();
+    const maxWidth = Math.max(...displays.map(display => Math.ceil(display.bounds.width * display.scaleFactor)));
+    const maxHeight = Math.max(...displays.map(display => Math.ceil(display.bounds.height * display.scaleFactor)));
+    let capturedSources;
+    try {
+        capturedSources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: maxWidth, height: maxHeight } });
+    } catch (error) {
+        if (options.restoreOwner !== false && owner && !owner.isDestroyed()) {
+            owner.show();
+            owner.focus();
+        }
+        return { cancelled: true, error: `读取屏幕失败：${error.message}` };
+    }
+    const sources = new Map();
+    for (const display of displays) {
+        const source = capturedSources.find(item => String(item.display_id) === String(display.id)) || capturedSources[displays.indexOf(display)];
+        if (source) sources.set(String(display.id), { thumbnail: source.thumbnail, display });
+    }
+    if (sources.size === 0) {
+        if (options.restoreOwner !== false && owner && !owner.isDestroyed()) owner.show();
+        return { cancelled: true, error: '未能读取屏幕画面' };
+    }
+
+    return await new Promise(resolve => {
+        const overlays = [];
+        activeRegionCapture = { owner, overlays, sources, resolve, restoreOwner: options.restoreOwner !== false };
+        for (const display of displays) {
+            const sourceInfo = sources.get(String(display.id));
+            if (!sourceInfo) continue;
+            const overlay = new BrowserWindow({
+                ...display.bounds,
+                frame: false,
+                transparent: false,
+                resizable: false,
+                movable: false,
+                alwaysOnTop: true,
+                skipTaskbar: true,
+                fullscreenable: false,
+                webPreferences: { nodeIntegration: true, contextIsolation: false }
+            });
+            overlays.push(overlay);
+            overlay.setAlwaysOnTop(true, 'screen-saver');
+            overlay.loadFile(path.join(app.getAppPath(), 'screenshot-overlay.html'));
+            overlay.webContents.once('did-finish-load', () => {
+                if (!overlay.isDestroyed()) overlay.webContents.send('screenshot-overlay-init', {
+                    displayId: String(display.id),
+                    dataUrl: sourceInfo.thumbnail.toDataURL()
+                });
+            });
+            overlay.on('closed', () => {
+                if (activeRegionCapture && activeRegionCapture.overlays.every(win => win.isDestroyed())) {
+                    finishRegionCapture({ cancelled: true });
+                }
+            });
+        }
+        const cursorDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+        const focusOverlay = overlays[displays.findIndex(display => display.id === cursorDisplay.id)] || overlays[0];
+        if (focusOverlay) focusOverlay.focus();
+    });
+});
+
+/**
+ * 将插件窗口切换为截图完成后的底部轻量确认条，或恢复原完整窗口。
+ * 仅暴露窗口形态切换，不向插件页面开放 BrowserWindow 对象。
+ */
+ipcMain.handle('set-plugin-window-prompt-mode', (event, enabledValue) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const enabled = enabledValue === true;
+    if (!window || window.isDestroyed()) return false;
+    const { screen } = require('electron');
+    if (enabled) {
+        if (!pluginPromptWindowStates.has(window.id)) {
+            pluginPromptWindowStates.set(window.id, {
+                bounds: window.getBounds(),
+                resizable: window.isResizable(),
+                alwaysOnTop: window.isAlwaysOnTop()
+            });
+            window.once('closed', () => pluginPromptWindowStates.delete(window.id));
+        }
+        const currentBounds = window.getBounds();
+        const center = { x: currentBounds.x + Math.round(currentBounds.width / 2), y: currentBounds.y + Math.round(currentBounds.height / 2) };
+        const display = screen.getDisplayNearestPoint(center);
+        const width = Math.min(560, display.workArea.width - 24);
+        const height = 112;
+        const x = display.workArea.x + Math.round((display.workArea.width - width) / 2);
+        const y = display.workArea.y + display.workArea.height - height - 24;
+        window.setResizable(false);
+        window.setAlwaysOnTop(true, 'floating');
+        window.setBounds({ x, y, width, height });
+        window.show();
+        window.focus();
+        return true;
+    }
+
+    const previous = pluginPromptWindowStates.get(window.id);
+    if (previous) {
+        window.setAlwaysOnTop(previous.alwaysOnTop);
+        window.setResizable(previous.resizable);
+        window.setBounds(previous.bounds);
+        pluginPromptWindowStates.delete(window.id);
+    }
+    window.show();
+    window.focus();
+    return true;
+});
+
 ipcMain.handle('get-clipboard-text', () => {
     try {
         const { clipboard } = require('electron');
@@ -3060,6 +3354,67 @@ function calculateMatchScore(clipboardText, feature) {
     if (feature.contextMenu) score += 3;
 
     return score;
+}
+
+function normalizeSuperPanelContext(input) {
+    if (typeof input === 'string') return { text: input, hasImage: false, source: 'clipboard' };
+    return {
+        text: typeof input?.text === 'string' ? input.text : '',
+        hasImage: input?.hasImage === true,
+        source: typeof input?.source === 'string' ? input.source : 'clipboard'
+    };
+}
+
+function detectSuperPanelContextTypes(context) {
+    const text = context.text.trim();
+    const types = new Set(detectTextContextTypes(text, context.hasImage));
+    try {
+        const cleanPath = normalizeClipboardPath(text);
+        if (cleanPath && path.isAbsolute(cleanPath) && fs.existsSync(cleanPath)) {
+            const stat = fs.statSync(cleanPath);
+            types.add(stat.isDirectory() ? 'directory' : 'file');
+            if (stat.isFile() && isImageFilePath(cleanPath)) types.add('image');
+        }
+    } catch (_) { }
+    return Array.from(types);
+}
+
+function rankSuperPanelActions(actionList, context) {
+    const detectedTypes = detectSuperPanelContextTypes(context);
+    const typeSet = new Set(detectedTypes);
+    const text = context.text.trim();
+    const scoreKeywords = (action) => `${action.title || ''} ${action.description || ''} ${action.category || ''}`.toLowerCase();
+
+    return actionList.map((action, originalIndex) => {
+        const words = scoreKeywords(action);
+        let score = Math.max(0, 40 - Number(action.priority || 10));
+        const feature = action.feature || {};
+        score += calculateMatchScore(text, feature);
+
+        if (typeSet.has('image') && /(截图|图片|ocr|image)/i.test(words)) score += 70;
+        if ((typeSet.has('file') || typeSet.has('directory')) && /(文件|目录|文件夹|终端|path|file)/i.test(words)) score += 60;
+        if (typeSet.has('url') && /(链接|网页|浏览器|url)/i.test(words)) score += 65;
+        if (typeSet.has('email') && /(邮件|邮箱|email)/i.test(words)) score += 65;
+        if (typeSet.has('expression') && /(计算|算式|calculator)/i.test(words)) score += 65;
+        if ((typeSet.has('code') || typeSet.has('json')) && /(代码|格式|json|ai|解释|处理)/i.test(words)) score += 45;
+        if ((typeSet.has('chinese') || typeSet.has('english')) && /(翻译|translate)/i.test(words)) score += 55;
+        if (typeSet.has('text') && /(文本|ai|搜索|复制|处理)/i.test(words)) score += 20;
+
+        const featureCmds = Array.isArray(feature.cmds) ? feature.cmds : [];
+        for (const cmd of featureCmds) {
+            if (!cmd || typeof cmd !== 'object') continue;
+            if (cmd.type === 'img' && typeSet.has('image')) score += 80;
+            if (cmd.type === 'over' && text.length >= Number(cmd.minLength || 0) && text.length <= Number(cmd.maxLength || Infinity)) score += 35;
+        }
+
+        let group = '常用功能';
+        if (typeSet.has('image') && /(截图|图片|ocr|image)/i.test(words)) group = '图片处理';
+        else if (typeSet.has('url')) group = '链接处理';
+        else if (typeSet.has('file') || typeSet.has('directory')) group = '文件处理';
+        else if (typeSet.has('text')) group = '文本处理';
+        return { ...action, contextTypes: detectedTypes, matchScore: score, group, __originalIndex: originalIndex };
+    }).sort((a, b) => b.matchScore - a.matchScore || a.__originalIndex - b.__originalIndex)
+        .map(({ __originalIndex, ...action }) => action);
 }
 
 // 通用插件图标获取函数 - 优先使用 logo.ico，否则使用 logo.png
@@ -3353,9 +3708,11 @@ ipcMain.handle('clear-super-panel-actions', (event, pluginName) => {
  * @param {string} clipboardText 当前剪贴板文本
  * @returns {Promise<Array>} 聚合后的功能列表
  */
-ipcMain.handle('get-super-panel-actions', async (event, clipboardText) => {
+ipcMain.handle('get-super-panel-actions', async (event, contextInput) => {
     try {
-        console.log('🎯 获取超级面板功能，剪贴板文本:', clipboardText);
+        const context = normalizeSuperPanelContext(contextInput);
+        const clipboardText = context.text;
+        console.log('🎯 获取超级面板功能，上下文:', { source: context.source, textLength: clipboardText.length, hasImage: context.hasImage });
 
         // 获取设置中保存的功能列表
         const settings = loadSettings();
@@ -3408,7 +3765,7 @@ ipcMain.handle('get-super-panel-actions', async (event, clipboardText) => {
                     uniqueById.set(action.id, action);
                 }
             }
-            return Array.from(uniqueById.values());
+            return rankSuperPanelActions(Array.from(uniqueById.values()), context);
         }
 
         // 否则返回所有功能（首次使用时）
@@ -3431,7 +3788,7 @@ ipcMain.handle('get-super-panel-actions', async (event, clipboardText) => {
         const dedupedActions = Array.from(uniqueById.values());
         console.log(`去重后功能数量: ${dedupedActions.length}`);
 
-        return dedupedActions;
+        return rankSuperPanelActions(dedupedActions, context);
     } catch (error) {
         console.error('获取超级面板功能失败:', error);
         return [];
@@ -3938,6 +4295,8 @@ ipcMain.on('plugin-storage-set', (event, pluginName, key, value) => {
     try {
         if (pluginManager) {
             const result = pluginManager.setPluginStorageItem(pluginName, key, value);
+            if (pluginName === '余汉波文本片段助手' && key === 'snippets-settings') invalidateTextSnippetCache('settings-changed');
+            else invalidateSearchCatalog(`storage-set:${pluginName}:${key}`);
             console.log(`插件存储设置: ${pluginName} - ${key}`, '成功:', result);
             event.returnValue = result;
         } else {
@@ -3970,6 +4329,8 @@ ipcMain.on('plugin-storage-remove', (event, pluginName, key) => {
     try {
         if (pluginManager) {
             const result = pluginManager.removePluginStorageItem(pluginName, key);
+            if (pluginName === '余汉波文本片段助手' && key === 'snippets-settings') invalidateTextSnippetCache('settings-removed');
+            else invalidateSearchCatalog(`storage-remove:${pluginName}:${key}`);
             console.log(`插件存储删除: ${pluginName} - ${key}`, '成功:', result);
             event.returnValue = result;
         } else {
@@ -3998,13 +4359,70 @@ ipcMain.handle('plugin-storage-get-async', (event, pluginName, key) => {
 ipcMain.handle('plugin-storage-set-async', (event, pluginName, key, value) => {
     try {
         if (pluginManager) {
-            return pluginManager.setPluginStorageItem(pluginName, key, value);
+            const result = pluginManager.setPluginStorageItem(pluginName, key, value);
+            if (pluginName === '余汉波文本片段助手' && key === 'snippets-settings') invalidateTextSnippetCache('settings-changed');
+            else invalidateSearchCatalog(`storage-set:${pluginName}:${key}`);
+            return result;
         }
         return false;
     } catch (error) {
         console.error('插件存储设置失败(Async):', error);
         return false;
     }
+});
+
+ipcMain.handle('get-clipboard-context', () => {
+    const { clipboard } = require('electron');
+    const image = clipboard.readImage();
+    return { text: clipboard.readText() || '', hasImage: Boolean(image && !image.isEmpty()), source: 'clipboard' };
+});
+
+function getPluginSecretPath(pluginName) {
+    const dataDir = pluginManager?.getPluginDataDirectory?.() || path.join(app.getPath('userData'), 'plugin-data');
+    fs.mkdirSync(dataDir, { recursive: true });
+    const safeName = String(pluginName || 'plugin').replace(/[<>:"/\\|?*\x00-\x1F]/g, '_');
+    return path.join(dataDir, `${safeName}-secrets.bin`);
+}
+
+function readPluginSecrets(pluginName) {
+    const secretPath = getPluginSecretPath(pluginName);
+    if (!fs.existsSync(secretPath)) return {};
+    const buffer = fs.readFileSync(secretPath);
+    try {
+        const prefix = buffer.subarray(0, 6).toString('utf8');
+        const json = prefix === 'plain:' ? buffer.subarray(6).toString('utf8') : safeStorage.decryptString(buffer);
+        return JSON.parse(json) || {};
+    } catch (error) {
+        console.warn(`读取插件密钥失败 ${pluginName}:`, error.message);
+        return {};
+    }
+}
+
+function writePluginSecrets(pluginName, secrets) {
+    const json = JSON.stringify(secrets || {});
+    const encrypted = safeStorage.isEncryptionAvailable();
+    const payload = encrypted ? safeStorage.encryptString(json) : Buffer.from(`plain:${json}`, 'utf8');
+    fs.writeFileSync(getPluginSecretPath(pluginName), payload);
+    return encrypted;
+}
+
+ipcMain.handle('plugin-secret-get', (event, pluginName, key) => {
+    const secrets = readPluginSecrets(pluginName);
+    return { value: String(secrets[key] || ''), encryptionAvailable: safeStorage.isEncryptionAvailable() };
+});
+
+ipcMain.handle('plugin-secret-set', (event, pluginName, key, value) => {
+    const secrets = readPluginSecrets(pluginName);
+    secrets[key] = String(value || '');
+    const encryptionAvailable = writePluginSecrets(pluginName, secrets);
+    return { success: true, encryptionAvailable };
+});
+
+ipcMain.handle('plugin-secret-remove', (event, pluginName, key) => {
+    const secrets = readPluginSecrets(pluginName);
+    delete secrets[key];
+    const encryptionAvailable = writePluginSecrets(pluginName, secrets);
+    return { success: true, encryptionAvailable };
 });
 
 // 获取插件数据存储目录
@@ -4287,6 +4705,7 @@ app.on('before-quit', () => {
 
     // 停止鼠标监控
     stopMouseMonitor();
+    closeTextSnippetWatchers();
 
     // 停止所有插件
     if (pluginManager) {
@@ -5949,7 +6368,12 @@ async function runPluginAction(pluginPath, feature, clipboardText) {
             return { success: false, error: `插件配置文件不存在: ${pluginJsonPath}` };
         }
         const pluginConfig = JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8'));
-        const pluginWindow = await pluginManager.createPluginWindow(pluginPath, pluginConfig);
+        const configuredFeature = Array.isArray(pluginConfig.features)
+            ? pluginConfig.features.find(item => item.code === feature.code)
+            : null;
+        const startHidden = configuredFeature?.startHidden === true;
+        const pluginWindow = await pluginManager.createPluginWindow(pluginPath, pluginConfig, { startHidden });
+        if (startHidden && pluginWindow && !pluginWindow.isDestroyed()) pluginWindow.hide();
         // 等待窗口加载完成，保证插件已初始化
         await new Promise((resolve) => {
             try {
@@ -7280,7 +7704,7 @@ function createSuperPanelSettingsHtml() {
                     <div class="setting-description">右键长按触发时间（毫秒）</div>
                 </div>
                 <div class="setting-control">
-                    <input type="number" id="right-click-delay" value="100" min="10" max="2000" 
+                    <input type="number" id="right-click-delay" value="350" min="100" max="2000"
                            style="width: 80px; padding: 4px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 4px;">
                 </div>
             </div>
@@ -7368,7 +7792,7 @@ function createSuperPanelSettingsHtml() {
                 
                 // 更新UI
                 document.getElementById('enable-right-click').checked = settings.enableRightClickPanel !== false;
-                document.getElementById('right-click-delay').value = (typeof settings.rightClickDelay === 'number' ? settings.rightClickDelay : 100);
+                document.getElementById('right-click-delay').value = (typeof settings.rightClickDelay === 'number' ? settings.rightClickDelay : 350);
                 document.getElementById('auto-hide').checked = true; // 默认启用自动隐藏
                 
                 // 加载插件列表
