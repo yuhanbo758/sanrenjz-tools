@@ -1,9 +1,186 @@
-<!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>剪贴板历史</title><link rel="stylesheet" href="styles.css"></head>
-<body class="ui-clipboard-stream" data-ui="clipboard-stream" data-composition="console" data-density="balanced" data-motif="grid">
-  <main class="app-shell">
-    <header class="hero"><div class="identity"><div class="logo-frame"><img id="pluginLogo" src="logo.svg" alt="剪贴板历史图标"></div><div class="identity-copy"><div class="meta-row"><span id="category" class="eyebrow">系统工具</span><span class="privacy-badge"><i></i>本地处理</span></div><h1 id="title">剪贴板历史</h1><p id="description">保存文本和图片剪贴板历史，支持搜索与收藏。</p></div></div><div class="hero-actions"><span class="tool-mode">剪贴板流</span><button id="pinButton" class="icon-button secondary">置顶</button><button id="copyButton" class="icon-button secondary">复制结果</button></div></header>
-    <section class="status-bar"><div id="status" class="status" aria-live="polite"><span class="status-dot"></span><span class="status-text">准备就绪</span></div><div class="shortcut-hints"><kbd>Ctrl</kbd><kbd>Enter</kbd><span>执行</span><kbd>Ctrl</kbd><kbd>S</kbd><span>保存</span></div></section>
-    <section class="workspace"><section class="panel result-panel"><div class="panel-heading"><span class="step-index">03</span><div><strong><span id="resultLabel">历史时间线</span></strong><small>结果可复制、保存或导出</small></div><span id="resultCount" class="counter">等待处理</span></div><div class="result-surface"><div id="emptyState" class="empty-state"><img src="logo.svg" alt=""><strong>剪贴板流</strong><span>配置参数后开始本地处理</span></div><pre id="outputText" tabindex="0" hidden></pre><canvas id="previewCanvas" hidden></canvas><div id="cards" class="cards" hidden></div></div><div class="action-row result-actions"><button id="saveButton" class="secondary">保存结果</button><button id="exportButton" class="ghost">导出数据</button></div></section><section class="panel editor-panel"><div class="panel-heading"><span class="step-index">02</span><div><strong><span id="inputLabel">筛选文本</span></strong><small><span id="inputHint">输入、粘贴或选择本地数据</span></small></div><span id="inputCount" class="counter">0 字符</span></div><div class="editor-surface"><textarea id="inputText" spellcheck="false" placeholder="在这里输入内容……"></textarea><div id="dropHint" class="drop-hint" hidden>拖放文件到这里</div></div><div class="action-row editor-actions"><button id="runButton" class="primary">开始处理</button><button id="previewButton" class="secondary">安全预览</button><button id="clearButton" class="ghost">清空</button></div></section><aside class="panel controls-panel"><div class="panel-heading"><span class="step-index">01</span><div><strong>记录设置</strong><small>专为剪贴板历史设计的操作区</small></div></div><div id="controls" class="controls"></div></aside></section>
-  </main><script src="renderer.js"></script>
-</body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>剪贴板历史</title>
+<style>
+:root{--bg:#f8fafc;--panel:#fff;--text:#1e293b;--muted:#64748b;--border:#e2e8f0;--accent:#475569;--hover:#f1f5f9;--radius:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);padding-top:32px!important;display:flex;flex-direction:column}
+.top-bar{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+.top-bar img{width:32px;height:32px;border-radius:8px;flex-shrink:0}
+.top-bar h1{font-size:18px;font-weight:700;letter-spacing:-.3px;white-space:nowrap}
+.search-bar{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+.search-bar input{flex:1;min-width:0;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);font-size:13px;outline:none;transition:border-color .2s}
+.search-bar input:focus{border-color:var(--accent)}
+.toggle-wrap{display:flex;align-items:center;gap:6px;flex-shrink:0;white-space:nowrap;font-size:12px;color:var(--muted)}
+.toggle-wrap input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px}
+.list-scroll{flex:1;overflow-y:auto;min-height:0}
+.list-scroll::-webkit-scrollbar{width:5px}
+.list-scroll::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+.item{display:flex;align-items:flex-start;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s}
+.item:hover{background:var(--hover)}
+.item:active{background:#e2e8f0}
+.item-icon{width:20px;height:20px;flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;border-radius:4px;background:var(--bg);font-size:11px;color:var(--muted)}
+.item-content{flex:1;min-width:0}
+.item-text{font-size:12px;line-height:1.5;color:var(--text);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-all}
+.item-time{font-size:11px;color:var(--muted);margin-top:2px}
+.item-actions{display:flex;gap:4px;flex-shrink:0;opacity:0;transition:opacity .15s}
+.item:hover .item-actions{opacity:1}
+.item-actions button{width:24px;height:24px;border:none;border-radius:4px;background:transparent;color:var(--muted);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.item-actions button:hover{background:var(--border);color:var(--text)}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:8px;color:var(--muted);padding:40px}
+.empty strong{font-size:15px;color:var(--text)}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:8px 16px;background:var(--text);color:#fff;border-radius:6px;font-size:12px;z-index:99;pointer-events:none;opacity:0;transition:opacity .3s}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <img src="logo.svg" alt="" onerror="this.style.display='none'">
+  <h1>剪贴板历史</h1>
+</div>
+<div class="search-bar">
+  <input type="text" id="filterInput" placeholder="搜索剪贴板内容...">
+  <label class="toggle-wrap">
+    <input type="checkbox" id="autoRecord" checked>
+    <span>自动记录</span>
+  </label>
+</div>
+<div class="list-scroll" id="listContainer">
+  <div class="empty" id="emptyState">
+    <strong>暂无记录</strong>
+    <span>复制内容后将自动出现在这里</span>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const api = window.pluginAPI;
+const filterInput = document.getElementById('filterInput');
+const autoRecord = document.getElementById('autoRecord');
+const listContainer = document.getElementById('listContainer');
+const emptyState = document.getElementById('emptyState');
+const toast = document.getElementById('toast');
+let history = [];
+let pollTimer = null;
+
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 1500);
+}
+
+function formatTime(ts) {
+  const d = new Date(ts);
+  const now = new Date();
+  const diff = now - d;
+  if (diff < 60000) return '刚刚';
+  if (diff < 3600000) return Math.floor(diff / 60000) + ' 分钟前';
+  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+}
+
+function render() {
+  const q = filterInput.value.toLowerCase();
+  const filtered = q ? history.filter(h => h.text.toLowerCase().includes(q)) : history;
+  if (!filtered.length) {
+    emptyState.style.display = 'flex';
+    listContainer.querySelectorAll('.item').forEach(el => el.remove());
+    return;
+  }
+  emptyState.style.display = 'none';
+  let html = '';
+  filtered.forEach((h, i) => {
+    html += `<div class="item" data-idx="${i}" onclick="copyItem(${i})">
+      <div class="item-icon">${h.type === 'image' ? '🖼' : 'T'}</div>
+      <div class="item-content">
+        <div class="item-text">${h.type === 'image' ? '[图片]' : escapeHtml(h.text)}</div>
+        <div class="item-time">${formatTime(h.time)}</div>
+      </div>
+      <div class="item-actions">
+        <button onclick="event.stopPropagation();copyItem(${i})" title="复制">&#x1F4CB;</button>
+        <button onclick="event.stopPropagation();removeItem(${i})" title="删除">&times;</button>
+      </div>
+    </div>`;
+  });
+  listContainer.innerHTML = html;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function copyItem(idx) {
+  const item = history[idx];
+  if (!item) return;
+  api.copyText(item.text);
+  showToast('已复制到剪贴板');
+}
+
+function removeItem(idx) {
+  history.splice(idx, 1);
+  saveHistory();
+  render();
+}
+
+async function saveHistory() {
+  try { await api.storage.set('history', JSON.stringify(history)); } catch (_) {}
+}
+
+async function loadHistory() {
+  try {
+    const raw = await api.storage.get('history');
+    history = raw ? JSON.parse(raw) : [];
+  } catch (_) { history = []; }
+  render();
+}
+
+async function pollClipboard() {
+  if (!autoRecord.checked) return;
+  try {
+    const text = api.readClipboardText();
+    const img = api.readClipboardImage();
+    if (text && text.length > 0 && text.length < 50000) {
+      if (!history.length || history[0].text !== text) {
+        history.unshift({ text, type: 'text', time: Date.now() });
+        if (history.length > 200) history.length = 200;
+        await saveHistory();
+        render();
+      }
+    }
+    if (img && img.length > 0) {
+      const lastImg = history.find(h => h.type === 'image');
+      if (!lastImg || lastImg.text !== img) {
+        history.unshift({ text: img, type: 'image', time: Date.now() });
+        if (history.length > 200) history.length = 200;
+        await saveHistory();
+        render();
+      }
+    }
+  } catch (_) {}
+}
+
+filterInput.addEventListener('input', render);
+autoRecord.addEventListener('change', async () => {
+  try { await api.storage.set('autoRecord', autoRecord.checked ? '1' : '0'); } catch (_) {}
+});
+
+(async () => {
+  await loadHistory();
+  try {
+    const v = await api.storage.get('autoRecord');
+    autoRecord.checked = v !== '0';
+  } catch (_) {}
+  pollTimer = setInterval(pollClipboard, 1000);
+})();
+
+window.addEventListener('beforeunload', () => {
+  if (pollTimer) clearInterval(pollTimer);
+});
+</script>
+</body>
+</html>

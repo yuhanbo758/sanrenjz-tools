@@ -1,9 +1,111 @@
 <!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>计算稿纸</title><link rel="stylesheet" href="styles.css"></head>
-<body class="ui-paper-calculator" data-ui="paper-calculator" data-composition="board" data-density="balanced" data-motif="plain">
-  <main class="app-shell">
-    <header class="hero"><div class="identity"><div class="logo-frame"><img id="pluginLogo" src="logo.svg" alt="计算稿纸图标"></div><div class="identity-copy"><div class="meta-row"><span id="category" class="eyebrow">效率工具</span><span class="privacy-badge"><i></i>本地处理</span></div><h1 id="title">计算稿纸</h1><p id="description">逐行计算表达式、保存变量和复制结果。</p></div></div><div class="hero-actions"><span class="tool-mode">计算稿纸</span><button id="pinButton" class="icon-button secondary">置顶</button><button id="copyButton" class="icon-button secondary">复制结果</button></div></header>
-    <section class="status-bar"><div id="status" class="status" aria-live="polite"><span class="status-dot"></span><span class="status-text">准备就绪</span></div><div class="shortcut-hints"><kbd>Ctrl</kbd><kbd>Enter</kbd><span>执行</span><kbd>Ctrl</kbd><kbd>S</kbd><span>保存</span></div></section>
-    <section class="workspace"><section class="panel editor-panel"><div class="panel-heading"><span class="step-index">02</span><div><strong><span id="inputLabel">逐行算式</span></strong><small><span id="inputHint">输入、粘贴或选择本地数据</span></small></div><span id="inputCount" class="counter">0 字符</span></div><div class="editor-surface"><textarea id="inputText" spellcheck="false" placeholder="在这里输入内容……"></textarea><div id="dropHint" class="drop-hint" hidden>拖放文件到这里</div></div><div class="action-row editor-actions"><button id="runButton" class="primary">开始处理</button><button id="previewButton" class="secondary">安全预览</button><button id="clearButton" class="ghost">清空</button></div></section><section class="panel result-panel"><div class="panel-heading"><span class="step-index">03</span><div><strong><span id="resultLabel">计算轨迹</span></strong><small>结果可复制、保存或导出</small></div><span id="resultCount" class="counter">等待处理</span></div><div class="result-surface"><div id="emptyState" class="empty-state"><img src="logo.svg" alt=""><strong>计算稿纸</strong><span>配置参数后开始本地处理</span></div><pre id="outputText" tabindex="0" hidden></pre><canvas id="previewCanvas" hidden></canvas><div id="cards" class="cards" hidden></div></div><div class="action-row result-actions"><button id="saveButton" class="secondary">保存结果</button><button id="exportButton" class="ghost">导出数据</button></div></section><aside class="panel controls-panel"><div class="panel-heading"><span class="step-index">01</span><div><strong>变量区域</strong><small>专为计算稿纸设计的操作区</small></div></div><div id="controls" class="controls"></div></aside></section>
-  </main><script src="renderer.js"></script>
-</body></html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<style>
+:root{--bg:#f9fafb;--fg:#4b5563;--fg2:#374151;--card:#fff;--border:#e5e7eb;--input:#f3f4f6;--text:#111827;--sub:#6b7280;--accent:#6366f1;--radius:8px;--shadow:0 1px 3px rgba(0,0,0,.06)}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);padding-top:32px}
+button{font-family:inherit;font-size:12px;cursor:pointer;border:none;border-radius:var(--radius);transition:all .15s;font-weight:600}
+button:active{transform:scale(.97)}
+#app{height:100%;display:flex;flex-direction:column;overflow:hidden}
+#header{display:flex;gap:8px;padding:10px 14px;background:var(--card);border-bottom:1px solid var(--border);align-items:center}
+#header button{padding:6px 14px;background:var(--fg);color:#fff}
+#header button:hover{background:var(--fg2)}
+#header button.run{background:var(--accent)}
+#header button.run:hover{background:#4f46e5}
+#header button.clear{background:transparent;color:var(--sub);border:1px solid var(--border)}
+#header button.clear:hover{background:var(--input)}
+#header .tip{font-size:11px;color:var(--sub);margin-left:auto}
+#main{flex:1;display:flex;overflow:hidden}
+#editor{flex:1;padding:14px;font-size:14px;line-height:2;font-family:'JetBrains Mono','Fira Code',monospace;border:none;resize:none;background:var(--bg);color:var(--text);white-space:pre-wrap;word-break:break-all;overflow-y:auto}
+#editor:focus{outline:none}
+#results{flex:1;padding:14px;overflow-y:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:14px;line-height:2;color:var(--text);border-left:1px solid var(--border);background:var(--card);display:flex;flex-direction:column;gap:2px}
+#results::-webkit-scrollbar{width:5px}
+#results::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.result-line{display:flex;align-items:baseline;gap:10px;min-height:28px}
+.result-line .expr{color:var(--fg);min-width:0;overflow:hidden;text-overflow:ellipsis}
+.result-line .eq{color:var(--sub);font-weight:700}
+.result-line .value{color:var(--accent);font-weight:700;word-break:break-all}
+.result-line .error{color:#dc2626;font-size:12px;line-height:1.4}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <button class="run" id="runBtn">计算</button>
+    <button class="clear" id="clearBtn">清空</button>
+    <span class="tip">每行一个表达式 · 变量赋值 x=5 · 支持 + - * / % **</span>
+  </div>
+  <div id="main">
+    <textarea id="editor" placeholder="x = 5&#10;y = 3&#10;x + y&#10;x * y&#10;2 ** 10&#10;x / (y - 1)">x = 5
+y = 3
+x + y
+x * y
+2 ** 10
+x / (y - 1)</textarea>
+    <div id="results"></div>
+  </div>
+</div>
+<script>
+const api = window.pluginAPI;
+const STORAGE_KEY = 'calc';
+const editor = document.getElementById('editor');
+const results = document.getElementById('results');
+const runBtn = document.getElementById('runBtn');
+const clearBtn = document.getElementById('clearBtn');
+
+function evaluate() {
+  const vars = {};
+  const lines = editor.value.split('\n');
+  results.innerHTML = lines.map((line, i) => {
+    const trimmed = line.trim();
+    if (!trimmed) return '<div class="result-line"></div>';
+    const assign = trimmed.match(/^([a-zA-Z_]\w*)\s*=\s*(.+)$/);
+    try {
+      if (assign) {
+        const name = assign[1];
+        const val = safeEval(assign[2], vars);
+        vars[name] = val;
+        return `<div class="result-line"><span class="expr">${trimmed}</span><span class="eq">=</span><span class="value">${formatNum(val)}</span></div>`;
+      }
+      const val = safeEval(trimmed, vars);
+      return `<div class="result-line"><span class="expr">${trimmed}</span><span class="eq">=</span><span class="value">${formatNum(val)}</span></div>`;
+    } catch (e) {
+      return `<div class="result-line"><span class="expr">${trimmed}</span><span class="eq">=</span><span class="error">${e.message}</span></div>`;
+    }
+  }).join('');
+}
+
+function safeEval(expr, vars) {
+  const safe = expr.replace(/([a-zA-Z_]\w*)/g, (m) => {
+    if (m === 'Math' || m === 'PI' || m === 'E' || m === 'LN2' || m === 'LN10' || m === 'SQRT2' || m === 'SQRT1_2') return 'Math.' + m;
+    if (m in vars) return vars[m];
+    if (m in Math) return 'Math.' + m;
+    throw new Error('未知变量: ' + m);
+  });
+  const val = Function('"use strict"; return (' + safe + ')')();
+  if (typeof val !== 'number' || !isFinite(val)) throw new Error('计算结果无效');
+  return val;
+}
+
+function formatNum(n) {
+  if (Number.isInteger(n)) return String(n);
+  return Number(n.toPrecision(12)).toString();
+}
+
+async function persist() { await api.storage.set(STORAGE_KEY, editor.value); }
+editor.addEventListener('input', () => { clearTimeout(editor._timer); editor._timer = setTimeout(persist, 500); });
+runBtn.addEventListener('click', evaluate);
+clearBtn.addEventListener('click', () => { editor.value = ''; results.innerHTML = ''; persist(); });
+document.addEventListener('keydown', e => { if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); evaluate(); } });
+
+(async () => {
+  const data = await api.storage.get(STORAGE_KEY);
+  if (data) editor.value = data;
+  evaluate();
+})();
+</script>
+</body>
+</html>

@@ -1,9 +1,147 @@
-<!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>局域网快传</title><link rel="stylesheet" href="styles.css"></head>
-<body class="ui-transfer-room" data-ui="transfer-room" data-composition="dashboard" data-density="airy" data-motif="lines">
-  <main class="app-shell">
-    <header class="hero"><div class="identity"><div class="logo-frame"><img id="pluginLogo" src="logo.svg" alt="局域网快传图标"></div><div class="identity-copy"><div class="meta-row"><span id="category" class="eyebrow">系统工具</span><span class="privacy-badge"><i></i>本地处理</span></div><h1 id="title">局域网快传</h1><p id="description">通过局域网浏览器传输文字和文件，不经过云端。</p></div></div><div class="hero-actions"><span class="tool-mode">局域网传输室</span><button id="pinButton" class="icon-button secondary">置顶</button><button id="copyButton" class="icon-button secondary">复制结果</button></div></header>
-    <section class="status-bar"><div id="status" class="status" aria-live="polite"><span class="status-dot"></span><span class="status-text">准备就绪</span></div><div class="shortcut-hints"><kbd>Ctrl</kbd><kbd>Enter</kbd><span>执行</span><kbd>Ctrl</kbd><kbd>S</kbd><span>保存</span></div></section>
-    <section class="workspace"><section class="panel result-panel"><div class="panel-heading"><span class="step-index">03</span><div><strong><span id="resultLabel">配对与队列</span></strong><small>结果可复制、保存或导出</small></div><span id="resultCount" class="counter">等待处理</span></div><div class="result-surface"><div id="emptyState" class="empty-state"><img src="logo.svg" alt=""><strong>局域网传输室</strong><span>配置参数后开始本地处理</span></div><pre id="outputText" tabindex="0" hidden></pre><canvas id="previewCanvas" hidden></canvas><div id="cards" class="cards" hidden></div></div><div class="action-row result-actions"><button id="saveButton" class="secondary">保存结果</button><button id="exportButton" class="ghost">导出数据</button></div></section><aside class="panel controls-panel"><div class="panel-heading"><span class="step-index">01</span><div><strong>服务设置</strong><small>专为局域网快传设计的操作区</small></div></div><div id="controls" class="controls"></div></aside><section class="panel editor-panel"><div class="panel-heading"><span class="step-index">02</span><div><strong><span id="inputLabel">传输文字</span></strong><small><span id="inputHint">输入、粘贴或选择本地数据</span></small></div><span id="inputCount" class="counter">0 字符</span></div><div class="editor-surface"><textarea id="inputText" spellcheck="false" placeholder="在这里输入内容……"></textarea><div id="dropHint" class="drop-hint" hidden>拖放文件到这里</div></div><div class="action-row editor-actions"><button id="runButton" class="primary">开始处理</button><button id="previewButton" class="secondary">安全预览</button><button id="clearButton" class="ghost">清空</button></div></section></section>
-  </main><script src="renderer.js"></script>
-</body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>局域网快传</title>
+<style>
+:root{--bg:#f0fdfa;--panel:#fff;--text:#134e4a;--muted:#5b8c88;--border:#ccfbf1;--accent:#0d9488;--accent2:#14b8a6;--radius:12px}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);padding-top:32px!important;display:flex;flex-direction:column}
+.top-panel{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+.server-toggle{width:48px;height:48px;border-radius:50%;border:2px solid var(--accent);background:var(--panel);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:20px;transition:all .3s;flex-shrink:0}
+.server-toggle.running{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 0 0 6px color-mix(in srgb,var(--accent) 15%,transparent)}
+.server-info{flex:1;min-width:0}
+.server-info h1{font-size:18px;font-weight:700;letter-spacing:-.3px;margin-bottom:2px}
+.server-info .port-row{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.server-info .port-row input{width:60px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:monospace;text-align:center;outline:none}
+.server-info .port-row input:focus{border-color:var(--accent)}
+.url-list{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.url-tag{font-family:monospace;font-size:11px;padding:3px 8px;border-radius:4px;background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--accent);cursor:pointer;transition:all .15s;white-space:nowrap}
+.url-tag:hover{background:color-mix(in srgb,var(--accent) 20%,transparent)}
+.main-grid{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:1px;min-height:0;overflow:hidden}
+.panel{display:flex;flex-direction:column;padding:12px;gap:8px;overflow:hidden}
+.panel-title{font-size:12px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;flex-shrink:0}
+.send-area{display:flex;flex-direction:column;gap:8px;flex:1}
+.send-area textarea{flex:1;min-height:0;padding:10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--panel);color:var(--text);font-size:12px;resize:none;outline:none;font-family:inherit}
+.send-area textarea:focus{border-color:var(--accent)}
+.send-bar{display:flex;gap:6px;flex-shrink:0}
+.send-bar button{padding:7px 14px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
+.send-bar button:hover{filter:brightness(1.1)}
+.send-bar button:active{transform:scale(.97)}
+.receive-log{flex:1;overflow-y:auto;min-height:0;font-size:11px}
+.receive-log::-webkit-scrollbar{width:4px}
+.receive-log::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.log-entry{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:4px;font-family:monospace;font-size:10px;transition:background .15s}
+.log-entry:hover{background:var(--bg)}
+.log-entry .time{color:var(--muted);flex-shrink:0}
+.log-entry .info{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.log-entry .bytes{color:var(--accent);flex-shrink:0}
+</style>
+</head>
+<body>
+<div class="top-panel">
+  <button class="server-toggle" id="toggleBtn" title="启动/停止服务">&#x25B6;</button>
+  <div class="server-info">
+    <h1>局域网快传</h1>
+    <div class="port-row">
+      <span>端口</span>
+      <input type="text" id="portInput" value="8888" placeholder="端口">
+    </div>
+    <div class="url-list" id="urlList"></div>
+  </div>
+</div>
+<div class="main-grid">
+  <div class="panel">
+    <div class="panel-title">发送内容</div>
+    <div class="send-area">
+      <textarea id="sendText" placeholder="输入文字发送到服务器..."></textarea>
+      <div class="send-bar">
+        <button id="sendBtn">发送文字</button>
+      </div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-title">接收记录</div>
+    <div class="receive-log" id="receiveLog">服务未启动</div>
+  </div>
+</div>
+<script>
+const api = window.pluginAPI;
+const toggleBtn = document.getElementById('toggleBtn');
+const portInput = document.getElementById('portInput');
+const urlList = document.getElementById('urlList');
+const sendText = document.getElementById('sendText');
+const sendBtn = document.getElementById('sendBtn');
+const receiveLog = document.getElementById('receiveLog');
+
+let running = false;
+let pollTimer = null;
+
+function updateUI(state) {
+  running = state.running;
+  if (running) {
+    toggleBtn.classList.add('running');
+    toggleBtn.innerHTML = '&#x25A0;';
+    const urls = state.urls || state.address ? [state.address ? `http://${state.address.address}:${state.address.port}` : ''] : [];
+    urlList.innerHTML = urls.map(u => `<span class="url-tag" onclick="api.copyText('${u}')" title="点击复制">${u}</span>`).join('');
+    if (state.received) renderLog(state.received);
+  } else {
+    toggleBtn.classList.remove('running');
+    toggleBtn.innerHTML = '&#x25B6;';
+    urlList.innerHTML = '<span style="color:var(--muted);font-size:12px">服务未启动</span>';
+    receiveLog.innerHTML = '服务未启动';
+  }
+}
+
+function renderLog(items) {
+  if (!items.length) { receiveLog.innerHTML = '<span style="color:var(--muted);font-size:11px">暂无接收记录</span>'; return; }
+  receiveLog.innerHTML = items.map(item => {
+    const t = new Date(item.time).toLocaleTimeString('zh-CN');
+    const info = item.file ? item.file.split(/[/\\]/).pop() : (item.text || '').slice(0, 40);
+    const bytes = item.bytes ? (item.bytes < 1024 ? item.bytes + 'B' : (item.bytes / 1024).toFixed(1) + 'KB') : '';
+    return `<div class="log-entry"><span class="time">${t}</span><span class="info">${info}</span><span class="bytes">${bytes}</span></div>`;
+  }).join('');
+}
+
+async function checkStatus() {
+  try {
+    const res = await api.runTask({ input: '', options: {}, execute: false });
+    if (res.ok) updateUI(res.result);
+  } catch (_) {}
+}
+
+toggleBtn.addEventListener('click', async () => {
+  if (running) {
+    try {
+      const res = await api.runTask({ input: '', options: { action: 'stop' }, execute: true });
+      if (res.ok) updateUI(res.result);
+    } catch (_) {}
+  } else {
+    try {
+      const res = await api.runTask({ input: '', options: { port: parseInt(portInput.value) || 0 }, execute: true });
+      if (res.ok) updateUI(res.result);
+    } catch (e) { receiveLog.innerHTML = '启动失败: ' + e.message; }
+  }
+});
+
+sendBtn.addEventListener('click', async () => {
+  const text = sendText.value.trim();
+  if (!text || !running) return;
+  try {
+    const urls = urlList.querySelectorAll('.url-tag');
+    if (urls.length) {
+      await fetch(urls[0].textContent, { method: 'POST', body: text });
+      sendText.value = '';
+    }
+  } catch (e) { receiveLog.innerHTML = '发送失败: ' + e.message; }
+});
+
+pollTimer = setInterval(checkStatus, 3000);
+checkStatus();
+
+window.addEventListener('beforeunload', () => { if (pollTimer) clearInterval(pollTimer); });
+</script>
+</body>
+</html>

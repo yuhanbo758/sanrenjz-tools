@@ -1,9 +1,82 @@
-<!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>目录树生成器</title><link rel="stylesheet" href="styles.css"></head>
-<body class="ui-tree-preview" data-ui="tree-preview" data-composition="console" data-density="balanced" data-motif="dots">
-  <main class="app-shell">
-    <header class="hero"><div class="identity"><div class="logo-frame"><img id="pluginLogo" src="logo.svg" alt="目录树生成器图标"></div><div class="identity-copy"><div class="meta-row"><span id="category" class="eyebrow">文件工具</span><span class="privacy-badge"><i></i>本地处理</span></div><h1 id="title">目录树生成器</h1><p id="description">生成纯文本、Markdown 或 JSON 格式的目录树。</p></div></div><div class="hero-actions"><span class="tool-mode">目录树绘制器</span><button id="pinButton" class="icon-button secondary">置顶</button><button id="copyButton" class="icon-button secondary">复制结果</button></div></header>
-    <section class="status-bar"><div id="status" class="status" aria-live="polite"><span class="status-dot"></span><span class="status-text">准备就绪</span></div><div class="shortcut-hints"><kbd>Ctrl</kbd><kbd>Enter</kbd><span>执行</span><kbd>Ctrl</kbd><kbd>S</kbd><span>保存</span></div></section>
-    <section class="workspace"><section class="panel result-panel"><div class="panel-heading"><span class="step-index">03</span><div><strong><span id="resultLabel">目录树预览</span></strong><small>结果可复制、保存或导出</small></div><span id="resultCount" class="counter">等待处理</span></div><div class="result-surface"><div id="emptyState" class="empty-state"><img src="logo.svg" alt=""><strong>目录树绘制器</strong><span>配置参数后开始本地处理</span></div><pre id="outputText" tabindex="0" hidden></pre><canvas id="previewCanvas" hidden></canvas><div id="cards" class="cards" hidden></div></div><div class="action-row result-actions"><button id="saveButton" class="secondary">保存结果</button><button id="exportButton" class="ghost">导出数据</button></div></section><section class="panel editor-panel"><div class="panel-heading"><span class="step-index">02</span><div><strong><span id="inputLabel">过滤说明</span></strong><small><span id="inputHint">输入、粘贴或选择本地数据</span></small></div><span id="inputCount" class="counter">0 字符</span></div><div class="editor-surface"><textarea id="inputText" spellcheck="false" placeholder="在这里输入内容……"></textarea><div id="dropHint" class="drop-hint" hidden>拖放文件到这里</div></div><div class="action-row editor-actions"><button id="runButton" class="primary">开始处理</button><button id="previewButton" class="secondary">安全预览</button><button id="clearButton" class="ghost">清空</button></div></section><aside class="panel controls-panel"><div class="panel-heading"><span class="step-index">01</span><div><strong>输出样式</strong><small>专为目录树生成器设计的操作区</small></div></div><div id="controls" class="controls"></div></aside></section>
-  </main><script src="renderer.js"></script>
-</body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>目录树生成器</title>
+<style>
+:root{--bg:#f0fdfa;--panel:#fff;--surface:#ccfbf1;--text:#134e4a;--muted:#5c8a85;--border:#99f6e4;--accent:#0f766e;--accent2:#14b8a6;--radius:8px}
+*{box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{margin:0;padding-top:32px;background:var(--bg);color:var(--text);font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
+.app{height:calc(100vh - 32px);display:flex;flex-direction:column;overflow:hidden}
+.top{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--border)}
+.top .logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;flex-shrink:0}
+.top h1{font-size:15px;font-weight:700;margin:0;white-space:nowrap}
+.top .path{flex:1;display:flex;align-items:center;gap:6px;min-width:0}
+.top .path input{flex:1;min-width:0;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:12px;color:var(--text);outline:none;cursor:pointer}
+.top .path input:focus{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 20%,transparent)}
+.top .btn{padding:6px 14px;border:1px solid var(--border);border-radius:6px;background:var(--panel);cursor:pointer;font-size:12px;font-weight:500;white-space:nowrap;transition:all .15s}
+.top .btn:hover{background:var(--surface)}
+.top .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.top .btn.primary:hover{background:color-mix(in srgb,var(--accent) 85%,#000)}
+.fmt{display:flex;align-items:center;gap:12px;padding:6px 14px;background:var(--surface);border-bottom:1px solid var(--border);font-size:11px}
+.fmt .tabs{display:flex}
+.fmt .tabs button{padding:4px 14px;border:1px solid var(--border);background:var(--panel);cursor:pointer;font-size:11px;font-weight:500;transition:all .15s;color:var(--text)}
+.fmt .tabs button:first-child{border-radius:5px 0 0 5px}
+.fmt .tabs button:last-child{border-radius:0 5px 5px 0;margin-left:-1px}
+.fmt .tabs button.active{background:var(--accent);color:#fff;border-color:var(--accent);z-index:1}
+.fmt .info{color:var(--muted);margin-left:auto}
+.tree{flex:1;overflow:auto;padding:12px 14px;background:var(--panel)}
+.tree pre{margin:0;font-size:12px;font-family:"SF Mono","Cascadia Code","Consolas",monospace;line-height:1.7;white-space:pre-wrap;word-break:break-all;color:var(--text)}
+.tree .empty{text-align:center;padding:50px 20px;color:var(--muted);font-size:13px}
+.tree .empty strong{display:block;font-size:15px;color:var(--text);margin-bottom:4px}
+.stat{display:flex;align-items:center;justify-content:space-between;padding:6px 14px;font-size:11px;color:var(--muted);background:var(--panel);border-top:1px solid var(--border)}
+.stat .cnt{font-weight:600;color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="logo">&#127795;</div>
+    <h1>目录树生成器</h1>
+    <div class="path">
+      <input type="text" id="dirPath" placeholder="选择目录..." readonly>
+    </div>
+    <button class="btn" id="pickDir">浏览</button>
+    <button class="btn primary" id="generate">生成</button>
+    <button class="btn" id="copyTree">复制</button>
+  </div>
+  <div class="fmt">
+    <div class="tabs">
+      <button class="active" data-format="text">纯文本</button>
+      <button data-format="markdown">Markdown</button>
+      <button data-format="json">JSON</button>
+    </div>
+    <span class="info" id="fmtInfo"></span>
+  </div>
+  <div class="tree" id="tree">
+    <div class="empty"><strong>选择目录生成树形结构</strong>支持纯文本、Markdown、JSON 三种格式</div>
+  </div>
+  <div class="stat"><span id="statText"></span><span class="cnt" id="statCount"></span></div>
+</div>
+<script>
+const $=s=>document.querySelector(s);
+const API=window.pluginAPI;
+let dir='',format='text',lastResult='';
+
+async function pickDir(){dir=await API.selectDirectory('选择目录');$('#dirPath').value=dir||''}
+async function doGenerate(){if(!dir){$('#statText').textContent='请先选择目录';return}$('#statText').textContent='生成中...';const r=await API.runTask({options:{directory:dir,format}});if(r.ok){lastResult=r.result;renderTree(r.result)}else{$('#statText').textContent=r.error}}
+function renderTree(data){const el=$('#tree');const text=typeof data==='string'?data:JSON.stringify(data,null,2);
+  el.innerHTML='<pre>'+escHtml(text)+'</pre>';
+  const lines=typeof data==='string'?data.split('\n').filter(Boolean).length:data.length;
+  $('#statCount').textContent=lines+' 项';$('#statText').textContent=''}
+function doCopy(){if(lastResult)API.copyText(typeof lastResult==='string'?lastResult:JSON.stringify(lastResult,null,2));$('#statText').textContent='已复制';setTimeout(()=>{$('#statText').textContent=''},2000)}
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+$('#pickDir').onclick=pickDir;$('#generate').onclick=doGenerate;$('#copyTree').onclick=doCopy;
+$('#dirPath').onclick=pickDir;
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=function(){document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));this.classList.add('active');format=this.dataset.format;if(dir)doGenerate()});
+</script>
+</body>
+</html>

@@ -1,9 +1,124 @@
 <!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>工时日志</title><link rel="stylesheet" href="styles.css"></head>
-<body class="ui-timesheet" data-ui="timesheet" data-composition="split" data-density="balanced" data-motif="lines">
-  <main class="app-shell">
-    <header class="hero"><div class="identity"><div class="logo-frame"><img id="pluginLogo" src="logo.svg" alt="工时日志图标"></div><div class="identity-copy"><div class="meta-row"><span id="category" class="eyebrow">效率工具</span><span class="privacy-badge"><i></i>本地处理</span></div><h1 id="title">工时日志</h1><p id="description">记录项目工时并生成周报和月报。</p></div></div><div class="hero-actions"><span class="tool-mode">工时表</span><button id="pinButton" class="icon-button secondary">置顶</button><button id="copyButton" class="icon-button secondary">复制结果</button></div></header>
-    <section class="status-bar"><div id="status" class="status" aria-live="polite"><span class="status-dot"></span><span class="status-text">准备就绪</span></div><div class="shortcut-hints"><kbd>Ctrl</kbd><kbd>Enter</kbd><span>执行</span><kbd>Ctrl</kbd><kbd>S</kbd><span>保存</span></div></section>
-    <section class="workspace"><section class="panel editor-panel"><div class="panel-heading"><span class="step-index">02</span><div><strong><span id="inputLabel">工作说明</span></strong><small><span id="inputHint">输入、粘贴或选择本地数据</span></small></div><span id="inputCount" class="counter">0 字符</span></div><div class="editor-surface"><textarea id="inputText" spellcheck="false" placeholder="在这里输入内容……"></textarea><div id="dropHint" class="drop-hint" hidden>拖放文件到这里</div></div><div class="action-row editor-actions"><button id="runButton" class="primary">开始处理</button><button id="previewButton" class="secondary">安全预览</button><button id="clearButton" class="ghost">清空</button></div></section><section class="panel result-panel"><div class="panel-heading"><span class="step-index">03</span><div><strong><span id="resultLabel">工时报表</span></strong><small>结果可复制、保存或导出</small></div><span id="resultCount" class="counter">等待处理</span></div><div class="result-surface"><div id="emptyState" class="empty-state"><img src="logo.svg" alt=""><strong>工时表</strong><span>配置参数后开始本地处理</span></div><pre id="outputText" tabindex="0" hidden></pre><canvas id="previewCanvas" hidden></canvas><div id="cards" class="cards" hidden></div></div><div class="action-row result-actions"><button id="saveButton" class="secondary">保存结果</button><button id="exportButton" class="ghost">导出数据</button></div></section><aside class="panel controls-panel"><div class="panel-heading"><span class="step-index">01</span><div><strong>记录字段</strong><small>专为工时日志设计的操作区</small></div></div><div id="controls" class="controls"></div></aside></section>
-  </main><script src="renderer.js"></script>
-</body></html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<style>
+:root{--bg:#fef7ed;--fg:#92400e;--fg2:#78350f;--card:#fffbeb;--border:#fde68a;--input:#fef3c7;--text:#451a03;--sub:#a16207;--accent:#d97706;--radius:8px;--shadow:0 1px 3px rgba(146,64,14,.08)}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);padding-top:32px}
+input,button{font-family:inherit;font-size:13px;outline:none}
+button{cursor:pointer;border:none;border-radius:var(--radius);transition:all .15s}
+button:active{transform:scale(.97)}
+#app{height:100%;display:flex;flex-direction:column;overflow:hidden}
+#input-area{display:flex;gap:10px;padding:12px 14px;background:var(--card);border-bottom:1px solid var(--border);align-items:center;flex-wrap:wrap}
+#input-area input{flex:1;min-width:100px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--input);color:var(--text)}
+#input-area input:focus{border-color:var(--fg);box-shadow:0 0 0 2px rgba(146,64,14,.12)}
+#input-area input[type="date"]{max-width:140px;flex:none}
+#input-area input[type="number"]{max-width:80px;flex:none;text-align:center}
+#input-area button{padding:8px 16px;background:var(--fg);color:#fff;font-weight:600;font-size:12px}
+#input-area button:hover{background:var(--fg2)}
+#totals{display:flex;gap:16px;padding:10px 14px;background:var(--card);border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:var(--sub)}
+#totals span{color:var(--fg);font-weight:700}
+#log-list{flex:1;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:6px}
+#log-list::-webkit-scrollbar{width:5px}
+#log-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.log-entry{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--card);border-radius:var(--radius);border:1px solid var(--border);transition:all .12s}
+.log-entry:hover{border-color:var(--fg);box-shadow:var(--shadow)}
+.log-entry .project{font-weight:700;font-size:13px;min-width:80px;color:var(--text)}
+.log-entry .minutes{font-weight:600;font-size:14px;color:var(--fg);min-width:50px;font-variant-numeric:tabular-nums}
+.log-entry .date{font-size:11px;color:var(--sub);min-width:70px}
+.log-entry .del{color:var(--sub);cursor:pointer;font-size:14px;padding:2px 6px;border-radius:4px;opacity:.4;margin-left:auto;transition:all .12s}
+.log-entry .del:hover{background:#fef2f2;color:#dc2626;opacity:1}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="input-area">
+    <input type="text" id="projectInput" placeholder="项目名称">
+    <input type="number" id="minutesInput" placeholder="分钟" min="1" value="30">
+    <input type="date" id="dateInput">
+    <button id="addBtn">记一笔</button>
+  </div>
+  <div id="totals">
+    <div>今日合计 <span id="todayTotal">0</span> 分钟</div>
+    <div>本周合计 <span id="weekTotal">0</span> 分钟</div>
+  </div>
+  <div id="log-list"></div>
+</div>
+<script>
+const api = window.pluginAPI;
+const STORAGE_KEY = 'worklog';
+const projectInput = document.getElementById('projectInput');
+const minutesInput = document.getElementById('minutesInput');
+const dateInput = document.getElementById('dateInput');
+const addBtn = document.getElementById('addBtn');
+const logList = document.getElementById('log-list');
+const todayTotal = document.getElementById('todayTotal');
+const weekTotal = document.getElementById('weekTotal');
+let logs = [];
+
+function getStartOfDay(ts) { const d = new Date(ts); d.setHours(0,0,0,0); return d.getTime(); }
+function getStartOfWeek(ts) { const d = new Date(ts); d.setHours(0,0,0,0); d.setDate(d.getDate()-d.getDay()); return d.getTime(); }
+
+function calcTotals() {
+  const now = Date.now();
+  const dayStart = getStartOfDay(now);
+  const weekStart = getStartOfWeek(now);
+  let dayT = 0, weekT = 0;
+  logs.forEach(l => { if (l.timestamp >= dayStart) dayT += l.minutes; if (l.timestamp >= weekStart) weekT += l.minutes; });
+  todayTotal.textContent = dayT;
+  weekTotal.textContent = weekT;
+}
+
+function render() {
+  if (logs.length === 0) {
+    logList.innerHTML = '<div style="text-align:center;padding:40px;color:var(--sub);font-size:13px">暂无记录</div>';
+    return;
+  }
+  const sorted = [...logs].sort((a,b) => b.timestamp - a.timestamp);
+  logList.innerHTML = sorted.map(l => {
+    const d = new Date(l.timestamp);
+    const dateStr = d.toLocaleDateString('zh-CN',{month:'short',day:'numeric'});
+    return `<div class="log-entry" data-id="${l.id}">
+      <div class="project">${l.project||'未命名'}</div>
+      <div class="minutes">${l.minutes} min</div>
+      <div class="date">${dateStr}</div>
+      <div class="del" data-action="del">&times;</div>
+    </div>`;
+  }).join('');
+  logList.querySelectorAll('.del').forEach(del => {
+    del.addEventListener('click', () => {
+      const id = del.closest('.log-entry').dataset.id;
+      logs = logs.filter(l => l.id !== id);
+      render(); calcTotals(); persist();
+    });
+  });
+  calcTotals();
+}
+
+async function persist() { await api.storage.set(STORAGE_KEY, logs); }
+
+function addLog() {
+  const project = projectInput.value.trim() || '未命名';
+  const minutes = parseInt(minutesInput.value) || 0;
+  if (minutes <= 0) return;
+  const dateVal = dateInput.value;
+  const timestamp = dateVal ? new Date(dateVal + 'T12:00:00').getTime() : Date.now();
+  logs.push({ id: String(Date.now()), project, minutes, timestamp });
+  projectInput.value = ''; minutesInput.value = '30';
+  render(); persist();
+}
+
+dateInput.value = new Date().toISOString().split('T')[0];
+addBtn.addEventListener('click', addLog);
+minutesInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addLog(); } });
+
+(async () => {
+  const data = await api.storage.get(STORAGE_KEY);
+  logs = Array.isArray(data) ? data : [];
+  render();
+})();
+</script>
+</body>
+</html>

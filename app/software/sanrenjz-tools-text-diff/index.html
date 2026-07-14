@@ -1,9 +1,88 @@
 <!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>文本差异对比</title><link rel="stylesheet" href="styles.css"></head>
-<body class="ui-diff-split" data-ui="diff-split" data-composition="canvas" data-density="compact" data-motif="plain">
-  <main class="app-shell">
-    <header class="hero"><div class="identity"><div class="logo-frame"><img id="pluginLogo" src="logo.svg" alt="文本差异对比图标"></div><div class="identity-copy"><div class="meta-row"><span id="category" class="eyebrow">开发工具</span><span class="privacy-badge"><i></i>本地处理</span></div><h1 id="title">文本差异对比</h1><p id="description">提供行级和字符级文本差异对比及结果导出。</p></div></div><div class="hero-actions"><span class="tool-mode">双栏差异台</span><button id="pinButton" class="icon-button secondary">置顶</button><button id="copyButton" class="icon-button secondary">复制结果</button></div></header>
-    <section class="status-bar"><div id="status" class="status" aria-live="polite"><span class="status-dot"></span><span class="status-text">准备就绪</span></div><div class="shortcut-hints"><kbd>Ctrl</kbd><kbd>Enter</kbd><span>执行</span><kbd>Ctrl</kbd><kbd>S</kbd><span>保存</span></div></section>
-    <section class="workspace"><aside class="panel controls-panel"><div class="panel-heading"><span class="step-index">01</span><div><strong>对比规则</strong><small>专为文本差异对比设计的操作区</small></div></div><div id="controls" class="controls"></div></aside><section class="panel result-panel"><div class="panel-heading"><span class="step-index">03</span><div><strong><span id="resultLabel">差异标记</span></strong><small>结果可复制、保存或导出</small></div><span id="resultCount" class="counter">等待处理</span></div><div class="result-surface"><div id="emptyState" class="empty-state"><img src="logo.svg" alt=""><strong>双栏差异台</strong><span>配置参数后开始本地处理</span></div><pre id="outputText" tabindex="0" hidden></pre><canvas id="previewCanvas" hidden></canvas><div id="cards" class="cards" hidden></div></div><div class="action-row result-actions"><button id="saveButton" class="secondary">保存结果</button><button id="exportButton" class="ghost">导出数据</button></div></section><section class="panel editor-panel"><div class="panel-heading"><span class="step-index">02</span><div><strong><span id="inputLabel">左侧文本</span></strong><small><span id="inputHint">输入、粘贴或选择本地数据</span></small></div><span id="inputCount" class="counter">0 字符</span></div><div class="editor-surface"><textarea id="inputText" spellcheck="false" placeholder="在这里输入内容……"></textarea><div id="dropHint" class="drop-hint" hidden>拖放文件到这里</div></div><div class="action-row editor-actions"><button id="runButton" class="primary">开始处理</button><button id="previewButton" class="secondary">安全预览</button><button id="clearButton" class="ghost">清空</button></div></section></section>
-  </main><script src="renderer.js"></script>
-</body></html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>文本差异对比</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#f6f8fa;--pan:#fff;--sur:#f0f2f5;--brd:#d0d7de;--txt:#1f2328;--mu:#656d76;--ac:#0550ae;--add:#1a7f37;--rm:#cf222e;--abg:rgba(26,127,55,.08);--rbg:rgba(207,34,46,.08)}
+html,body{height:100%;overflow:hidden}
+body{font:13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--txt);padding-top:32px}
+.app{height:calc(100vh - 32px);display:flex;flex-direction:column}
+.bar{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--brd);flex-shrink:0;background:var(--pan)}
+.bar span{font-size:14px;font-weight:600;margin-right:auto}
+.btn{font:12px var(--sans);padding:5px 12px;border:1px solid var(--brd);border-radius:6px;background:var(--pan);color:var(--txt);cursor:pointer;transition:all .12s}
+.btn:hover{background:var(--sur)}
+.btn.ac{background:var(--ac);color:#fff;border-color:var(--ac)}
+.view{display:inline-flex;border:1px solid var(--brd);border-radius:6px;overflow:hidden}
+.view button{padding:5px 12px;border:none;background:none;color:var(--mu);font-size:12px;cursor:pointer;transition:all .12s}
+.view button.on{background:var(--ac);color:#fff}
+.inp{flex:1;display:flex;min-height:0;gap:1px;background:var(--brd);position:relative}
+.pane{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--pan)}
+.ph{display:flex;align-items:center;justify-content:space-between;padding:5px 10px;border-bottom:1px solid var(--brd);flex-shrink:0;font-size:11px;font-weight:600;color:var(--mu);text-transform:uppercase;letter-spacing:.4px}
+.ph .info{font-size:10px;font-family:'JetBrains Mono',monospace}
+#left,#right{flex:1;border:none;background:var(--pan);color:var(--txt);font:13px/1.6 'JetBrains Mono',Consolas,monospace;padding:10px 12px;resize:none;outline:none;white-space:pre;overflow:auto;min-height:0}
+.swap{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:30px;height:30px;border:2px solid var(--brd);border-radius:50%;background:var(--pan);color:var(--ac);cursor:pointer;font-size:12px;z-index:5;display:grid;place-items:center;transition:all .2s}
+.swap:hover{background:var(--ac);color:#fff;transform:translate(-50%,-50%) rotate(180deg)}
+.stats{display:flex;align-items:center;gap:12px;padding:5px 14px;border-bottom:1px solid var(--brd);flex-shrink:0;font-size:11px;color:var(--mu)}
+.stats .sp{flex:1}
+.stats .add{color:var(--add)}.stats .rm{color:var(--rm)}
+.diff{flex:1;display:flex;min-height:0;gap:1px;background:var(--brd);overflow:hidden}
+.dcol{flex:1;overflow:auto;min-width:0}
+.dline{display:flex;font:12px/1.5 'JetBrains Mono',Consolas,monospace;min-height:20px}
+.dline:hover{background:var(--sur)}
+.dline .ln{flex-shrink:0;width:40px;text-align:right;padding:2px 6px;color:var(--mu);font-size:10px;user-select:none;border-right:1px solid var(--brd)}
+.dline .ct{flex:1;padding:2px 8px;white-space:pre;word-break:break-all}
+.dline.a{background:var(--abg)}.dline.a .ct{color:var(--add)}.dline.a .ln{background:rgba(26,127,55,.04);color:var(--add)}
+.dline.r{background:var(--rbg)}.dline.r .ct{color:var(--rm)}.dline.r .ln{background:rgba(207,34,46,.04);color:var(--rm)}
+.dline.e .ct{color:var(--mu)}
+.flash{position:fixed;top:40px;left:50%;transform:translateX(-50%);padding:6px 16px;background:var(--ac);color:#fff;border-radius:6px;font-size:12px;z-index:100;opacity:0;transition:opacity .2s}
+.flash.on{opacity:1}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:var(--brd);border-radius:3px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="bar">
+    <span>文本差异对比</span>
+    <div class="view"><button class="on" data-v="split">分栏</button><button data-v="unified">统一</button></div>
+    <button class="btn" id="sw">交换 ⇄</button>
+    <button class="btn ac" id="exp">导出差异</button>
+  </div>
+  <div class="inp" id="inps">
+    <div class="pane"><div class="ph"><span>原始文本</span><span class="info" id="li">0 行</span></div><textarea id="left" spellcheck="false" placeholder="原始文本…"></textarea></div>
+    <button class="swap" id="sw2">⇄</button>
+    <div class="pane"><div class="ph"><span>修改后文本</span><span class="info" id="ri">0 行</span></div><textarea id="right" spellcheck="false" placeholder="修改后文本…"></textarea></div>
+  </div>
+  <div class="stats" id="stats">
+    <span class="add" id="ac">+0</span><span class="rm" id="rc">-0</span><span>~<span id="ec">0</span></span>
+    <span class="sp"></span><span id="sim">相似度 --</span>
+  </div>
+  <div class="diff" id="diff" style="display:none">
+    <div class="dcol" id="dl"></div>
+    <div class="dcol" id="dr"></div>
+  </div>
+</div>
+<div class="flash" id="fl">已复制</div>
+<script>
+(function(){
+const $=id=>document.getElementById(id);const left=$('left'),right=$('right'),inps=$('inps'),diff=$('diff'),dl=$('dl'),dr=$('dr');let view='split',result=[];
+function fl(){$('fl').classList.add('on');setTimeout(()=>$('fl').classList.remove('on'),1000)}
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function cd(a,b){const m=a.length,n=b.length;if(m>2000||n>2000)return sd(a,b);const dp=Array.from({length:m+1},()=>new Uint16Array(n+1));for(let i=1;i<=m;i++)for(let j=1;j<=n;j++){if(a[i-1]===b[j-1])dp[i][j]=dp[i-1][j-1]+1;else dp[i][j]=Math.max(dp[i-1][j],dp[i][j-1])}const r=[];let i=m,j=n;while(i>0||j>0){if(i>0&&j>0&&a[i-1]===b[j-1]){r.unshift({t:'=',l:a[i-1],r:b[j-1]});i--;j--}else if(j>0&&(i===0||dp[i][j-1]>=dp[i-1][j])){r.unshift({t:'+',r:b[j-1]});j--}else{r.unshift({t:'-',l:a[i-1]});i--}}return r}
+function sd(a,b){const max=Math.max(a.length,b.length);const r=[];for(let i=0;i<max;i++){if(a[i]===b[i])r.push({t:'=',l:a[i],r:b[i]});else{if(a[i]!==undefined)r.push({t:'-',l:a[i]});if(b[i]!==undefined)r.push({t:'+',r:b[i]})}}return r}
+function rd(){const lv=left.value.split('\n'),rv=right.value.split('\n');if(!left.value&&!right.value){diff.style.display='none';inps.style.flex='1';$('ac').textContent='+0';$('rc').textContent='-0';$('ec').textContent='0';$('sim').textContent='相似度 --';return}result=cd(lv,rv);let ac=0,rc=0,ec=0;for(const x of result){if(x.t==='+')ac++;else if(x.t==='-')rc++;else ec++}$('ac').textContent='+'+ac;$('rc').textContent='-'+rc;$('ec').textContent=ec;const t=ac+rc+ec;$('sim').textContent='相似度 '+Math.round(ec/t*100)+'%';if(view==='split')rs();else ru();inps.style.flex='0 0 45%';diff.style.display='flex';diff.style.flex='1'}
+function rs(){dl.innerHTML='';dr.innerHTML='';let ll=0,rl=0;for(const x of result){if(x.t==='='){ll++;rl++;dl.appendChild(ml(x.l,'=',ll));dr.appendChild(ml(x.r,'=',rl))}else if(x.t==='+'){rl++;dl.appendChild(ml('','e',''));dr.appendChild(ml(x.r,'a',rl))}else{ll++;dl.appendChild(ml(x.l,'r',ll));dr.appendChild(ml('','e',''))}}}
+function ru(){dl.innerHTML='';dr.style.display='none';let ln=0;for(const x of result){if(x.t==='='){ln++;dl.appendChild(ml('  '+x.l,'=',ln))}else if(x.t==='+'){ln++;dl.appendChild(ml('+ '+x.r,'a',ln))}else{dl.appendChild(ml('- '+x.l,'r',''))}}}
+function ml(ct,type,ln){const l=document.createElement('div');l.className='dline '+({'+':'a','-':'r','=':'','e':'e'}[type]);const n=document.createElement('span');n.className='ln';n.textContent=ln!==''?ln:'';const c=document.createElement('span');c.className='ct';c.textContent=ct||'';l.append(n,c);return l}
+let syncing=false;dl.addEventListener('scroll',()=>{if(syncing)return;syncing=true;dr.scrollTop=dl.scrollTop;setTimeout(()=>syncing=false,10)});dr.addEventListener('scroll',()=>{if(syncing)return;syncing=true;dl.scrollTop=dr.scrollTop;setTimeout(()=>syncing=false,10)});
+document.querySelectorAll('.view button').forEach(b=>b.addEventListener('click',()=>{view=b.dataset.v;document.querySelectorAll('.view button').forEach(x=>x.classList.toggle('on',x===b));dr.style.display=view==='split'?'':'none';if(result.length)rd()}));
+let dt;left.addEventListener('input',()=>{$('li').textContent=left.value.split('\n').length+' 行';clearTimeout(dt);dt=setTimeout(rd,300)});right.addEventListener('input',()=>{$('ri').textContent=right.value.split('\n').length+' 行';clearTimeout(dt);dt=setTimeout(rd,300)});
+$('sw').addEventListener('click',()=>{const t=left.value;left.value=right.value;right.value=t;rd()});$('sw2').addEventListener('click',()=>{const t=left.value;left.value=right.value;right.value=t;rd()});
+$('exp').addEventListener('click',()=>{if(!result.length)return;const lines=result.map(x=>{if(x.t==='=')return'  '+(x.l||'');if(x.t==='+')return'+ '+(x.r||'');return'- '+(x.l||'')});window.services.clipboard.writeText(lines.join('\n'));fl()});
+window.addEventListener('plugin-enter',e=>{if(e.detail&&typeof e.detail==='string'){left.value=e.detail;rd()}});
+})();
+</script>
+</body>
+</html>

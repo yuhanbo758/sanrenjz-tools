@@ -1,9 +1,81 @@
-<!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PDF 页面整理</title><link rel="stylesheet" href="styles.css"></head>
-<body class="ui-page-sorter" data-ui="page-sorter" data-composition="timeline" data-density="compact" data-motif="glow">
-  <main class="app-shell">
-    <header class="hero"><div class="identity"><div class="logo-frame"><img id="pluginLogo" src="logo.svg" alt="PDF 页面整理图标"></div><div class="identity-copy"><div class="meta-row"><span id="category" class="eyebrow">办公工具</span><span class="privacy-badge"><i></i>本地处理</span></div><h1 id="title">PDF 页面整理</h1><p id="description">本地合并、拆分、旋转、排序和提取 PDF 页面。</p></div></div><div class="hero-actions"><span class="tool-mode">页面编排台</span><button id="pinButton" class="icon-button secondary">置顶</button><button id="copyButton" class="icon-button secondary">复制结果</button></div></header>
-    <section class="status-bar"><div id="status" class="status" aria-live="polite"><span class="status-dot"></span><span class="status-text">准备就绪</span></div><div class="shortcut-hints"><kbd>Ctrl</kbd><kbd>Enter</kbd><span>执行</span><kbd>Ctrl</kbd><kbd>S</kbd><span>保存</span></div></section>
-    <section class="workspace"><section class="panel editor-panel"><div class="panel-heading"><span class="step-index">02</span><div><strong><span id="inputLabel">PDF 队列</span></strong><small><span id="inputHint">输入、粘贴或选择本地数据</span></small></div><span id="inputCount" class="counter">0 字符</span></div><div class="editor-surface"><textarea id="inputText" spellcheck="false" placeholder="在这里输入内容……"></textarea><div id="dropHint" class="drop-hint" hidden>拖放文件到这里</div></div><div class="action-row editor-actions"><button id="runButton" class="primary">开始处理</button><button id="previewButton" class="secondary">安全预览</button><button id="clearButton" class="ghost">清空</button></div></section><aside class="panel controls-panel"><div class="panel-heading"><span class="step-index">01</span><div><strong>页面操作</strong><small>专为PDF 页面整理设计的操作区</small></div></div><div id="controls" class="controls"></div></aside><section class="panel result-panel"><div class="panel-heading"><span class="step-index">03</span><div><strong><span id="resultLabel">页面序列</span></strong><small>结果可复制、保存或导出</small></div><span id="resultCount" class="counter">等待处理</span></div><div class="result-surface"><div id="emptyState" class="empty-state"><img src="logo.svg" alt=""><strong>页面编排台</strong><span>配置参数后开始本地处理</span></div><pre id="outputText" tabindex="0" hidden></pre><canvas id="previewCanvas" hidden></canvas><div id="cards" class="cards" hidden></div></div><div class="action-row result-actions"><button id="saveButton" class="secondary">保存结果</button><button id="exportButton" class="ghost">导出数据</button></div></section></section>
-  </main><script src="renderer.js"></script>
-</body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PDF 页面整理</title>
+<style>
+:root{--bg:#fef2f2;--panel:#fff;--surface:#fee2e2;--text:#4a1111;--muted:#9b5555;--border:#fecaca;--accent:#dc2626;--accent2:#f87171;--radius:10px}
+*{box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{margin:0;padding-top:32px;background:var(--bg);color:var(--text);font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
+.app{height:calc(100vh - 32px);display:flex;flex-direction:column;overflow:hidden}
+.top{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--border)}
+.top .logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;flex-shrink:0}
+.top h1{font-size:15px;font-weight:700;margin:0;white-space:nowrap}
+.top .btn{padding:6px 14px;border:1px solid var(--border);border-radius:6px;background:var(--panel);cursor:pointer;font-size:12px;font-weight:500;white-space:nowrap;transition:all .15s}
+.top .btn:hover{background:var(--surface)}
+.top .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.top .btn.primary:hover{background:color-mix(in srgb,var(--accent) 85%,#000)}
+.config{display:flex;align-items:center;gap:12px;padding:8px 14px;background:var(--surface);border-bottom:1px solid var(--border);font-size:11px}
+.config .fld{display:flex;align-items:center;gap:4px}
+.config .fld label{color:var(--muted);white-space:nowrap;font-weight:500}
+.config .fld select,.config .fld input{padding:4px 8px;border:1px solid var(--border);border-radius:5px;background:var(--panel);font-size:11px;outline:none;color:var(--text)}
+.config .fld select:focus,.config .fld input:focus{border-color:var(--accent)}
+.config .fld input{width:200px}
+.files{flex:1;overflow-y:auto;padding:6px 0}
+.files .file{display:grid;grid-template-columns:auto 1fr 60px;gap:8px;align-items:center;padding:7px 14px;font-size:12px;border-bottom:1px solid color-mix(in srgb,var(--border) 50%,transparent);transition:background .1s}
+.files .file:hover{background:var(--surface)}
+.files .file .up,.files .file .down{width:24px;height:24px;border:1px solid var(--border);border-radius:5px;background:var(--panel);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;transition:all .15s;color:var(--muted);padding:0;line-height:1}
+.files .file .up:hover,.files .file .down:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+.files .file .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-family:"SF Mono","Cascadia Code","Consolas",monospace}
+.files .file .remove{width:24px;height:24px;border:1px solid var(--border);border-radius:5px;background:var(--panel);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .15s;color:var(--muted);padding:0;line-height:1;margin-left:auto}
+.files .file .remove:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+.files .empty{text-align:center;padding:50px 20px;color:var(--muted);font-size:13px}
+.files .empty strong{display:block;font-size:15px;color:var(--text);margin-bottom:4px}
+.preview{display:flex;align-items:center;gap:12px;padding:8px 14px;background:var(--surface);border-top:1px solid var(--border);font-size:11px}
+.preview .info{color:var(--muted)}
+.preview .info strong{color:var(--accent);font-weight:700}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="logo">&#128214;</div>
+    <h1>PDF 页面整理</h1>
+    <button class="btn" id="addPdf">添加 PDF</button>
+    <button class="btn primary" id="preview">预览</button>
+    <button class="btn primary" id="merge" style="background:#16a34a;border-color:#16a34a">合并输出</button>
+    <button class="btn" id="clearAll">清空</button>
+  </div>
+  <div class="config">
+    <div class="fld"><label>页面旋转</label><select id="rotation"><option value="0">0&#176;</option><option value="90">90&#176;</option><option value="180">180&#176;</option><option value="270">270&#176;</option></select></div>
+    <div class="fld"><label>输出路径</label><input type="text" id="outPath" placeholder="默认：PDF页面整理结果.pdf" readonly></div>
+    <button class="btn" id="pickOut" style="padding:4px 10px;font-size:11px">选择</button>
+  </div>
+  <div class="files" id="files">
+    <div class="empty"><strong>添加 PDF 文件开始整理</strong>支持合并、旋转页面，拖拽可调整顺序</div>
+  </div>
+  <div class="preview"><span class="info" id="previewInfo"></span><span style="margin-left:auto;color:var(--muted)" id="statText"></span></div>
+</div>
+<script>
+const $=s=>document.querySelector(s);
+const API=window.pluginAPI;
+let fileList=[],outPath='',previewData=null;
+
+async function addPdf(){const f=await API.selectFiles({title:'选择 PDF 文件',filters:[{name:'PDF',extensions:['pdf']}]});if(f.length){fileList=[...new Set([...fileList,...f])];renderFiles();previewData=null;$('#previewInfo').textContent=''}}
+function clearAll(){fileList=[];outPath='';previewData=null;renderFiles();$('#previewInfo').textContent='';$('#outPath').value=''}
+function renderFiles(){const el=$('#files');if(!fileList.length){el.innerHTML='<div class="empty"><strong>添加 PDF 文件开始整理</strong>支持合并、旋转页面，拖拽可调整顺序</div>';return}
+  el.innerHTML=fileList.map((f,i)=>`<div class="file"><button class="up" data-idx="${i}" ${i===0?'disabled':''}>&#9650;</button><button class="down" data-idx="${i}" ${i===fileList.length-1?'disabled':''}>&#9660;</button><span class="name" title="${f}">${f.split(/[\\/]/).pop()}</span><button class="remove" data-idx="${i}">&times;</button></div>`).join('');
+  el.querySelectorAll('.up').forEach(b=>b.onclick=function(){const i=+this.dataset.idx;if(i>0){[fileList[i],fileList[i-1]]=[fileList[i-1],fileList[i]];renderFiles()}});
+  el.querySelectorAll('.down').forEach(b=>b.onclick=function(){const i=+this.dataset.idx;if(i<fileList.length-1){[fileList[i],fileList[i+1]]=[fileList[i+1],fileList[i]];renderFiles()}});
+  el.querySelectorAll('.remove').forEach(b=>b.onclick=function(){fileList.splice(+this.dataset.idx,1);renderFiles()})}
+async function doPreview(){if(!fileList.length)return;$('#statText').textContent='预览中...';const r=await API.runTask({options:{files:fileList,rotation:$('#rotation').value,output:outPath||undefined}});if(r.ok){previewData=r.result;$('#previewInfo').innerHTML='<strong>'+previewData.pages+'</strong> 页，<strong>'+fmtSize(previewData.bytes)+'</strong>';$('#statText').textContent=r.result.hint||''}else{$('#statText').textContent=r.error;$('#previewInfo').textContent=''}}
+async function doMerge(){if(!fileList.length)return;$('#statText').textContent='合并中...';const r=await API.runTask({options:{files:fileList,rotation:$('#rotation').value,output:outPath||undefined},execute:true});if(r.ok){$('#statText').textContent='已保存到 '+r.result.output;$('#previewInfo').innerHTML='<strong>'+r.result.pages+'</strong> 页，<strong>'+fmtSize(r.result.bytes)+'</strong>'}else{$('#statText').textContent=r.error}}
+async function pickOut(){const p=await API.chooseSavePath({title:'选择输出位置',defaultPath:'PDF页面整理结果.pdf',filters:[{name:'PDF',extensions:['pdf']}]});if(p){outPath=p;$('#outPath').value=p}}
+function fmtSize(b){if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(1)+' MB'}
+
+$('#addPdf').onclick=addPdf;$('#preview').onclick=doPreview;$('#merge').onclick=doMerge;$('#clearAll').onclick=clearAll;$('#pickOut').onclick=pickOut;$('#outPath').onclick=pickOut;
+</script>
+</body>
+</html>

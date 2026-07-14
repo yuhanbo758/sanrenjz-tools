@@ -1,9 +1,102 @@
 <!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>哈希与 HMAC</title><link rel="stylesheet" href="styles.css"></head>
-<body class="ui-security-console" data-ui="security-console" data-composition="console" data-density="balanced" data-motif="plain">
-  <main class="app-shell">
-    <header class="hero"><div class="identity"><div class="logo-frame"><img id="pluginLogo" src="logo.svg" alt="哈希与 HMAC图标"></div><div class="identity-copy"><div class="meta-row"><span id="category" class="eyebrow">开发工具</span><span class="privacy-badge"><i></i>本地处理</span></div><h1 id="title">哈希与 HMAC</h1><p id="description">生成 MD5、SHA 系列摘要和 HMAC，并进行摘要比对。</p></div></div><div class="hero-actions"><span class="tool-mode">摘要安全台</span><button id="pinButton" class="icon-button secondary">置顶</button><button id="copyButton" class="icon-button secondary">复制结果</button></div></header>
-    <section class="status-bar"><div id="status" class="status" aria-live="polite"><span class="status-dot"></span><span class="status-text">准备就绪</span></div><div class="shortcut-hints"><kbd>Ctrl</kbd><kbd>Enter</kbd><span>执行</span><kbd>Ctrl</kbd><kbd>S</kbd><span>保存</span></div></section>
-    <section class="workspace"><section class="panel result-panel"><div class="panel-heading"><span class="step-index">03</span><div><strong><span id="resultLabel">指纹结果</span></strong><small>结果可复制、保存或导出</small></div><span id="resultCount" class="counter">等待处理</span></div><div class="result-surface"><div id="emptyState" class="empty-state"><img src="logo.svg" alt=""><strong>摘要安全台</strong><span>配置参数后开始本地处理</span></div><pre id="outputText" tabindex="0" hidden></pre><canvas id="previewCanvas" hidden></canvas><div id="cards" class="cards" hidden></div></div><div class="action-row result-actions"><button id="saveButton" class="secondary">保存结果</button><button id="exportButton" class="ghost">导出数据</button></div></section><section class="panel editor-panel"><div class="panel-heading"><span class="step-index">02</span><div><strong><span id="inputLabel">待摘要文本</span></strong><small><span id="inputHint">输入、粘贴或选择本地数据</span></small></div><span id="inputCount" class="counter">0 字符</span></div><div class="editor-surface"><textarea id="inputText" spellcheck="false" placeholder="在这里输入内容……"></textarea><div id="dropHint" class="drop-hint" hidden>拖放文件到这里</div></div><div class="action-row editor-actions"><button id="runButton" class="primary">开始处理</button><button id="previewButton" class="secondary">安全预览</button><button id="clearButton" class="ghost">清空</button></div></section><aside class="panel controls-panel"><div class="panel-heading"><span class="step-index">01</span><div><strong>算法与密钥</strong><small>专为哈希与 HMAC设计的操作区</small></div></div><div id="controls" class="controls"></div></aside></section>
-  </main><script src="renderer.js"></script>
-</body></html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>哈希与 HMAC</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#f4f6ff;--pan:#fff;--sur:#e8ecff;--brd:#c4cdf6;--txt:#1e1b4b;--mu:#6366f1;--ac:#4f46e5;--md5:#f59e0b;--sha1:#10b981;--s256:#3b82f6;--s512:#8b5cf6}
+html,body{height:100%;overflow:hidden}
+body{font:13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--txt);padding-top:32px}
+.app{height:calc(100vh - 32px);display:flex;flex-direction:column}
+.bar{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--brd);flex-shrink:0;background:var(--pan)}
+.bar span{font-size:14px;font-weight:600;color:var(--ac);margin-right:auto}
+.btn{font:12px var(--sans);padding:5px 12px;border:1px solid var(--brd);border-radius:6px;background:var(--pan);color:var(--txt);cursor:pointer;transition:all .12s}
+.btn:hover{background:var(--sur)}
+.btn.ac{background:var(--ac);color:#fff;border-color:var(--ac)}
+.cfg{display:flex;align-items:center;gap:14px;padding:6px 14px;border-bottom:1px solid var(--brd);flex-shrink:0;flex-wrap:wrap}
+.cfg .lbl{font-size:11px;color:var(--mu);font-weight:600;white-space:nowrap}
+.chips{display:flex;gap:4px;flex-wrap:wrap}
+.chip{display:flex;align-items:center;gap:3px;padding:4px 10px;border:1px solid var(--brd);border-radius:16px;background:var(--pan);color:var(--mu);font-size:11px;cursor:pointer;transition:all .12s;user-select:none}
+.chip:hover{border-color:var(--ac)}
+.chip.on{color:#fff;font-weight:500;border-color:transparent}
+.chip.on[data-a="md5"]{background:var(--md5)}.chip.on[data-a="sha1"]{background:var(--sha1)}.chip.on[data-a="sha256"]{background:var(--s256)}.chip.on[data-a="sha512"]{background:var(--s512)}
+.chip .ck{font-size:9px}.chip:not(.on) .ck{display:none}
+.cfg input{padding:4px 10px;border:1px solid var(--brd);border-radius:6px;background:var(--pan);color:var(--txt);font:12px 'JetBrains Mono',monospace;outline:none;width:160px}
+.cfg input:focus{border-color:var(--ac)}
+.enc{display:inline-flex;border:1px solid var(--brd);border-radius:5px;overflow:hidden}
+.enc button{padding:4px 10px;border:none;background:none;color:var(--mu);font-size:11px;cursor:pointer;transition:all .12s}
+.enc button.on{background:var(--ac);color:#fff}
+.inp{padding:8px 14px;border-bottom:1px solid var(--brd);flex-shrink:0}
+.inp textarea{width:100%;min-height:60px;max-height:100px;border:1px solid var(--brd);border-radius:8px;background:var(--pan);color:var(--txt);font:13px/1.5 'JetBrains Mono',monospace;padding:8px 10px;resize:vertical;outline:none}
+.inp textarea:focus{border-color:var(--ac);box-shadow:0 0 0 2px rgba(79,70,229,.15)}
+.cmp{display:flex;align-items:center;gap:8px;padding:6px 14px;border-bottom:1px solid var(--brd);flex-shrink:0}
+.cmp input{flex:1;padding:4px 10px;border:1px solid var(--brd);border-radius:6px;font:12px 'JetBrains Mono',monospace;outline:none;background:var(--pan);color:var(--txt)}
+.cmp input:focus{border-color:var(--ac)}
+.cmp .res{font-size:11px;font-weight:600;padding:3px 8px;border-radius:5px;white-space:nowrap}
+.res .ok{color:#10b981}.res .no{color:#ef4444}.res .idle{color:var(--mu)}
+.results{flex:1;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:8px;min-height:0}
+.card{border:1px solid var(--brd);border-radius:10px;background:var(--pan);overflow:hidden;transition:border-color .12s}
+.card:hover{border-color:var(--ac)}
+.card.m5 .ch{border-left:3px solid var(--md5)}.card.s1 .ch{border-left:3px solid var(--sha1)}.card.s256 .ch{border-left:3px solid var(--s256)}.card.s512 .ch{border-left:3px solid var(--s512)}
+.ch{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--brd)}
+.ch .nm{font-size:12px;font-weight:600}
+.ch .tp{font-size:10px;color:var(--mu);padding:1px 5px;border-radius:4px;background:var(--sur)}
+.ch .cp{font-size:10px;padding:2px 8px;border:1px solid var(--brd);border-radius:4px;background:var(--pan);color:var(--mu);cursor:pointer;margin-left:auto}
+.ch .cp:hover{color:var(--ac);border-color:var(--ac)}
+.cv{padding:6px 10px;font:12px/1.5 'JetBrains Mono',monospace;word-break:break-all;color:var(--txt);user-select:all}
+.cv.em{color:var(--mu);font-style:italic}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--mu);gap:8px}
+.empty b{font-size:36px;font-weight:300;opacity:.3}
+.flash{position:fixed;top:40px;left:50%;transform:translateX(-50%);padding:6px 16px;background:var(--ac);color:#fff;border-radius:6px;font-size:12px;z-index:100;opacity:0;transition:opacity .2s}
+.flash.on{opacity:1}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:var(--brd);border-radius:3px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="bar"><span>哈希与 HMAC</span><button class="btn ac" id="copyall">复制全部</button></div>
+  <div class="cfg">
+    <span class="lbl">算法</span>
+    <div class="chips" id="chips">
+      <div class="chip on" data-a="md5"><span class="ck">✓</span>MD5</div>
+      <div class="chip on" data-a="sha1"><span class="ck">✓</span>SHA-1</div>
+      <div class="chip on" data-a="sha256"><span class="ck">✓</span>SHA-256</div>
+      <div class="chip on" data-a="sha512"><span class="ck">✓</span>SHA-512</div>
+    </div>
+    <span class="lbl">HMAC</span>
+    <input type="text" id="hmac" placeholder="密钥（留空=普通摘要）">
+    <span class="lbl">输出</span>
+    <div class="enc" id="enc">
+      <button class="on" data-e="hex">Hex</button>
+      <button data-e="base64">Base64</button>
+    </div>
+  </div>
+  <div class="inp"><textarea id="inp" placeholder="输入需要计算哈希的文本…"></textarea></div>
+  <div class="cmp">
+    <input type="text" id="cmpin" placeholder="粘贴待比对哈希值…" spellcheck="false">
+    <span class="res idle" id="res">等待比对</span>
+  </div>
+  <div class="results" id="results">
+    <div class="empty"><b>#</b><div>输入文本后显示哈希结果</div></div>
+  </div>
+</div>
+<div class="flash" id="fl">已复制</div>
+<script>
+(function(){
+const $=id=>document.getElementById(id);const inp=$('inp'),hmac=$('hmac'),cmpin=$('cmpin'),results=$('results'),res=$('res');
+let algos=new Set(['md5','sha1','sha256','sha512']),enc='hex',last={};
+function fl(){$('fl').classList.add('on');setTimeout(()=>$('fl').classList.remove('on'),1000)}
+function compute(){const t=inp.value,k=hmac.value.trim(),useHmac=k.length>0;last={};if(!t.trim()){results.innerHTML='<div class="empty"><b>#</b><div>输入文本后显示哈希结果</div></div>';return}const cards=[];for(const a of window.services.algorithms){if(!algos.has(a))continue;let h;try{h=useHmac?(enc==='hex'?window.services.computeHmac(t,a,k):window.services.computeHmacB64(t,a,k)):(enc==='hex'?window.services.computeHash(t,a):window.services.computeHashB64(t,a));last[a]=h}catch(e){h='错误: '+e.message}cards.push(mkCard(a,h,useHmac))}results.innerHTML='';cards.forEach(c=>results.appendChild(c));runCmp()}
+function mkCard(a,h,isHmac){const card=document.createElement('div');card.className='card '+({md5:'m5',sha1:'s1',sha256:'s256',sha512:'s512'}[a]);card.dataset.a=a;card.dataset.h=h;const hd=document.createElement('div');hd.className='ch';hd.innerHTML='<span class="nm">'+a.toUpperCase()+'</span><span class="tp">'+(isHmac?'HMAC':'Hash')+'</span>';const cp=document.createElement('button');cp.className='cp';cp.textContent='复制';cp.addEventListener('click',()=>{window.services.clipboard.writeText(h);fl()});hd.appendChild(cp);const cv=document.createElement('div');cv.className='cv'+(h.startsWith('错误')?' em':'');cv.textContent=h;card.append(hd,cv);return card}
+function runCmp(){const v=cmpin.value.trim().toLowerCase();if(!v){res.className='res';res.textContent='等待比对';document.querySelectorAll('.card').forEach(c=>c.style.borderColor='');return}let m=null;for(const[a,h]of Object.entries(last)){if(h.toLowerCase()===v){m=a;break}}document.querySelectorAll('.card').forEach(c=>{c.style.borderColor='';if(m){c.style.borderColor=c.dataset.a===m?'var(--ac)':''}});if(m){res.className='res';res.innerHTML='<span class="ok">匹配 '+m.toUpperCase()+'</span>'}else{res.className='res';res.innerHTML='<span class="no">不匹配</span>'}}
+document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{const a=c.dataset.a;if(algos.has(a)&&algos.size>1){algos.delete(a);c.classList.remove('on')}else if(!algos.has(a)){algos.add(a);c.classList.add('on')}compute()}));
+document.querySelectorAll('#enc button').forEach(b=>b.addEventListener('click',()=>{enc=b.dataset.e;document.querySelectorAll('#enc button').forEach(x=>x.classList.toggle('on',x===b));compute()}));
+let dt;inp.addEventListener('input',()=>{clearTimeout(dt);dt=setTimeout(compute,200)});hmac.addEventListener('input',()=>{clearTimeout(dt);dt=setTimeout(compute,200)});cmpin.addEventListener('input',runCmp);
+$('copyall').addEventListener('click',()=>{if(!Object.keys(last).length)return;const t=Object.entries(last).map(([a,h])=>a.toUpperCase()+': '+h).join('\n');window.services.clipboard.writeText(t);fl()});
+window.addEventListener('plugin-enter',e=>{if(e.detail&&typeof e.detail==='string'){inp.value=e.detail;compute()}});
+})();
+</script>
+</body>
+</html>

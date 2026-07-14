@@ -1,9 +1,186 @@
-<!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>项目启动器</title><link rel="stylesheet" href="styles.css"></head>
-<body class="ui-project-console" data-ui="project-console" data-composition="split" data-density="balanced" data-motif="plain">
-  <main class="app-shell">
-    <header class="hero"><div class="identity"><div class="logo-frame"><img id="pluginLogo" src="logo.svg" alt="项目启动器图标"></div><div class="identity-copy"><div class="meta-row"><span id="category" class="eyebrow">开发工具</span><span class="privacy-badge"><i></i>本地处理</span></div><h1 id="title">项目启动器</h1><p id="description">管理项目目录、启动命令、运行日志和停止操作。</p></div></div><div class="hero-actions"><span class="tool-mode">项目控制台</span><button id="pinButton" class="icon-button secondary">置顶</button><button id="copyButton" class="icon-button secondary">复制结果</button></div></header>
-    <section class="status-bar"><div id="status" class="status" aria-live="polite"><span class="status-dot"></span><span class="status-text">准备就绪</span></div><div class="shortcut-hints"><kbd>Ctrl</kbd><kbd>Enter</kbd><span>执行</span><kbd>Ctrl</kbd><kbd>S</kbd><span>保存</span></div></section>
-    <section class="workspace"><section class="panel editor-panel"><div class="panel-heading"><span class="step-index">02</span><div><strong><span id="inputLabel">命令与备注</span></strong><small><span id="inputHint">输入、粘贴或选择本地数据</span></small></div><span id="inputCount" class="counter">0 字符</span></div><div class="editor-surface"><textarea id="inputText" spellcheck="false" placeholder="在这里输入内容……"></textarea><div id="dropHint" class="drop-hint" hidden>拖放文件到这里</div></div><div class="action-row editor-actions"><button id="runButton" class="primary">开始处理</button><button id="previewButton" class="secondary">安全预览</button><button id="clearButton" class="ghost">清空</button></div></section><section class="panel result-panel"><div class="panel-heading"><span class="step-index">03</span><div><strong><span id="resultLabel">状态与日志</span></strong><small>结果可复制、保存或导出</small></div><span id="resultCount" class="counter">等待处理</span></div><div class="result-surface"><div id="emptyState" class="empty-state"><img src="logo.svg" alt=""><strong>项目控制台</strong><span>配置参数后开始本地处理</span></div><pre id="outputText" tabindex="0" hidden></pre><canvas id="previewCanvas" hidden></canvas><div id="cards" class="cards" hidden></div></div><div class="action-row result-actions"><button id="saveButton" class="secondary">保存结果</button><button id="exportButton" class="ghost">导出数据</button></div></section><aside class="panel controls-panel"><div class="panel-heading"><span class="step-index">01</span><div><strong>运行设置</strong><small>专为项目启动器设计的操作区</small></div></div><div id="controls" class="controls"></div></aside></section>
-  </main><script src="renderer.js"></script>
-</body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>项目启动器</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--text:#c9d1d9;--muted:#484f58;--border:#21262d;--accent:#2f81f7;--accent2:#58a6ff;--success:#3fb950;--danger:#f85149;--radius:8px}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);padding-top:32px!important;display:flex;flex-direction:column}
+.custom-title-bar{background:var(--bg)!important;border-bottom:1px solid var(--border)!important}
+.config-bar{display:flex;align-items:flex-end;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+.field{display:flex;flex-direction:column;gap:4px}
+.field.dir{flex:1;min-width:0}
+.field.cmd{flex:2;min-width:0}
+.field label{font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.5px}
+.field input{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--panel);color:var(--text);font-size:12px;font-family:monospace;outline:none}
+.field input:focus{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 20%,transparent)}
+.field input::placeholder{color:var(--muted)}
+.config-bar button{padding:7px 14px;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;flex-shrink:0}
+.config-bar button.browse{background:var(--panel);border:1px solid var(--border);color:var(--text)}
+.config-bar button.browse:hover{border-color:var(--accent)}
+.action-bar{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+.action-bar button{padding:7px 16px;border:1px solid var(--border);border-radius:6px;background:var(--panel);color:var(--text);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
+.action-bar button:hover{border-color:var(--accent);color:var(--accent)}
+.action-bar button.start{background:var(--success);border-color:var(--success);color:#fff}
+.action-bar button.start:hover{filter:brightness(1.1)}
+.action-bar button.stop{background:var(--danger);border-color:var(--danger);color:#fff}
+.action-bar button.stop:hover{filter:brightness(1.1)}
+.action-bar .status-indicator{display:flex;align-items:center;gap:6px;margin-left:auto;font-size:11px;color:var(--muted)}
+.action-bar .status-indicator .dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0}
+.action-bar .status-indicator .dot.running{background:var(--success);box-shadow:0 0 6px var(--success);animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.console-wrap{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.console-header{display:flex;align-items:center;gap:8px;padding:6px 14px;font-size:10px;color:var(--muted);flex-shrink:0;border-bottom:1px solid var(--border)}
+.console-header button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:10px;padding:2px 6px;border-radius:3px;transition:all .15s}
+.console-header button:hover{color:var(--text);background:var(--panel)}
+.console-output{flex:1;overflow-y:auto;min-height:0;padding:10px 14px;background:#0a0e13;font-family:"Cascadia Code","Fira Code","Consolas",monospace;font-size:11px;line-height:1.6;white-space:pre-wrap;word-break:break-all}
+.console-output::-webkit-scrollbar{width:5px}
+.console-output::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.console-output .log-line{color:var(--text)}
+.console-output .log-line.error{color:var(--danger)}
+.console-output .log-line.system{color:var(--muted);font-style:italic}
+</style>
+</head>
+<body>
+<div class="config-bar">
+  <div class="field dir">
+    <label>项目目录</label>
+    <input type="text" id="dirInput" placeholder="选择项目目录..." readonly>
+  </div>
+  <button class="browse" id="browseBtn">浏览</button>
+  <div class="field cmd">
+    <label>启动命令</label>
+    <input type="text" id="cmdInput" placeholder="npm run dev">
+  </div>
+</div>
+<div class="action-bar">
+  <button class="start" id="startBtn">启动</button>
+  <button class="stop" id="stopBtn" disabled>停止</button>
+  <button id="clearBtn">清空日志</button>
+  <div class="status-indicator">
+    <span class="dot" id="statusDot"></span>
+    <span id="statusText">未运行</span>
+  </div>
+</div>
+<div class="console-wrap">
+  <div class="console-header">
+    <span>控制台输出</span>
+    <button id="autoScrollBtn">自动滚动: 开</button>
+  </div>
+  <div class="console-output" id="consoleOutput"></div>
+</div>
+<script>
+const api = window.pluginAPI;
+const dirInput = document.getElementById('dirInput');
+const cmdInput = document.getElementById('cmdInput');
+const browseBtn = document.getElementById('browseBtn');
+const startBtn = document.getElementById('startBtn');
+const stopBtn = document.getElementById('stopBtn');
+const clearBtn = document.getElementById('clearBtn');
+const consoleOutput = document.getElementById('consoleOutput');
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const autoScrollBtn = document.getElementById('autoScrollBtn');
+
+let running = false;
+let pollTimer = null;
+let autoScroll = true;
+
+function log(msg, type) {
+  const cls = type === 'error' ? 'log-line error' : type === 'system' ? 'log-line system' : 'log-line';
+  consoleOutput.innerHTML += `<span class="${cls}">${msg}</span>\n`;
+  if (autoScroll) consoleOutput.scrollTop = consoleOutput.scrollHeight;
+}
+
+function setRunning(state) {
+  running = state;
+  startBtn.disabled = state;
+  stopBtn.disabled = !state;
+  statusDot.className = 'dot' + (state ? ' running' : '');
+  statusText.textContent = state ? '运行中' : '未运行';
+}
+
+async function checkStatus() {
+  try {
+    const res = await api.runTask({ input: '', options: {}, execute: false });
+    if (res.ok && res.result) {
+      setRunning(res.result.running);
+      if (res.result.running && res.result.logs) {
+        const logs = res.result.logs;
+        if (Array.isArray(logs)) logs.forEach(l => log(l, ''));
+      }
+    }
+  } catch (_) {}
+}
+
+function saveConfig() {
+  try {
+    api.storage.set('config', JSON.stringify({ dir: dirInput.value, cmd: cmdInput.value }));
+  } catch (_) {}
+}
+
+browseBtn.addEventListener('click', () => {
+  const dir = api.selectDirectory('选择项目目录');
+  if (dir) { dirInput.value = dir; saveConfig(); }
+});
+
+startBtn.addEventListener('click', async () => {
+  const dir = dirInput.value.trim();
+  const cmd = cmdInput.value.trim();
+  if (!dir || !cmd) { log('请选择项目目录并填写启动命令', 'error'); return; }
+  saveConfig();
+  log(`$ cd ${dir} && ${cmd}`, 'system');
+  try {
+    const res = await api.runTask({ input: '', options: { directory: dir, command: cmd }, execute: true });
+    if (res.ok) {
+      setRunning(true);
+      log('进程已启动' + (res.result.pid ? ' (PID: ' + res.result.pid + ')' : ''), 'system');
+    } else {
+      log('启动失败: ' + res.error, 'error');
+    }
+  } catch (e) {
+    log('启动失败: ' + e.message, 'error');
+  }
+});
+
+stopBtn.addEventListener('click', async () => {
+  try {
+    const res = await api.runTask({ input: '', options: { action: 'stop' }, execute: true });
+    if (res.ok) {
+      setRunning(false);
+      log('进程已停止', 'system');
+    }
+  } catch (e) {
+    log('停止失败: ' + e.message, 'error');
+  }
+});
+
+clearBtn.addEventListener('click', () => { consoleOutput.innerHTML = ''; });
+
+autoScrollBtn.addEventListener('click', () => {
+  autoScroll = !autoScroll;
+  autoScrollBtn.textContent = '自动滚动: ' + (autoScroll ? '开' : '关');
+});
+
+(async () => {
+  try {
+    const raw = await api.storage.get('config');
+    if (raw) {
+      const cfg = JSON.parse(raw);
+      dirInput.value = cfg.dir || '';
+      cmdInput.value = cfg.cmd || '';
+    }
+  } catch (_) {}
+  checkStatus();
+  pollTimer = setInterval(checkStatus, 2000);
+})();
+
+window.addEventListener('beforeunload', () => {
+  if (pollTimer) clearInterval(pollTimer);
+});
+</script>
+</body>
+</html>

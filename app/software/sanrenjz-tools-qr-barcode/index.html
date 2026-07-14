@@ -1,9 +1,45 @@
-<!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>二维码与条码工具</title><link rel="stylesheet" href="styles.css"></head>
-<body class="ui-qr-studio" data-ui="qr-studio" data-composition="tabs" data-density="compact" data-motif="lines">
-  <main class="app-shell">
-    <header class="hero"><div class="identity"><div class="logo-frame"><img id="pluginLogo" src="logo.svg" alt="二维码与条码工具图标"></div><div class="identity-copy"><div class="meta-row"><span id="category" class="eyebrow">图片工具</span><span class="privacy-badge"><i></i>本地处理</span></div><h1 id="title">二维码与条码工具</h1><p id="description">本地生成二维码并识别图片中的二维码。</p></div></div><div class="hero-actions"><span class="tool-mode">码图工作室</span><button id="pinButton" class="icon-button secondary">置顶</button><button id="copyButton" class="icon-button secondary">复制结果</button></div></header>
-    <section class="status-bar"><div id="status" class="status" aria-live="polite"><span class="status-dot"></span><span class="status-text">准备就绪</span></div><div class="shortcut-hints"><kbd>Ctrl</kbd><kbd>Enter</kbd><span>执行</span><kbd>Ctrl</kbd><kbd>S</kbd><span>保存</span></div></section>
-    <section class="workspace"><aside class="panel controls-panel"><div class="panel-heading"><span class="step-index">01</span><div><strong>码制设置</strong><small>专为二维码与条码工具设计的操作区</small></div></div><div id="controls" class="controls"></div></aside><section class="panel result-panel"><div class="panel-heading"><span class="step-index">03</span><div><strong><span id="resultLabel">二维码画布</span></strong><small>结果可复制、保存或导出</small></div><span id="resultCount" class="counter">等待处理</span></div><div class="result-surface"><div id="emptyState" class="empty-state"><img src="logo.svg" alt=""><strong>码图工作室</strong><span>配置参数后开始本地处理</span></div><pre id="outputText" tabindex="0" hidden></pre><canvas id="previewCanvas" hidden></canvas><div id="cards" class="cards" hidden></div></div><div class="action-row result-actions"><button id="saveButton" class="secondary">保存结果</button><button id="exportButton" class="ghost">导出数据</button></div></section><section class="panel editor-panel"><div class="panel-heading"><span class="step-index">02</span><div><strong><span id="inputLabel">文本或图片</span></strong><small><span id="inputHint">输入、粘贴或选择本地数据</span></small></div><span id="inputCount" class="counter">0 字符</span></div><div class="editor-surface"><textarea id="inputText" spellcheck="false" placeholder="在这里输入内容……"></textarea><div id="dropHint" class="drop-hint" hidden>拖放文件到这里</div></div><div class="action-row editor-actions"><button id="runButton" class="primary">开始处理</button><button id="previewButton" class="secondary">安全预览</button><button id="clearButton" class="ghost">清空</button></div></section></section>
-  </main><script src="renderer.js"></script>
-</body></html>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>二维码工具</title>
+<style>:root{--bg:#f0fdf4;--panel:#fff;--surface:#dcfce7;--text:#052e16;--muted:#166534;--border:#bbf7d0;--accent:#16a34a;--accent2:#22c55e;--r:12px}*{box-sizing:border-box}html,body{height:100%;overflow:hidden}body{margin:0;padding-top:32px;background:var(--bg);color:var(--text);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}.app{display:flex;height:calc(100vh - 32px);padding:20px;gap:16px;overflow:hidden}.left{width:340px;flex-shrink:0;display:flex;flex-direction:column;gap:14px}.left h1{font-size:22px;margin:0;color:var(--accent);font-weight:800;letter-spacing:-.3px}.tabs{display:flex;gap:2px;background:var(--surface);border-radius:var(--r);padding:3px;border:1px solid var(--border)}.tabs button{flex:1;border:none;background:none;padding:10px;border-radius:10px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;transition:all .15s}.tabs button.active{background:var(--accent);color:#fff;box-shadow:0 2px 8px rgba(22,163,74,.25)}.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:10px}.card h3{font-size:13px;font-weight:700;margin:0;color:var(--text)}.card textarea{width:100%;height:80px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:13px;resize:vertical;outline:none;font:inherit;transition:border .15s}.card textarea:focus{border-color:var(--accent)}.card label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px}.card input[type=range]{-webkit-appearance:none;width:100%;height:6px;border-radius:3px;background:var(--surface);outline:none}.card input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--accent);cursor:pointer;box-shadow:0 0 8px rgba(22,163,74,.3)}.card .range-row{display:flex;align-items:center;gap:10px}.card .range-row .val{min-width:36px;text-align:right;font-size:13px;color:var(--accent);font-weight:700}.actions{display:flex;gap:8px}.actions button{flex:1;padding:10px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}.actions .gen{background:var(--accent);color:#fff}.actions .gen:hover{background:var(--accent2);box-shadow:0 4px 14px rgba(22,163,74,.3)}.actions .decode{background:var(--surface);color:var(--accent);border:1px solid var(--border)}.actions .decode:hover{background:var(--accent);color:#fff}.right{flex:1;min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:var(--r);display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;gap:12px;padding:20px}.right img,.right canvas{max-width:100%;max-height:100%;border-radius:6px}.right .result-text{font-size:14px;color:var(--text);word-break:break-all;text-align:center;max-width:100%;padding:12px;background:var(--surface);border-radius:8px;max-height:80px;overflow-y:auto}.empty{display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--muted);opacity:.35}.empty svg{width:56px;height:56px}.saved{color:var(--accent);font-size:12px;font-weight:600;margin-left:6px}</style></head>
+<body>
+<div class="app">
+  <div class="left">
+    <h1>二维码工具</h1>
+    <div class="tabs">
+      <button class="active" data-tab="generate">生成</button>
+      <button data-tab="decode">解码</button>
+    </div>
+    <div class="card" id="genCard">
+      <h3>生成二维码</h3>
+      <textarea id="qrText" placeholder="输入文本或链接，按回车生成二维码..."></textarea>
+      <label>尺寸 <div class="range-row"><input type="range" id="qrSize" min="128" max="800" value="320"><span class="val" id="sizeVal">320</span></div></label>
+      <div class="actions">
+        <button class="gen" id="genBtn">生成二维码</button>
+        <button class="decode" id="saveQrBtn">保存</button>
+        <span class="saved" id="qrSaved" hidden>已保存</span>
+      </div>
+    </div>
+    <div class="card" id="decodeCard" hidden>
+      <h3>解码二维码</h3>
+      <button class="gen" id="decodePickBtn" style="width:100%">选择二维码图片</button>
+      <div class="actions">
+        <button class="decode" id="pasteBtn">从剪贴板解码</button>
+      </div>
+    </div>
+  </div>
+  <div class="right" id="preview">
+    <div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10" rx="1"/><rect x="8" y="8" width="8" height="8" rx=".5"/><rect x="9" y="9" width="6" height="6" rx=".25"/></svg><div>输入内容生成二维码</div></div>
+  </div>
+</div>
+<script>
+const api=window.pluginAPI,$=id=>document.getElementById(id);
+let qrDataUrl='',decodedText='',tab='generate';
+$('qrSize').addEventListener('input',()=>$('sizeVal').textContent=$('qrSize').value);
+$('qrText').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();genQR()}});
+async function genQR(){const text=$('qrText').value.trim();if(!text)return;const r=await api.generateQr(text,Number($('qrSize').value));if(r.ok){qrDataUrl=r.dataUrl;$('preview').innerHTML='';const img=document.createElement('img');img.src=qrDataUrl;$('preview').appendChild(img)}}
+$('genBtn').addEventListener('click',genQR);
+$('saveQrBtn').addEventListener('click',()=>{if(!qrDataUrl)return;const r=api.saveResult({dataUrl:qrDataUrl,defaultPath:'qrcode.png',title:'保存二维码',filters:[{name:'PNG',extensions:['png']}]});if(!r.cancelled){$('qrSaved').hidden=0;setTimeout(()=>$('qrSaved').hidden=1,2000)}});
+function doDecode(dataUrl){const r=api.decodeQr(dataUrl);if(r.ok&&r.text){decodedText=r.text;$('preview').innerHTML=`<div class="result-text">${r.text}</div>`;api.copyText(r.text)}else{$('preview').innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg><div>未识别到二维码</div></div>'}}
+$('decodePickBtn').addEventListener('click',()=>{const f=api.selectFiles({title:'选择二维码图片',multiple:false,filters:[{name:'图片',extensions:['png','jpg','jpeg','webp','bmp']}]});if(f.length){const du=api.readFileDataUrl(f[0]);$('preview').innerHTML='';const img=document.createElement('img');img.src=du;$('preview').appendChild(img);doDecode(du)}});
+$('pasteBtn').addEventListener('click',()=>{const du=api.readClipboardImage();if(du){$('preview').innerHTML='';const img=document.createElement('img');img.src=du;$('preview').appendChild(img);doDecode(du)}else{$('preview').innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg><div>剪贴板中没有图片</div></div>'}});
+document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');tab=b.dataset.tab;$('genCard').hidden=tab!=='generate';$('decodeCard').hidden=tab!=='decode';$('preview').innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10" rx="1"/><rect x="8" y="8" width="8" height="8" rx=".5"/><rect x="9" y="9" width="6" height="6" rx=".25"/></svg><div>'+(tab==='generate'?'输入内容生成二维码':'选择图片解码二维码')+'</div></div>'}));
+</script></body></html>

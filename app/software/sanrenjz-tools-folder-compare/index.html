@@ -1,9 +1,95 @@
-<!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>文件夹对比</title><link rel="stylesheet" href="styles.css"></head>
-<body class="ui-twin-tree" data-ui="twin-tree" data-composition="studio" data-density="compact" data-motif="lines">
-  <main class="app-shell">
-    <header class="hero"><div class="identity"><div class="logo-frame"><img id="pluginLogo" src="logo.svg" alt="文件夹对比图标"></div><div class="identity-copy"><div class="meta-row"><span id="category" class="eyebrow">文件工具</span><span class="privacy-badge"><i></i>本地处理</span></div><h1 id="title">文件夹对比</h1><p id="description">按相对路径、大小、修改时间或哈希比较两个目录。</p></div></div><div class="hero-actions"><span class="tool-mode">双目录镜像</span><button id="pinButton" class="icon-button secondary">置顶</button><button id="copyButton" class="icon-button secondary">复制结果</button></div></header>
-    <section class="status-bar"><div id="status" class="status" aria-live="polite"><span class="status-dot"></span><span class="status-text">准备就绪</span></div><div class="shortcut-hints"><kbd>Ctrl</kbd><kbd>Enter</kbd><span>执行</span><kbd>Ctrl</kbd><kbd>S</kbd><span>保存</span></div></section>
-    <section class="workspace"><aside class="panel controls-panel"><div class="panel-heading"><span class="step-index">01</span><div><strong>比较选项</strong><small>专为文件夹对比设计的操作区</small></div></div><div id="controls" class="controls"></div></aside><section class="panel editor-panel"><div class="panel-heading"><span class="step-index">02</span><div><strong><span id="inputLabel">目录说明</span></strong><small><span id="inputHint">输入、粘贴或选择本地数据</span></small></div><span id="inputCount" class="counter">0 字符</span></div><div class="editor-surface"><textarea id="inputText" spellcheck="false" placeholder="在这里输入内容……"></textarea><div id="dropHint" class="drop-hint" hidden>拖放文件到这里</div></div><div class="action-row editor-actions"><button id="runButton" class="primary">开始处理</button><button id="previewButton" class="secondary">安全预览</button><button id="clearButton" class="ghost">清空</button></div></section><section class="panel result-panel"><div class="panel-heading"><span class="step-index">03</span><div><strong><span id="resultLabel">差异目录树</span></strong><small>结果可复制、保存或导出</small></div><span id="resultCount" class="counter">等待处理</span></div><div class="result-surface"><div id="emptyState" class="empty-state"><img src="logo.svg" alt=""><strong>双目录镜像</strong><span>配置参数后开始本地处理</span></div><pre id="outputText" tabindex="0" hidden></pre><canvas id="previewCanvas" hidden></canvas><div id="cards" class="cards" hidden></div></div><div class="action-row result-actions"><button id="saveButton" class="secondary">保存结果</button><button id="exportButton" class="ghost">导出数据</button></div></section></section>
-  </main><script src="renderer.js"></script>
-</body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>文件夹对比</title>
+<style>
+:root{--bg:#f5f3ff;--panel:#fff;--surface:#ede9fe;--text:#2e1065;--muted:#7c6da8;--border:#ddd6fe;--accent:#7c3aed;--accent2:#a78bfa;--onlyL:#fef2f2;--onlyLt:#dc2626;--onlyR:#f0fdf4;--onlyRt:#16a34a;--diff:#fffbeb;--difft:#d97706;--same:#f8fafc;--samet:#64748b;--radius:10px}
+*{box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{margin:0;padding-top:32px;background:var(--bg);color:var(--text);font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
+.app{height:calc(100vh - 32px);display:flex;flex-direction:column;overflow:hidden}
+.header{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--border)}
+.header .logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex-shrink:0}
+.header h1{font-size:15px;font-weight:700;margin:0;white-space:nowrap}
+.header .pair{flex:1;display:flex;align-items:center;gap:8px;min-width:0}
+.header .pair .vs{color:var(--accent);font-weight:800;font-size:14px;flex-shrink:0}
+.header .pair input{flex:1;min-width:0;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:12px;color:var(--text);outline:none;cursor:pointer}
+.header .pair input:focus{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 20%,transparent)}
+.header .btn{padding:6px 14px;border:1px solid var(--border);border-radius:6px;background:var(--panel);cursor:pointer;font-size:12px;font-weight:500;white-space:nowrap;transition:all .15s}
+.header .btn:hover{background:var(--surface)}
+.header .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.header .btn.primary:hover{background:color-mix(in srgb,var(--accent) 85%,#000)}
+.opts{display:flex;align-items:center;gap:12px;padding:6px 14px;background:var(--surface);border-bottom:1px solid var(--border);font-size:11px}
+.opts label{display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none;color:var(--muted)}
+.opts label input{accent-color:var(--accent)}
+.opts .legend{display:flex;gap:10px;margin-left:auto}
+.opts .legend span{display:flex;align-items:center;gap:3px}
+.opts .legend .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.results{flex:1;overflow-y:auto;padding:4px 0}
+.results .row{display:grid;grid-template-columns:1fr 70px 100px 100px;gap:8px;align-items:center;padding:7px 14px;font-size:12px;border-bottom:1px solid color-mix(in srgb,var(--border) 50%,transparent);font-family:"SF Mono","Cascadia Code","Consolas",monospace}
+.results .row.only-l{background:var(--onlyL);color:var(--onlyLt)}
+.results .row.only-r{background:var(--onlyR);color:var(--onlyRt)}
+.results .row.diff{background:var(--diff);color:var(--difft)}
+.results .row.same{background:var(--same);color:var(--samet)}
+.results .row .path{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.results .row .badge{font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;text-align:center;background:color-mix(in srgb,currentColor 15%,transparent)}
+.results .row .size{font-size:10px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.results .empty{text-align:center;padding:50px 20px;color:var(--muted);font-size:13px}
+.results .empty strong{display:block;font-size:15px;color:var(--text);margin-bottom:4px}
+.stat{display:flex;align-items:center;justify-content:space-between;padding:6px 14px;font-size:11px;color:var(--muted);background:var(--panel);border-top:1px solid var(--border)}
+.stat .cnt{display:flex;gap:12px}
+.stat .cnt span{font-weight:600}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="logo">&#8646;</div>
+    <h1>文件夹对比</h1>
+    <div class="pair">
+      <input type="text" id="dirA" placeholder="左侧目录..." readonly>
+      <span class="vs">VS</span>
+      <input type="text" id="dirB" placeholder="右侧目录..." readonly>
+    </div>
+    <button class="btn" id="pickA">浏览</button>
+    <button class="btn" id="pickB">浏览</button>
+    <button class="btn primary" id="compare">开始对比</button>
+  </div>
+  <div class="opts">
+    <label><input type="checkbox" id="useHash">使用 SHA-256 哈希对比</label>
+    <div class="legend">
+      <span><span class="dot" style="background:var(--onlyLt)"></span>仅左侧</span>
+      <span><span class="dot" style="background:var(--onlyRt)"></span>仅右侧</span>
+      <span><span class="dot" style="background:var(--difft)"></span>不同</span>
+      <span><span class="dot" style="background:var(--samet)"></span>相同</span>
+    </div>
+  </div>
+  <div class="results" id="results">
+    <div class="empty"><strong>选择两个目录开始对比</strong>对比结果将按相对路径对齐显示</div>
+  </div>
+  <div class="stat"><span id="statText"></span><div class="cnt" id="statCount"></div></div>
+</div>
+<script>
+const $=s=>document.querySelector(s);
+const API=window.pluginAPI;
+let dirA='',dirB='';
+
+async function pickA(){dirA=await API.selectDirectory('选择左侧目录');$('#dirA').value=dirA||''}
+async function pickB(){dirB=await API.selectDirectory('选择右侧目录');$('#dirB').value=dirB||''}
+async function doCompare(){if(!dirA||!dirB){$('#statText').textContent='请选择两个目录';return}$('#statText').textContent='对比中...';const r=await API.runTask({options:{directoryA:dirA,directoryB:dirB,hash:$('#useHash').checked}});if(r.ok){renderResults(r.result)}else{$('#statText').textContent=r.error}}
+function fmtSize(b){if(!b&&b!==0)return'-';if(b<1024)return b+' B';if(b<1048576)return (b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(1)+' MB'}
+function renderResults(data){const el=$('#results');if(!data.length){el.innerHTML='<div class="empty"><strong>两个目录均为空</strong>无可对比的文件</div>';return}
+  const stats={onlyL:0,onlyR:0,diff:0,same:0};
+  data.forEach(d=>{if(d.status==='仅左侧')stats.onlyL++;else if(d.status==='仅右侧')stats.onlyR++;else if(d.status==='不同')stats.diff++;else stats.same++});
+  el.innerHTML=data.map(d=>{const cls=d.status==='仅左侧'?'only-l':d.status==='仅右侧'?'only-r':d.status==='不同'?'diff':'same';return`<div class="row ${cls}"><span class="path" title="${d.relativePath}">${d.relativePath}</span><span class="badge">${d.status}</span><span class="size">${fmtSize(d.leftSize)}</span><span class="size">${fmtSize(d.rightSize)}</span></div>`}).join('');
+  $('#statCount').innerHTML=`<span style="color:var(--onlyLt)">仅左 ${stats.onlyL}</span><span style="color:var(--onlyRt)">仅右 ${stats.onlyR}</span><span style="color:var(--difft)">不同 ${stats.diff}</span><span style="color:var(--samet)">相同 ${stats.same}</span>`;
+  $('#statText').textContent='共 '+data.length+' 项';
+}
+
+$('#pickA').onclick=pickA;$('#pickB').onclick=pickB;$('#compare').onclick=doCompare;
+$('#dirA').onclick=pickA;$('#dirB').onclick=pickB;
+</script>
+</body>
+</html>

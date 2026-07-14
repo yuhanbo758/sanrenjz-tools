@@ -1,9 +1,76 @@
 <!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ID 生成器</title><link rel="stylesheet" href="styles.css"></head>
-<body class="ui-generator-deck" data-ui="generator-deck" data-composition="deck" data-density="airy" data-motif="grid">
-  <main class="app-shell">
-    <header class="hero"><div class="identity"><div class="logo-frame"><img id="pluginLogo" src="logo.svg" alt="ID 生成器图标"></div><div class="identity-copy"><div class="meta-row"><span id="category" class="eyebrow">开发工具</span><span class="privacy-badge"><i></i>本地处理</span></div><h1 id="title">ID 生成器</h1><p id="description">批量生成 UUID、NanoID 和安全随机字符串。</p></div></div><div class="hero-actions"><span class="tool-mode">批量生成器</span><button id="pinButton" class="icon-button secondary">置顶</button><button id="copyButton" class="icon-button secondary">复制结果</button></div></header>
-    <section class="status-bar"><div id="status" class="status" aria-live="polite"><span class="status-dot"></span><span class="status-text">准备就绪</span></div><div class="shortcut-hints"><kbd>Ctrl</kbd><kbd>Enter</kbd><span>执行</span><kbd>Ctrl</kbd><kbd>S</kbd><span>保存</span></div></section>
-    <section class="workspace"><aside class="panel controls-panel"><div class="panel-heading"><span class="step-index">01</span><div><strong>生成规则</strong><small>专为ID 生成器设计的操作区</small></div></div><div id="controls" class="controls"></div></aside><section class="panel result-panel"><div class="panel-heading"><span class="step-index">03</span><div><strong><span id="resultLabel">ID 卡片</span></strong><small>结果可复制、保存或导出</small></div><span id="resultCount" class="counter">等待处理</span></div><div class="result-surface"><div id="emptyState" class="empty-state"><img src="logo.svg" alt=""><strong>批量生成器</strong><span>配置参数后开始本地处理</span></div><pre id="outputText" tabindex="0" hidden></pre><canvas id="previewCanvas" hidden></canvas><div id="cards" class="cards" hidden></div></div><div class="action-row result-actions"><button id="saveButton" class="secondary">保存结果</button><button id="exportButton" class="ghost">导出数据</button></div></section><section class="panel editor-panel"><div class="panel-heading"><span class="step-index">02</span><div><strong><span id="inputLabel">生成备注</span></strong><small><span id="inputHint">输入、粘贴或选择本地数据</span></small></div><span id="inputCount" class="counter">0 字符</span></div><div class="editor-surface"><textarea id="inputText" spellcheck="false" placeholder="在这里输入内容……"></textarea><div id="dropHint" class="drop-hint" hidden>拖放文件到这里</div></div><div class="action-row editor-actions"><button id="runButton" class="primary">开始处理</button><button id="previewButton" class="secondary">安全预览</button><button id="clearButton" class="ghost">清空</button></div></section></section>
-  </main><script src="renderer.js"></script>
-</body></html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ID 生成器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#f0faff;--pan:#fff;--sur:#e0f2fe;--brd:#bae6fd;--txt:#0c4a6e;--mu:#0284c7;--ac:#0ea5e9}
+html,body{height:100%;overflow:hidden}
+body{font:13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--txt);padding-top:32px}
+.app{height:calc(100vh - 32px);display:flex;flex-direction:column}
+.bar{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--brd);flex-shrink:0;background:var(--pan)}
+.bar span{font-size:14px;font-weight:600;color:var(--ac);margin-right:auto}
+.btn{font:12px var(--sans);padding:5px 12px;border:1px solid var(--brd);border-radius:6px;background:var(--pan);color:var(--txt);cursor:pointer;transition:all .12s}
+.btn:hover{background:var(--sur)}
+.btn.ac{background:var(--ac);color:#fff;border-color:var(--ac)}
+.cfg{display:flex;align-items:center;gap:14px;padding:8px 14px;border-bottom:1px solid var(--brd);flex-shrink:0;flex-wrap:wrap}
+.type{display:inline-flex;border:1px solid var(--brd);border-radius:6px;overflow:hidden}
+.type button{padding:5px 12px;border:none;background:none;color:var(--mu);font-size:12px;cursor:pointer;transition:all .12s}
+.type button.on{background:var(--ac);color:#fff}
+.cfg label{font-size:11px;color:var(--mu);font-weight:600}
+.cfg input{width:60px;padding:4px 8px;border:1px solid var(--brd);border-radius:5px;background:var(--pan);color:var(--txt);font:12px 'JetBrains Mono',monospace;outline:none;text-align:center}
+.cfg input:focus{border-color:var(--ac)}
+.cfg .alph{width:240px;text-align:left}
+.nano{display:none;align-items:center;gap:10px}.nano.on{display:flex}
+.list{flex:1;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:4px;min-height:0}
+.list .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--mu);gap:8px}
+.list .empty b{font-size:36px;font-weight:300;opacity:.3}
+.row{display:flex;align-items:center;gap:10px;padding:7px 10px;border:1px solid var(--brd);border-radius:8px;background:var(--pan);transition:all .15s;animation:in .2s ease}
+@keyframes in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.row:hover{border-color:var(--ac);transform:translateX(2px)}
+.row .idx{font:10px 'JetBrains Mono',monospace;color:var(--mu);min-width:24px;text-align:right}
+.row .val{flex:1;font:13px 'JetBrains Mono',Consolas,monospace;color:var(--txt);user-select:all;word-break:break-all}
+.row .cp{font-size:10px;padding:3px 8px;border:1px solid var(--brd);border-radius:4px;background:var(--pan);color:var(--mu);cursor:pointer;transition:all .12s;flex-shrink:0}
+.row .cp:hover{color:var(--ac);border-color:var(--ac)}
+.row .cp.done{background:#10b981;color:#fff;border-color:#10b981}
+.flash{position:fixed;top:40px;left:50%;transform:translateX(-50%);padding:6px 16px;background:var(--ac);color:#fff;border-radius:6px;font-size:12px;z-index:100;opacity:0;transition:opacity .2s}
+.flash.on{opacity:1}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:var(--brd);border-radius:3px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="bar">
+    <span>ID 生成器</span>
+    <button class="btn ac" id="gen">生成</button>
+    <button class="btn" id="copyall">全部复制</button>
+    <button class="btn" id="clr">清空</button>
+  </div>
+  <div class="cfg">
+    <div class="type"><button class="on" data-t="uuid">UUID v4</button><button data-t="nano">NanoID</button></div>
+    <label>数量</label><input type="number" id="cnt" value="10" min="1" max="1000">
+    <div class="nano" id="nano">
+      <label>长度</label><input type="number" id="len" value="21" min="4" max="128">
+      <label>字母表</label><input type="text" class="alph" id="alph" value="0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-">
+    </div>
+  </div>
+  <div class="list" id="list"><div class="empty"><b>✦</b><div>点击"生成"按钮创建 ID</div></div></div>
+</div>
+<div class="flash" id="fl">已复制</div>
+<script>
+(function(){
+const $=id=>document.getElementById(id);const list=$('list');let type='uuid',ids=[];
+function fl(){$('fl').classList.add('on');setTimeout(()=>$('fl').classList.remove('on'),1000)}
+function st(t){type=t;document.querySelectorAll('.type button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));$('nano').classList.toggle('on',t==='nano')}
+function gen(){const c=Math.min(1000,Math.max(1,parseInt($('cnt').value,10)||1));ids=[];if(type==='uuid'){for(let i=0;i<c;i++)ids.push(window.services.generateUuid())}else{const l=Math.min(128,Math.max(4,parseInt($('len').value,10)||21));const a=$('alph').value||'0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-';for(let i=0;i<c;i++)ids.push(window.services.generateNanoId(l,a))}render()}
+function render(){if(!ids.length){list.innerHTML='<div class="empty"><b>✦</b><div>点击"生成"按钮创建 ID</div></div>';return}list.innerHTML='';ids.forEach((id,i)=>{const r=document.createElement('div');r.className='row';r.style.animationDelay=(i*12)+'ms';r.innerHTML='<span class="idx">'+(i+1)+'.</span><span class="val">'+id+'</span>';const cp=document.createElement('button');cp.className='cp';cp.textContent='复制';cp.addEventListener('click',()=>{window.services.clipboard.writeText(id);cp.textContent='✓';cp.classList.add('done');setTimeout(()=>{cp.textContent='复制';cp.classList.remove('done')},1200);fl()});r.appendChild(cp);list.appendChild(r)})}
+document.querySelectorAll('.type button').forEach(b=>b.addEventListener('click',()=>st(b.dataset.t)));
+$('gen').addEventListener('click',gen);$('copyall').addEventListener('click',()=>{if(!ids.length)return;window.services.clipboard.writeText(ids.join('\n'));fl()});
+$('clr').addEventListener('click',()=>{ids=[];render()});
+gen();
+})();
+</script>
+</body>
+</html>

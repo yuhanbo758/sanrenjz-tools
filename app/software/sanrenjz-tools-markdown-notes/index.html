@@ -1,9 +1,193 @@
 <!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Markdown 笔记</title><link rel="stylesheet" href="styles.css"></head>
-<body class="ui-notebook" data-ui="notebook" data-composition="timeline" data-density="compact" data-motif="grid">
-  <main class="app-shell">
-    <header class="hero"><div class="identity"><div class="logo-frame"><img id="pluginLogo" src="logo.svg" alt="Markdown 笔记图标"></div><div class="identity-copy"><div class="meta-row"><span id="category" class="eyebrow">记录工具</span><span class="privacy-badge"><i></i>本地处理</span></div><h1 id="title">Markdown 笔记</h1><p id="description">本地 Markdown 笔记、实时预览、标签和全文搜索。</p></div></div><div class="hero-actions"><span class="tool-mode">沉浸笔记本</span><button id="pinButton" class="icon-button secondary">置顶</button><button id="copyButton" class="icon-button secondary">复制结果</button></div></header>
-    <section class="status-bar"><div id="status" class="status" aria-live="polite"><span class="status-dot"></span><span class="status-text">准备就绪</span></div><div class="shortcut-hints"><kbd>Ctrl</kbd><kbd>Enter</kbd><span>执行</span><kbd>Ctrl</kbd><kbd>S</kbd><span>保存</span></div></section>
-    <section class="workspace"><section class="panel editor-panel"><div class="panel-heading"><span class="step-index">02</span><div><strong><span id="inputLabel">Markdown 编辑</span></strong><small><span id="inputHint">输入、粘贴或选择本地数据</span></small></div><span id="inputCount" class="counter">0 字符</span></div><div class="editor-surface"><textarea id="inputText" spellcheck="false" placeholder="在这里输入内容……"></textarea><div id="dropHint" class="drop-hint" hidden>拖放文件到这里</div></div><div class="action-row editor-actions"><button id="runButton" class="primary">开始处理</button><button id="previewButton" class="secondary">安全预览</button><button id="clearButton" class="ghost">清空</button></div></section><aside class="panel controls-panel"><div class="panel-heading"><span class="step-index">01</span><div><strong>笔记属性</strong><small>专为Markdown 笔记设计的操作区</small></div></div><div id="controls" class="controls"></div></aside><section class="panel result-panel"><div class="panel-heading"><span class="step-index">03</span><div><strong><span id="resultLabel">阅读预览</span></strong><small>结果可复制、保存或导出</small></div><span id="resultCount" class="counter">等待处理</span></div><div class="result-surface"><div id="emptyState" class="empty-state"><img src="logo.svg" alt=""><strong>沉浸笔记本</strong><span>配置参数后开始本地处理</span></div><pre id="outputText" tabindex="0" hidden></pre><canvas id="previewCanvas" hidden></canvas><div id="cards" class="cards" hidden></div></div><div class="action-row result-actions"><button id="saveButton" class="secondary">保存结果</button><button id="exportButton" class="ghost">导出数据</button></div></section></section>
-  </main><script src="renderer.js"></script>
-</body></html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<style>
+:root{--bg:#fefce8;--fg:#a16207;--fg2:#b45309;--card:#fffbeb;--border:#fde68a;--input:#fef9c3;--text:#422006;--sub:#92400e;--radius:8px;--shadow:0 1px 3px rgba(180,83,9,.08)}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);padding-top:32px}
+input,textarea,select,button{font-family:inherit;font-size:13px;outline:none}
+button{cursor:pointer;border:none;border-radius:var(--radius);transition:all .15s}
+button:active{transform:scale(.97)}
+#app{height:100%;display:flex;overflow:hidden}
+#sidebar{width:200px;min-width:200px;background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+#sidebar h2{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--fg);padding:12px 16px 8px;border-bottom:1px solid var(--border)}
+#note-list{flex:1;overflow-y:auto;padding:6px 8px;display:flex;flex-direction:column;gap:3px}
+#note-list::-webkit-scrollbar{width:4px}
+#note-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.note-item{padding:8px 10px;border-radius:6px;cursor:pointer;font-size:12px;color:var(--sub);transition:all .12s;border:1px solid transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.note-item:hover{background:var(--input);border-color:var(--border)}
+.note-item.active{background:var(--fg);color:#fff;font-weight:600}
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#toolbar{display:flex;gap:6px;padding:8px 12px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--card)}
+#toolbar input{flex:1;min-width:120px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text)}
+#toolbar input:focus{border-color:var(--fg);box-shadow:0 0 0 2px rgba(161,98,7,.12)}
+#toolbar button{padding:6px 14px;background:var(--fg);color:#fff;font-weight:600;font-size:12px;white-space:nowrap}
+#toolbar button:hover{background:var(--fg2)}
+#toolbar button.del{background:transparent;color:var(--sub);border:1px solid var(--border)}
+#toolbar button.del:hover{background:#fef2f2;color:#dc2626;border-color:#fecaca}
+#content{flex:1;display:flex;overflow:hidden}
+#editor-pane{flex:1;display:flex;flex-direction:column;min-width:0}
+#editor-pane textarea{flex:1;padding:16px;border:none;resize:none;background:var(--bg);color:var(--text);font-size:14px;line-height:1.7;font-family:'JetBrains Mono','Fira Code',monospace;white-space:pre-wrap;word-break:break-word}
+#editor-pane textarea:focus{outline:none}
+#preview-pane{flex:1;overflow-y:auto;padding:16px 20px;font-size:14px;line-height:1.75;color:var(--text);border-left:1px solid var(--border);background:#fffbeb}
+#preview-pane h1{font-size:22px;margin:0 0 12px;color:var(--fg);border-bottom:2px solid var(--border);padding-bottom:6px}
+#preview-pane h2{font-size:17px;margin:16px 0 8px;color:var(--fg2)}
+#preview-pane h3{font-size:14px;margin:12px 0 6px;color:var(--sub)}
+#preview-pane p{margin:0 0 10px}
+#preview-pane code{background:var(--input);padding:2px 6px;border-radius:4px;font-size:13px;font-family:'JetBrains Mono',monospace;color:var(--fg2)}
+#preview-pane pre{background:var(--bg);padding:12px;border-radius:var(--radius);overflow-x:auto;border:1px solid var(--border);margin:0 0 12px}
+#preview-pane pre code{background:none;padding:0}
+#preview-pane ul,#preview-pane ol{padding-left:20px;margin:0 0 10px}
+#preview-pane li{margin:3px 0}
+#preview-pane blockquote{border-left:3px solid var(--fg);padding:6px 14px;margin:0 0 10px;background:var(--bg);border-radius:0 var(--radius) var(--radius) 0;color:var(--sub);font-style:italic}
+#preview-pane a{color:var(--fg);text-decoration:underline}
+#preview-pane table{border-collapse:collapse;width:100%;margin:0 0 12px}
+#preview-pane th,#preview-pane td{border:1px solid var(--border);padding:6px 10px;text-align:left;font-size:13px}
+#preview-pane th{background:var(--input);font-weight:600}
+#preview-pane hr{border:none;border-top:1px solid var(--border);margin:16px 0}
+#preview-pane img{max-width:100%;border-radius:var(--radius)}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="sidebar">
+    <h2>Markdown 笔记</h2>
+    <div id="note-list"></div>
+  </div>
+  <div id="main">
+    <div id="toolbar">
+      <input type="text" id="titleInput" placeholder="笔记标题">
+      <input type="text" id="tagsInput" placeholder="标签 (逗号分隔)">
+      <button id="saveBtn">保存</button>
+      <button class="del" id="delBtn">删除</button>
+    </div>
+    <div id="content">
+      <div id="editor-pane">
+        <textarea id="editor" placeholder="# 开始写 Markdown..."></textarea>
+      </div>
+      <div id="preview-pane"></div>
+    </div>
+  </div>
+</div>
+<script>
+const api = window.pluginAPI;
+const STORAGE_KEY = 'notes';
+const editor = document.getElementById('editor');
+const preview = document.getElementById('preview-pane');
+const titleInput = document.getElementById('titleInput');
+const tagsInput = document.getElementById('tagsInput');
+const noteList = document.getElementById('note-list');
+const saveBtn = document.getElementById('saveBtn');
+const delBtn = document.getElementById('delBtn');
+let notes = [];
+let currentId = null;
+let saveTimer = null;
+
+function parseMd(text) {
+  if (!text) return '';
+  return text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/^### (.+)$/gm,'<h3>$1</h3>')
+    .replace(/^## (.+)$/gm,'<h2>$1</h2>')
+    .replace(/^# (.+)$/gm,'<h1>$1</h1>')
+    .replace(/\*\*\*(.+?)\*\*\*/g,'<em><strong>$1</strong></em>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank">$1</a>')
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g,'<img src="$2" alt="$1">')
+    .replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>')
+    .replace(/^---$/gm,'<hr>')
+    .replace(/^- (.+)$/gm,'<li>$1</li>').replace(/(<li>.*<\/li>\n?)+/g,m=>'<ul>'+m+'</ul>')
+    .replace(/^\d+\. (.+)$/gm,'<li>$1</li>').replace(/(<li>.*<\/li>\n?)+/g,m=>'<ol>'+m+'</ol>')
+    .replace(/```([\s\S]*?)```/g,'<pre><code>$1</code></pre>')
+    .replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>');
+}
+
+function updatePreview() {
+  preview.innerHTML = parseMd(editor.value);
+}
+
+function getActiveNote() {
+  return notes.find(n => n.id === currentId);
+}
+
+function renderList() {
+  noteList.innerHTML = notes.length === 0
+    ? '<div style="padding:16px;color:var(--sub);font-size:12px;text-align:center">暂无笔记</div>'
+    : notes.map(n => `<div class="note-item${n.id===currentId?' active':''}" data-id="${n.id}">${n.title||'未命名笔记'}</div>`).join('');
+  document.querySelectorAll('.note-item').forEach(el => {
+    el.addEventListener('click', () => loadNote(el.dataset.id));
+  });
+}
+
+function loadNote(id) {
+  const note = notes.find(n => n.id === id);
+  if (!note) return;
+  currentId = id;
+  editor.value = note.content || '';
+  titleInput.value = note.title || '';
+  tagsInput.value = (note.tags||[]).join(', ');
+  updatePreview();
+  renderList();
+}
+
+function saveNote() {
+  const note = getActiveNote();
+  if (!note) return;
+  note.title = titleInput.value || '未命名笔记';
+  note.tags = tagsInput.value.split(',').map(t=>t.trim()).filter(Boolean);
+  note.content = editor.value;
+  note.updatedAt = Date.now();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => persist(), 500);
+  updatePreview();
+  renderList();
+}
+
+async function persist() {
+  await api.storage.set(STORAGE_KEY, notes);
+}
+
+async function init() {
+  const data = await api.storage.get(STORAGE_KEY);
+  notes = Array.isArray(data) ? data : [];
+  if (notes.length === 0) {
+    notes.push({ id: '1', title: '欢迎', tags: [], content: '# 欢迎使用 Markdown 笔记\n\n在左侧编辑 Markdown 内容，右侧实时预览。\n\n- 支持 **粗体**、*斜体*、`代码`\n- 支持标题、列表、引用\n- 支持链接和图片', createdAt: Date.now(), updatedAt: Date.now() });
+  }
+  renderList();
+  if (notes.length) loadNote(notes[0].id);
+}
+
+editor.addEventListener('input', () => { updatePreview(); saveNote(); });
+titleInput.addEventListener('input', saveNote);
+tagsInput.addEventListener('input', saveNote);
+saveBtn.addEventListener('click', saveNote);
+delBtn.addEventListener('click', () => {
+  if (!currentId || notes.length <= 1) return;
+  notes = notes.filter(n => n.id !== currentId);
+  currentId = notes[0]?.id || null;
+  if (currentId) loadNote(currentId);
+  else { editor.value = ''; titleInput.value = ''; tagsInput.value = ''; preview.innerHTML = ''; }
+  renderList();
+  persist();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'n') { e.preventDefault();
+    const id = String(Date.now());
+    notes.push({ id, title: '', tags: [], content: '', createdAt: Date.now(), updatedAt: Date.now() });
+    currentId = id;
+    editor.value = ''; titleInput.value = ''; tagsInput.value = '';
+    updatePreview();
+    renderList();
+    persist();
+  }
+});
+
+init();
+</script>
+</body>
+</html>

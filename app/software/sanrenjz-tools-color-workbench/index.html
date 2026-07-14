@@ -1,9 +1,42 @@
-<!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>颜色工作台</title><link rel="stylesheet" href="styles.css"></head>
-<body class="ui-color-lab" data-ui="color-lab" data-composition="inspector" data-density="airy" data-motif="dots">
-  <main class="app-shell">
-    <header class="hero"><div class="identity"><div class="logo-frame"><img id="pluginLogo" src="logo.svg" alt="颜色工作台图标"></div><div class="identity-copy"><div class="meta-row"><span id="category" class="eyebrow">设计工具</span><span class="privacy-badge"><i></i>本地处理</span></div><h1 id="title">颜色工作台</h1><p id="description">转换 HEX、RGB、HSL 并检查颜色对比度。</p></div></div><div class="hero-actions"><span class="tool-mode">颜色实验室</span><button id="pinButton" class="icon-button secondary">置顶</button><button id="copyButton" class="icon-button secondary">复制结果</button></div></header>
-    <section class="status-bar"><div id="status" class="status" aria-live="polite"><span class="status-dot"></span><span class="status-text">准备就绪</span></div><div class="shortcut-hints"><kbd>Ctrl</kbd><kbd>Enter</kbd><span>执行</span><kbd>Ctrl</kbd><kbd>S</kbd><span>保存</span></div></section>
-    <section class="workspace"><section class="panel editor-panel"><div class="panel-heading"><span class="step-index">02</span><div><strong><span id="inputLabel">色值输入</span></strong><small><span id="inputHint">输入、粘贴或选择本地数据</span></small></div><span id="inputCount" class="counter">0 字符</span></div><div class="editor-surface"><textarea id="inputText" spellcheck="false" placeholder="在这里输入内容……"></textarea><div id="dropHint" class="drop-hint" hidden>拖放文件到这里</div></div><div class="action-row editor-actions"><button id="runButton" class="primary">开始处理</button><button id="previewButton" class="secondary">安全预览</button><button id="clearButton" class="ghost">清空</button></div></section><aside class="panel controls-panel"><div class="panel-heading"><span class="step-index">01</span><div><strong>颜色参数</strong><small>专为颜色工作台设计的操作区</small></div></div><div id="controls" class="controls"></div></aside><section class="panel result-panel"><div class="panel-heading"><span class="step-index">03</span><div><strong><span id="resultLabel">无障碍报告</span></strong><small>结果可复制、保存或导出</small></div><span id="resultCount" class="counter">等待处理</span></div><div class="result-surface"><div id="emptyState" class="empty-state"><img src="logo.svg" alt=""><strong>颜色实验室</strong><span>配置参数后开始本地处理</span></div><pre id="outputText" tabindex="0" hidden></pre><canvas id="previewCanvas" hidden></canvas><div id="cards" class="cards" hidden></div></div><div class="action-row result-actions"><button id="saveButton" class="secondary">保存结果</button><button id="exportButton" class="ghost">导出数据</button></div></section></section>
-  </main><script src="renderer.js"></script>
-</body></html>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>色彩工作台</title>
+<style>:root{--bg:#042f2e;--panel:#0a3d3b;--surface:#021e1d;--text:#d1faf5;--muted:#5eeadb;--border:#134e4a;--accent:#14b8a6;--accent2:#2dd4bf;--r:10px}*{box-sizing:border-box}html,body{height:100%;overflow:hidden}body{margin:0;padding-top:32px;background:var(--bg);color:var(--text);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}body::before{content:'';position:fixed;top:0;left:0;right:0;height:32px;z-index:99;background:var(--panel);-webkit-app-region:drag}.custom-title-bar{background:var(--panel)!important;color:var(--muted)!important;font-size:11px!important;border-bottom:1px solid var(--border)!important}button,input{-webkit-app-region:no-drag;font:inherit;color:inherit}button{cursor:pointer;border:none;border-radius:8px;padding:8px 16px;font-size:12px;font-weight:600;transition:all .18s}button:active{transform:scale(.96)}.app{display:flex;flex-direction:column;height:calc(100vh - 32px);padding:20px;gap:16px;overflow:hidden}.top{display:flex;align-items:center;gap:14px;flex-shrink:0}.top h1{font-size:22px;margin:0;color:var(--accent);font-weight:800;letter-spacing:-.3px}.input-group{display:flex;align-items:center;gap:8px}.input-group label{font-size:12px;color:var(--muted);white-space:nowrap}.input-group input[type=text]{width:90px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:.5px;outline:none;transition:border .15s;color:var(--text)}.input-group input[type=text]:focus{border-color:var(--accent)}.input-group .divider{color:var(--muted);font-size:16px;margin:0 4px}.main{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:14px;overflow:hidden}.preview-block{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:20px;display:flex;flex-direction:column;gap:12px}.preview-block h3{font-size:12px;font-weight:700;margin:0;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}.color-swatch{width:100%;height:100px;border-radius:var(--r);border:2px solid var(--border);transition:background .2s}.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.info-item{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}.info-item .label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}.info-item .value{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.3px}.contrast-block{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:14px;display:flex;align-items:center;justify-content:center;gap:20px}.contrast-badge{text-align:center}.contrast-badge .ratio{font-size:36px;font-weight:800;line-height:1;transition:color .3s}.contrast-badge .label{font-size:11px;color:var(--muted);margin-top:4px}.contrast-badge .rating{font-size:13px;font-weight:700;margin-top:2px}.sample-text{font-size:18px;font-weight:700;padding:12px 20px;border-radius:var(--r);transition:all .3s}.recents{flex-shrink:0;display:flex;gap:8px;overflow-x:auto;padding:4px 0}.recents .chip{width:36px;height:36px;border-radius:var(--r);border:2px solid var(--border);flex-shrink:0;cursor:pointer;transition:all .15s}.recents .chip:hover{transform:scale(1.1);border-color:var(--accent)}</style></head>
+<body>
+<div class="app">
+  <div class="top">
+    <h1>色彩工作台</h1>
+    <div class="input-group"><label>前景</label><input type="text" id="fgColor" value="#14b8a6" maxlength="7"><span class="divider">/</span><label>背景</label><input type="text" id="bgColor" value="#042f2e" maxlength="7"></div>
+    <div class="recents" id="recents"></div>
+  </div>
+  <div class="main">
+    <div class="preview-block">
+      <h3>前景色预览</h3>
+      <div class="color-swatch" id="fgSwatch"></div>
+      <div class="info-grid" id="fgInfo"></div>
+    </div>
+    <div class="preview-block">
+      <h3>背景色预览</h3>
+      <div class="color-swatch" id="bgSwatch"></div>
+      <div class="info-grid" id="bgInfo"></div>
+    </div>
+  </div>
+  <div class="contrast-block">
+    <div class="contrast-badge"><div class="ratio" id="ratioVal">—</div><div class="label">对比度</div><div class="rating" id="ratingVal"></div></div>
+    <div class="sample-text" id="sampleText">Aa 色彩对比度测试文字</div>
+  </div>
+</div>
+<script>
+const api=window.pluginAPI,$=id=>document.getElementById(id);
+let recentColors=[];
+function parseHex(h){const c=h.replace('#','');if(!/^[0-9a-fA-F]{6}$/.test(c))return null;return[r=parseInt(c.slice(0,2),16),parseInt(c.slice(2,4),16),parseInt(c.slice(4,6),16)]}
+function toHex(r,g,b){return'#'+[r,g,b].map(v=>Math.max(0,Math.min(255,v)).toString(16).padStart(2,'0')).join('')}
+function hslFrom(r,g,b){const rf=r/255,gf=g/255,bf=b/255,max=Math.max(rf,gf,bf),min=Math.min(rf,gf,bf);let h=0,s=0,l=(max+min)/2;if(max!==min){const d=max-min;s=l>.5?d/(2-max-min):d/(max+min);h=max===rf?((gf-bf)/d+(gf<bf?6:0)):max===gf?((bf-rf)/d+2):((rf-gf)/d+4);h*=60}return{h:Math.round(h),s:Math.round(s*100),l:Math.round(l*100)}}
+function getLuminance(r,g,b){const [rs,gs,bs]=[r,g,b].map(v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)});return.2126*rs+.7152*gs+.0722*bs}
+function getContrast(l1,l2){const lt=Math.max(l1,l2),ld=Math.min(l1,l2);return(lt+.05)/(ld+.05)}
+function getRating(ratio){if(ratio>=7)return{text:'AAA',color:'#22c55e'};if(ratio>=4.5)return{text:'AA',color:'#f59e0b'};if(ratio>=3)return{text:'AA Large',color:'#f97316'};return{text:'Fail',color:'#ef4444'}}
+function update(){const fg=parseHex($('fgColor').value),bg=parseHex($('bgColor').value);if(!fg||!bg)return;updateSwatch('fg',fg);updateSwatch('bg',bg);const l1=getLuminance(...fg),l2=getLuminance(...bg);const ratio=getContrast(l1,l2);const rating=getRating(ratio);$('ratioVal').textContent=ratio.toFixed(2);$('ratioVal').style.color=rating.color;$('ratingVal').textContent=rating.text;$('ratingVal').style.color=rating.color;$('sampleText').style.color=toHex(...fg);$('sampleText').style.background=toHex(...bg);addRecent(toHex(...fg));addRecent(toHex(...bg))}
+function updateSwatch(prefix,rgb){const hex=toHex(...rgb);$(prefix+'Swatch').style.background=hex;const hsl=hslFrom(...rgb);$(prefix+'Info').innerHTML=`<div class="info-item"><span class="label">HEX</span><span class="value">${hex.toUpperCase()}</span></div><div class="info-item"><span class="label">RGB</span><span class="value">${rgb.join(', ')}</span></div><div class="info-item"><span class="label">HSL</span><span class="value">${hsl.h}°, ${hsl.s}%, ${hsl.l}%</span></div><div class="info-item"><span class="label">亮度</span><span class="value">${getLuminance(...rgb).toFixed(3)}</span></div>`}
+function addRecent(hex){recentColors=recentColors.filter(c=>c!==hex);recentColors.unshift(hex);if(recentColors.length>16)recentColors.length=16;renderRecents()}
+function renderRecents(){$('recents').innerHTML=recentColors.map(c=>`<div class="chip" style="background:${c}" data-hex="${c}" title="${c}"></div>`).join('');$('recents').querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{$('fgColor').value=c.dataset.hex;update()}))}
+$('fgColor').addEventListener('input',update);$('bgColor').addEventListener('input',update);
+update();
+</script></body></html>

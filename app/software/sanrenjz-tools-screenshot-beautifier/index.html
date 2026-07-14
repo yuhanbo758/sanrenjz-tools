@@ -1,9 +1,54 @@
-<!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>截图美化器</title><link rel="stylesheet" href="styles.css"></head>
-<body class="ui-mockup-stage" data-ui="mockup-stage" data-composition="deck" data-density="airy" data-motif="plain">
-  <main class="app-shell">
-    <header class="hero"><div class="identity"><div class="logo-frame"><img id="pluginLogo" src="logo.svg" alt="截图美化器图标"></div><div class="identity-copy"><div class="meta-row"><span id="category" class="eyebrow">图片工具</span><span class="privacy-badge"><i></i>本地处理</span></div><h1 id="title">截图美化器</h1><p id="description">为截图添加背景、阴影、圆角、留白和设备画框。</p></div></div><div class="hero-actions"><span class="tool-mode">截图样机台</span><button id="pinButton" class="icon-button secondary">置顶</button><button id="copyButton" class="icon-button secondary">复制结果</button></div></header>
-    <section class="status-bar"><div id="status" class="status" aria-live="polite"><span class="status-dot"></span><span class="status-text">准备就绪</span></div><div class="shortcut-hints"><kbd>Ctrl</kbd><kbd>Enter</kbd><span>执行</span><kbd>Ctrl</kbd><kbd>S</kbd><span>保存</span></div></section>
-    <section class="workspace"><aside class="panel controls-panel"><div class="panel-heading"><span class="step-index">01</span><div><strong>外观参数</strong><small>专为截图美化器设计的操作区</small></div></div><div id="controls" class="controls"></div></aside><section class="panel result-panel"><div class="panel-heading"><span class="step-index">03</span><div><strong><span id="resultLabel">成品画布</span></strong><small>结果可复制、保存或导出</small></div><span id="resultCount" class="counter">等待处理</span></div><div class="result-surface"><div id="emptyState" class="empty-state"><img src="logo.svg" alt=""><strong>截图样机台</strong><span>配置参数后开始本地处理</span></div><pre id="outputText" tabindex="0" hidden></pre><canvas id="previewCanvas" hidden></canvas><div id="cards" class="cards" hidden></div></div><div class="action-row result-actions"><button id="saveButton" class="secondary">保存结果</button><button id="exportButton" class="ghost">导出数据</button></div></section><section class="panel editor-panel"><div class="panel-heading"><span class="step-index">02</span><div><strong><span id="inputLabel">截图素材</span></strong><small><span id="inputHint">输入、粘贴或选择本地数据</span></small></div><span id="inputCount" class="counter">0 字符</span></div><div class="editor-surface"><textarea id="inputText" spellcheck="false" placeholder="在这里输入内容……"></textarea><div id="dropHint" class="drop-hint" hidden>拖放文件到这里</div></div><div class="action-row editor-actions"><button id="runButton" class="primary">开始处理</button><button id="previewButton" class="secondary">安全预览</button><button id="clearButton" class="ghost">清空</button></div></section></section>
-  </main><script src="renderer.js"></script>
-</body></html>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>截图美化</title>
+<style>:root{--bg:#fff7ed;--panel:#fff;--surface:#ffedd5;--text:#431407;--muted:#9a3412;--border:#fed7aa;--accent:#ea580c;--accent2:#f97316;--r:12px}*{box-sizing:border-box}html,body{height:100%;overflow:hidden}body{margin:0;padding-top:32px;background:var(--bg);color:var(--text);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}.app{display:flex;height:calc(100vh - 32px);padding:20px;gap:16px;overflow:hidden}.sidebar{width:275px;flex-shrink:0;display:flex;flex-direction:column;gap:14px}.sidebar h1{font-size:20px;margin:0;color:var(--accent);font-weight:800;letter-spacing:-.3px}.pick-btn{width:100%;padding:12px;border:2px dashed var(--border);border-radius:var(--r);background:var(--surface);color:var(--accent);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;text-align:center}.pick-btn:hover{border-color:var(--accent);background:var(--panel)}.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:10px}.card h3{font-size:13px;font-weight:700;margin:0;color:var(--text)}.card label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px}.card input[type=range]{-webkit-appearance:none;width:100%;height:6px;border-radius:3px;background:var(--surface);outline:none}.card input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--accent);cursor:pointer;box-shadow:0 0 8px rgba(234,88,12,.3)}.card .range-row{display:flex;align-items:center;gap:10px}.card .range-row .val{min-width:32px;text-align:right;font-size:13px;color:var(--accent);font-weight:700}.card .color-row{display:flex;align-items:center;gap:8px}.card .color-row input[type=color]{width:32px;height:32px;border:none;border-radius:6px;cursor:pointer;background:none;padding:0}.card .color-row span{font-size:12px;color:var(--muted)}.card .presets{display:flex;flex-wrap:wrap;gap:6px}.card .presets button{flex:0 0 auto;padding:4px 12px;border:1px solid var(--border);border-radius:14px;background:var(--surface);font-size:11px;color:var(--muted);cursor:pointer;transition:all .15s}.card .presets button:hover{background:var(--accent);color:#fff;border-color:var(--accent)}.actions{display:flex;gap:8px;margin-top:auto}.actions button{flex:1;padding:10px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}.actions .apply{background:var(--accent);color:#fff}.actions .apply:hover{background:var(--accent2);box-shadow:0 4px 14px rgba(234,88,12,.3)}.actions .save{background:var(--surface);color:var(--accent);border:1px solid var(--border)}.actions .save:hover{background:var(--accent);color:#fff}.preview-area{flex:1;min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:var(--r);display:flex;align-items:center;justify-content:center;overflow:auto;padding:20px}.preview-area canvas,.preview-area img{max-width:100%;max-height:100%;border-radius:4px;box-shadow:0 4px 24px rgba(0,0,0,.1)}.empty{display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--muted);opacity:.35}.empty svg{width:56px;height:56px}.saved{color:#16a34a;font-size:12px;font-weight:600;margin-left:6px}</style></head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <h1>截图美化</h1>
+    <button class="pick-btn" id="pickBtn">选择截图</button>
+    <div class="card">
+      <h3>内边距</h3>
+      <label><div class="range-row"><input type="range" id="padding" min="0" max="200" value="40"><span class="val" id="padVal">40</span></div></label>
+    </div>
+    <div class="card">
+      <h3>圆角</h3>
+      <label><div class="range-row"><input type="range" id="radius" min="0" max="80" value="16"><span class="val" id="radVal">16</span></div></label>
+    </div>
+    <div class="card">
+      <h3>背景</h3>
+      <div class="color-row"><input type="color" id="bgColor" value="#ffffff"><span id="bgLabel">#FFFFFF</span></div>
+      <div class="presets">
+        <button data-color="#ffffff">白色</button>
+        <button data-color="#f8fafc">浅灰</button>
+        <button data-color="#0f172a">深色</button>
+        <button data-color="#fef3c7">暖黄</button>
+        <button data-color="#dbeafe">浅蓝</button>
+        <button data-color="#fce7f3">浅粉</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>阴影</h3>
+      <label><div class="range-row"><input type="range" id="shadow" min="0" max="60" value="20"><span class="val" id="shdVal">20</span></div></label>
+    </div>
+    <div class="actions">
+      <button class="apply" id="applyBtn">应用效果</button>
+      <button class="save" id="saveBtn">导出</button>
+      <span class="saved" id="savedLabel" hidden>已导出</span>
+    </div>
+  </div>
+  <div class="preview-area" id="preview">
+    <div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m2 17 6-6 4 4 4-6 6 8"/></svg><div>选择截图后添加圆角与背景</div></div>
+  </div>
+</div>
+<script>
+const api=window.pluginAPI,$=id=>document.getElementById(id);
+let origDataUrl='',outDataUrl='';
+$('padding').addEventListener('input',()=>$('padVal').textContent=$('padding').value);
+$('radius').addEventListener('input',()=>$('radVal').textContent=$('radius').value);
+$('shadow').addEventListener('input',()=>$('shdVal').textContent=$('shadow').value);
+$('bgColor').addEventListener('input',()=>$('bgLabel').textContent=$('bgColor').value.toUpperCase());
+document.querySelectorAll('.presets button').forEach(b=>b.addEventListener('click',()=>{$('bgColor').value=b.dataset.color;$('bgLabel').textContent=b.dataset.color.toUpperCase();apply()}));
+function apply(){if(!origDataUrl)return;const img=new Image();img.onload=()=>{const pad=Number($('padding').value),rad=Number($('radius').value),shd=Number($('shadow').value),bg=$('bgColor').value;const cw=img.width+pad*2+shd*2,ch=img.height+pad*2+shd*2;const c=document.createElement('canvas');c.width=cw;c.height=ch;const ctx=c.getContext('2d');if(shd>0){ctx.shadowColor='rgba(0,0,0,.15)';ctx.shadowBlur=shd;ctx.shadowOffsetX=0;ctx.shadowOffsetY=shd*.4}ctx.fillStyle=bg;ctx.beginPath();ctx.roundRect(pad+shd/2,pad+shd/2,img.width+shd,img.height+shd,rad);ctx.fill();ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetX=0;ctx.shadowOffsetY=0;ctx.drawImage(img,pad+shd/2,pad+shd/2);outDataUrl=c.toDataURL();$('preview').innerHTML='';const el=document.createElement('img');el.src=outDataUrl;$('preview').appendChild(el)};img.src=origDataUrl}
+$('pickBtn').addEventListener('click',()=>{const f=api.selectFiles({title:'选择截图',multiple:false,filters:[{name:'图片',extensions:['png','jpg','jpeg','webp','bmp']}]});if(f.length){origDataUrl=api.readFileDataUrl(f[0]);apply()}});
+$('applyBtn').addEventListener('click',apply);
+$('saveBtn').addEventListener('click',()=>{if(!outDataUrl)return;const r=api.saveResult({dataUrl:outDataUrl,defaultPath:'beautified.png',title:'保存美化截图',filters:[{name:'PNG',extensions:['png']},{name:'JPEG',extensions:['jpg']}]});if(!r.cancelled){$('savedLabel').hidden=0;setTimeout(()=>$('savedLabel').hidden=1,2000)}});
+</script></body></html>

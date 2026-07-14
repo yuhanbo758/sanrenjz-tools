@@ -1,9 +1,137 @@
-<!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>图片悬浮板</title><link rel="stylesheet" href="styles.css"></head>
-<body class="ui-pinboard-stage" data-ui="pinboard-stage" data-composition="studio" data-density="compact" data-motif="glow">
-  <main class="app-shell">
-    <header class="hero"><div class="identity"><div class="logo-frame"><img id="pluginLogo" src="logo.svg" alt="图片悬浮板图标"></div><div class="identity-copy"><div class="meta-row"><span id="category" class="eyebrow">系统工具</span><span class="privacy-badge"><i></i>本地处理</span></div><h1 id="title">图片悬浮板</h1><p id="description">将剪贴板图片置顶悬浮并支持缩放和透明度。</p></div></div><div class="hero-actions"><span class="tool-mode">桌面贴图板</span><button id="pinButton" class="icon-button secondary">置顶</button><button id="copyButton" class="icon-button secondary">复制结果</button></div></header>
-    <section class="status-bar"><div id="status" class="status" aria-live="polite"><span class="status-dot"></span><span class="status-text">准备就绪</span></div><div class="shortcut-hints"><kbd>Ctrl</kbd><kbd>Enter</kbd><span>执行</span><kbd>Ctrl</kbd><kbd>S</kbd><span>保存</span></div></section>
-    <section class="workspace"><aside class="panel controls-panel"><div class="panel-heading"><span class="step-index">01</span><div><strong>悬浮设置</strong><small>专为图片悬浮板设计的操作区</small></div></div><div id="controls" class="controls"></div></aside><section class="panel editor-panel"><div class="panel-heading"><span class="step-index">02</span><div><strong><span id="inputLabel">剪贴板图片</span></strong><small><span id="inputHint">输入、粘贴或选择本地数据</span></small></div><span id="inputCount" class="counter">0 字符</span></div><div class="editor-surface"><textarea id="inputText" spellcheck="false" placeholder="在这里输入内容……"></textarea><div id="dropHint" class="drop-hint" hidden>拖放文件到这里</div></div><div class="action-row editor-actions"><button id="runButton" class="primary">开始处理</button><button id="previewButton" class="secondary">安全预览</button><button id="clearButton" class="ghost">清空</button></div></section><section class="panel result-panel"><div class="panel-heading"><span class="step-index">03</span><div><strong><span id="resultLabel">置顶画布</span></strong><small>结果可复制、保存或导出</small></div><span id="resultCount" class="counter">等待处理</span></div><div class="result-surface"><div id="emptyState" class="empty-state"><img src="logo.svg" alt=""><strong>桌面贴图板</strong><span>配置参数后开始本地处理</span></div><pre id="outputText" tabindex="0" hidden></pre><canvas id="previewCanvas" hidden></canvas><div id="cards" class="cards" hidden></div></div><div class="action-row result-actions"><button id="saveButton" class="secondary">保存结果</button><button id="exportButton" class="ghost">导出数据</button></div></section></section>
-  </main><script src="renderer.js"></script>
-</body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>图片悬浮板</title>
+<style>
+:root{--bg:#1a1328;--panel:#241b3a;--text:#e8dff5;--muted:#7a6b96;--border:#2e2350;--accent:#d946ef;--accent2:#c084fc;--radius:12px}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);padding-top:32px!important;display:flex;flex-direction:column}
+.custom-title-bar{background:var(--bg)!important;border-bottom:1px solid var(--border)!important}
+.controls{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+.controls button{padding:7px 16px;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--text);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap}
+.controls button:hover{border-color:var(--accent);color:var(--accent)}
+.controls button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.controls button.primary:hover{filter:brightness(1.1)}
+.controls .slider-group{display:flex;align-items:center;gap:6px;flex:1;min-width:0}
+.controls .slider-group label{font-size:11px;color:var(--muted);white-space:nowrap;flex-shrink:0}
+.controls .slider-group input[type=range]{flex:1;min-width:60px;accent-color:var(--accent);height:4px}
+.controls .slider-group .pct{font-size:11px;color:var(--accent);width:32px;text-align:right;flex-shrink:0;font-weight:600}
+.canvas-wrap{flex:1;display:flex;align-items:center;justify-content:center;min-height:0;padding:16px;overflow:hidden}
+.canvas-wrap canvas{max-width:100%;max-height:100%;border-radius:var(--radius);box-shadow:0 4px 24px rgba(0,0,0,.4);object-fit:contain}
+.placeholder{display:flex;flex-direction:column;align-items:center;gap:10px;color:var(--muted);text-align:center}
+.placeholder .icon{font-size:48px;opacity:.5;margin-bottom:4px}
+.placeholder strong{font-size:15px;color:var(--text)}
+.placeholder span{font-size:12px}
+.status-bar{display:flex;align-items:center;gap:8px;padding:6px 16px;border-top:1px solid var(--border);font-size:10px;color:var(--muted);flex-shrink:0}
+.status-bar .dot{width:6px;height:6px;border-radius:50%;background:var(--muted);flex-shrink:0}
+.status-bar .dot.active{background:var(--accent);box-shadow:0 0 6px var(--accent)}
+</style>
+</head>
+<body>
+<div class="controls">
+  <button class="primary" id="pinBtn">从剪贴板获取</button>
+  <div class="slider-group">
+    <label>透明度</label>
+    <input type="range" id="opacitySlider" min="10" max="100" value="100">
+    <span class="pct" id="opacityVal">100%</span>
+  </div>
+  <button id="clearBtn">清除</button>
+</div>
+<div class="canvas-wrap" id="canvasWrap">
+  <div class="placeholder" id="placeholder">
+    <div class="icon">&#x1F5BC;</div>
+    <strong>暂无图片</strong>
+    <span>点击"从剪贴板获取"加载图片</span>
+  </div>
+  <canvas id="previewCanvas" style="display:none"></canvas>
+</div>
+<div class="status-bar">
+  <span class="dot" id="statusDot"></span>
+  <span id="statusText">等待图片</span>
+</div>
+<script>
+const api = window.pluginAPI;
+const pinBtn = document.getElementById('pinBtn');
+const clearBtn = document.getElementById('clearBtn');
+const opacitySlider = document.getElementById('opacitySlider');
+const opacityVal = document.getElementById('opacityVal');
+const canvas = document.getElementById('previewCanvas');
+const placeholder = document.getElementById('placeholder');
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+let currentImage = null;
+
+function setStatus(active, msg) {
+  statusDot.className = 'dot' + (active ? ' active' : '');
+  statusText.textContent = msg;
+}
+
+function loadImage(dataUrl) {
+  if (!dataUrl) return;
+  const img = new Image();
+  img.onload = () => {
+    const wrap = document.getElementById('canvasWrap');
+    const maxW = wrap.clientWidth - 32;
+    const maxH = wrap.clientHeight - 32;
+    let w = img.width, h = img.height;
+    if (w > maxW) { h = h * maxW / w; w = maxW; }
+    if (h > maxH) { w = w * maxH / h; h = maxH; }
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, w, h);
+    ctx.globalAlpha = parseInt(opacitySlider.value) / 100;
+    ctx.drawImage(img, 0, 0, w, h);
+    canvas.style.display = 'block';
+    placeholder.style.display = 'none';
+    currentImage = dataUrl;
+    setStatus(true, `${img.width} x ${img.height}`);
+  };
+  img.onerror = () => {
+    setStatus(false, '图片加载失败');
+  };
+  img.src = dataUrl;
+}
+
+function updateOpacity() {
+  const val = parseInt(opacitySlider.value);
+  opacityVal.textContent = val + '%';
+  if (currentImage) loadImage(currentImage);
+}
+
+pinBtn.addEventListener('click', () => {
+  try {
+    const img = api.readClipboardImage();
+    if (img) { loadImage(img); }
+    else { setStatus(false, '剪贴板无图片'); }
+  } catch (e) { setStatus(false, '读取失败'); }
+});
+
+clearBtn.addEventListener('click', () => {
+  currentImage = null;
+  canvas.style.display = 'none';
+  placeholder.style.display = 'flex';
+  setStatus(false, '等待图片');
+});
+
+opacitySlider.addEventListener('input', updateOpacity);
+
+document.addEventListener('paste', e => {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      const blob = item.getAsFile();
+      const reader = new FileReader();
+      reader.onload = () => loadImage(reader.result);
+      reader.readAsDataURL(blob);
+      break;
+    }
+  }
+});
+</script>
+</body>
+</html>

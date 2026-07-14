@@ -1,9 +1,141 @@
 <!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>日期与世界时钟</title><link rel="stylesheet" href="styles.css"></head>
-<body class="ui-clock-wall" data-ui="clock-wall" data-composition="studio" data-density="compact" data-motif="dots">
-  <main class="app-shell">
-    <header class="hero"><div class="identity"><div class="logo-frame"><img id="pluginLogo" src="logo.svg" alt="日期与世界时钟图标"></div><div class="identity-copy"><div class="meta-row"><span id="category" class="eyebrow">效率工具</span><span class="privacy-badge"><i></i>本地处理</span></div><h1 id="title">日期与世界时钟</h1><p id="description">进行日期推算、工作日计算和世界时区查看。</p></div></div><div class="hero-actions"><span class="tool-mode">世界时钟墙</span><button id="pinButton" class="icon-button secondary">置顶</button><button id="copyButton" class="icon-button secondary">复制结果</button></div></header>
-    <section class="status-bar"><div id="status" class="status" aria-live="polite"><span class="status-dot"></span><span class="status-text">准备就绪</span></div><div class="shortcut-hints"><kbd>Ctrl</kbd><kbd>Enter</kbd><span>执行</span><kbd>Ctrl</kbd><kbd>S</kbd><span>保存</span></div></section>
-    <section class="workspace"><aside class="panel controls-panel"><div class="panel-heading"><span class="step-index">01</span><div><strong>日期规则</strong><small>专为日期与世界时钟设计的操作区</small></div></div><div id="controls" class="controls"></div></aside><section class="panel editor-panel"><div class="panel-heading"><span class="step-index">02</span><div><strong><span id="inputLabel">日期输入</span></strong><small><span id="inputHint">输入、粘贴或选择本地数据</span></small></div><span id="inputCount" class="counter">0 字符</span></div><div class="editor-surface"><textarea id="inputText" spellcheck="false" placeholder="在这里输入内容……"></textarea><div id="dropHint" class="drop-hint" hidden>拖放文件到这里</div></div><div class="action-row editor-actions"><button id="runButton" class="primary">开始处理</button><button id="previewButton" class="secondary">安全预览</button><button id="clearButton" class="ghost">清空</button></div></section><section class="panel result-panel"><div class="panel-heading"><span class="step-index">03</span><div><strong><span id="resultLabel">时区卡片</span></strong><small>结果可复制、保存或导出</small></div><span id="resultCount" class="counter">等待处理</span></div><div class="result-surface"><div id="emptyState" class="empty-state"><img src="logo.svg" alt=""><strong>世界时钟墙</strong><span>配置参数后开始本地处理</span></div><pre id="outputText" tabindex="0" hidden></pre><canvas id="previewCanvas" hidden></canvas><div id="cards" class="cards" hidden></div></div><div class="action-row result-actions"><button id="saveButton" class="secondary">保存结果</button><button id="exportButton" class="ghost">导出数据</button></div></section></section>
-  </main><script src="renderer.js"></script>
-</body></html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<style>
+:root{--bg:#0f1b3d;--fg:#6366f1;--fg2:#818cf8;--card:#162350;--border:#1e3a6e;--input:#1a2d5a;--text:#e2e8f0;--sub:#94a3b8;--accent:#a78bfa;--radius:10px;--shadow:0 4px 16px rgba(0,0,0,.3)}
+.custom-title-bar{background:var(--card)!important;border-bottom:1px solid var(--border)!important;color:var(--text)!important}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);padding-top:32px}
+input,select,button{font-family:inherit;font-size:13px;outline:none}
+button{cursor:pointer;border:none;border-radius:var(--radius);transition:all .15s}
+button:active{transform:scale(.97)}
+#app{height:100%;display:flex;flex-direction:column;overflow:hidden;padding:16px;gap:14px}
+#controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:14px;background:var(--card);border-radius:var(--radius);border:1px solid var(--border)}
+#controls input[type="date"]{padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--input);color:var(--text)}
+#controls input[type="number"]{width:60px;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--input);color:var(--text);text-align:center}
+#controls input:focus,#controls select:focus{border-color:var(--fg);box-shadow:0 0 0 2px rgba(99,102,241,.2)}
+#controls select{padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--input);color:var(--text)}
+#controls button{padding:8px 16px;background:var(--fg);color:#fff;font-weight:600;font-size:12px}
+#controls button:hover{background:var(--fg2)}
+#controls label{font-size:12px;color:var(--sub);display:flex;align-items:center;gap:6px;cursor:pointer}
+#controls label input[type="checkbox"]{accent-color:var(--fg)}
+#result-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.card{background:var(--card);border-radius:var(--radius);padding:14px 16px;border:1px solid var(--border);transition:all .15s}
+.card:hover{border-color:var(--fg)}
+.card .label{font-size:11px;color:var(--sub);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;font-weight:600}
+.card .value{font-size:18px;font-weight:700;color:var(--text);word-break:break-all}
+.card .value.accent{color:var(--accent)}
+#world-clocks{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+.clock-card{background:var(--card);border-radius:var(--radius);padding:12px 14px;border:1px solid var(--border);text-align:center;transition:all .15s}
+.clock-card:hover{border-color:var(--fg)}
+.clock-card .city{font-size:12px;font-weight:700;color:var(--fg2);margin-bottom:4px}
+.clock-card .time{font-size:20px;font-weight:200;font-variant-numeric:tabular-nums;color:var(--text);letter-spacing:1px}
+.clock-card .date{font-size:10px;color:var(--sub);margin-top:2px}
+.clock-card .offset{font-size:10px;color:var(--fg);margin-top:2px}
+#section-label{font-size:11px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:1px;margin-top:6px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="controls">
+    <input type="date" id="dateInput">
+    <input type="number" id="offsetInput" value="0" placeholder="天数">
+    <select id="dirSelect"><option value="add">+</option><option value="sub">−</option></select>
+    <label><input type="checkbox" id="workdayToggle"> 仅工作日</label>
+    <button id="calcBtn">计算</button>
+  </div>
+  <div id="result-cards"></div>
+  <div id="section-label">世界时钟</div>
+  <div id="world-clocks"></div>
+</div>
+<script>
+const api = window.pluginAPI;
+const dateInput = document.getElementById('dateInput');
+const offsetInput = document.getElementById('offsetInput');
+const dirSelect = document.getElementById('dirSelect');
+const workdayToggle = document.getElementById('workdayToggle');
+const calcBtn = document.getElementById('calcBtn');
+const resultCards = document.getElementById('result-cards');
+const worldClocks = document.getElementById('world-clocks');
+
+const TIMEZONES = [
+  { city: '北京时间', tz: 'Asia/Shanghai', flag: '🇨🇳' },
+  { city: '东京', tz: 'Asia/Tokyo', flag: '🇯🇵' },
+  { city: '纽约', tz: 'America/New_York', flag: '🇺🇸' },
+  { city: '伦敦', tz: 'Europe/London', flag: '🇬🇧' },
+  { city: '巴黎', tz: 'Europe/Paris', flag: '🇫🇷' },
+  { city: '悉尼', tz: 'Australia/Sydney', flag: '🇦🇺' },
+  { city: '迪拜', tz: 'Asia/Dubai', flag: '🇦🇪' },
+  { city: '新加坡', tz: 'Asia/Singapore', flag: '🇸🇬' }
+];
+
+function isWorkday(d) { return d.getDay() !== 0 && d.getDay() !== 6; }
+
+function addWorkdays(date, days) {
+  let d = new Date(date);
+  const dir = days > 0 ? 1 : -1;
+  let remaining = Math.abs(days);
+  while (remaining > 0) {
+    d.setDate(d.getDate() + dir);
+    if (isWorkday(d)) remaining--;
+  }
+  return d;
+}
+
+function formatDate(d) {
+  return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+}
+
+function formatFull(d) {
+  return d.toLocaleString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function calculate() {
+  const baseDate = new Date(dateInput.value || Date.now());
+  const offset = parseInt(offsetInput.value) || 0;
+  const dir = dirSelect.value;
+  const useWorkday = workdayToggle.checked;
+  let resultDate;
+  if (useWorkday && offset !== 0) {
+    resultDate = addWorkdays(baseDate, dir === 'add' ? offset : -offset);
+  } else {
+    resultDate = new Date(baseDate);
+    resultDate.setDate(resultDate.getDate() + (dir === 'add' ? offset : -offset));
+  }
+  resultCards.innerHTML = `
+    <div class="card"><div class="label">原始日期</div><div class="value">${formatDate(baseDate)}</div></div>
+    <div class="card"><div class="label">${dir==='add'?'加':'减'} ${offset} ${useWorkday?'工作日':'天'}</div><div class="value accent">${formatDate(resultDate)}</div></div>
+    <div class="card"><div class="label">完整日期</div><div class="value">${formatFull(resultDate)}</div></div>
+    <div class="card"><div class="label">ISO 格式</div><div class="value">${resultDate.toISOString().split('T')[0]}</div></div>
+    <div class="card"><div class="label">时间戳 (秒)</div><div class="value">${Math.floor(resultDate.getTime()/1000)}</div></div>
+    <div class="card"><div class="label">星期</div><div class="value">${['日','一','二','三','四','五','六'][resultDate.getDay()]}</div></div>
+  `;
+}
+
+function updateClocks() {
+  const now = new Date();
+  worldClocks.innerHTML = TIMEZONES.map(t => {
+    const opts = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: t.tz };
+    const dateOpts = { month: 'short', day: 'numeric', timeZone: t.tz };
+    const timeStr = now.toLocaleString('zh-CN', opts);
+    const dateStr = now.toLocaleDateString('zh-CN', dateOpts);
+    const offset = now.toLocaleString('zh-CN', { timeZone: t.tz, timeZoneName: 'short' }).split(' ').pop();
+    return `<div class="clock-card">
+      <div class="city">${t.flag} ${t.city}</div>
+      <div class="time">${timeStr}</div>
+      <div class="date">${dateStr}</div>
+      <div class="offset">${offset}</div>
+    </div>`;
+  }).join('');
+}
+
+dateInput.value = new Date().toISOString().split('T')[0];
+calcBtn.addEventListener('click', calculate);
+calculate();
+updateClocks();
+setInterval(updateClocks, 1000);
+</script>
+</body>
+</html>

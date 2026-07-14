@@ -78,9 +78,10 @@ function imageFiles(multiple = false) { return files('files', multiple ? '选择
 function formats(selected) { return [['json', 'JSON'], ['yaml', 'YAML'], ['toml', 'TOML'], ['properties', 'Properties']].map(item => item[0] === selected ? item : item); }
 
 function setStatus(message, type = '') {
-  const textNode = elements.status.querySelector('.status-text');
+  const textNode = elements.status?.querySelector('.status-text');
   if (textNode) textNode.textContent = message;
-  else elements.status.textContent = message;
+  else if (elements.status) elements.status.textContent = message;
+  if (!elements.status) return;
   elements.status.className = `status ${type}`;
 }
 
@@ -119,7 +120,7 @@ function renderControls() {
     if (schema.type === 'range') { const hint = document.createElement('div'); hint.className = 'hint'; hint.textContent = control.value; control.addEventListener('input', () => { hint.textContent = control.value; }); group.appendChild(hint); }
     elements.controls.appendChild(group);
   }
-  const hint = document.createElement('p'); hint.className = 'hint'; hint.textContent = '“预览”不会执行文件或系统写入；“开始处理”才会执行已明确选择的操作。'; elements.controls.appendChild(hint);
+  const hint = document.createElement('p'); hint.className = 'hint'; hint.textContent = `${profile.ui?.controlsTitle || '当前选项'}会作用于${profile.ui?.resultTitle || '输出内容'}；涉及写入时可先检查变更。`; elements.controls.appendChild(hint);
 }
 
 function summarizeValue(value) {
@@ -364,7 +365,7 @@ async function persistItems() { await api.storage.set('state', { schemaVersion: 
 function cryptoId() { return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`; }
 
 async function initialize() {
-  elements.title.textContent = profile.name; elements.description.textContent = profile.description; elements.category.textContent = `${String(profile.order).padStart(2, '0')} · ${profile.category}`; document.title = profile.name;
+  elements.title.textContent = profile.name; elements.description.textContent = profile.description; if (elements.category) elements.category.textContent = profile.category || ''; document.title = profile.name;
   document.body.dataset.kind = profile.kind;
   const accent = profile.visual?.accent || '#38bdf8'; const accent2 = profile.visual?.accent2 || '#6366f1';
   document.documentElement.style.setProperty('--accent', accent); document.documentElement.style.setProperty('--accent-2', accent2); document.documentElement.style.setProperty('--accent-rgb', hexToRgb(accent).join(', '));
@@ -385,13 +386,14 @@ async function initialize() {
   window.addEventListener('plugin-enter', event => { const payload = event.detail?.payload || event.detail?.clipboardText || ''; if (payload) elements.input.value = typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2); });
   if (profile.id === 'clipboard-history') setInterval(() => runLocalSystem(false).catch(() => {}), 1500);
   if (profile.id === 'image-pinboard' && new URLSearchParams(location.search).get('view') === 'indicator') {
-    document.querySelector('.hero').hidden = true; elements.status.hidden = true; elements.controls.hidden = true;
-    document.querySelector('.editor-panel').hidden = true; document.querySelector('.workspace').style.display = 'block';
+    const heading = document.querySelector('[data-plugin-heading]'); if (heading) heading.hidden = true;
+    if (elements.status) elements.status.hidden = true; elements.controls.hidden = true;
+    document.querySelector('.editor-panel').hidden = true;
     await runLocalSystem(false);
   }
   elements.input.addEventListener('input', updateInputCount); updateInputCount();
   setupDropZone(); setupKeyboardShortcuts();
-  setStatus('准备就绪；所有数据默认仅在本机处理。');
+  setStatus(`${profile.ui?.inputTitle || profile.name}等待输入`);
 }
 
 function hexToRgb(value) {
@@ -427,6 +429,6 @@ elements.clear.addEventListener('click', () => { elements.input.value = ''; stat
 elements.copy.addEventListener('click', () => { api.copyText(state.output || elements.output.textContent); setStatus('结果已复制', 'success'); });
 elements.save.addEventListener('click', () => { const result = api.saveResult(state.dataUrl ? { title: '保存图片', defaultPath: `${profile.name}.png`, dataUrl: state.dataUrl } : { title: '保存结果', defaultPath: `${profile.name}.txt`, text: state.output }); if (!result.cancelled) setStatus(`已保存到 ${result.path}`, 'success'); });
 elements.export.addEventListener('click', () => { const result = api.saveResult({ title: '导出插件数据', defaultPath: `${profile.id}-data.json`, text: JSON.stringify({ schemaVersion: 1, items: state.items, output: state.output }, null, 2) }); if (!result.cancelled) setStatus(`已导出到 ${result.path}`, 'success'); });
-elements.pin.addEventListener('click', async () => { const pinned = await api.window.togglePin(); elements.pin.textContent = pinned ? '取消置顶' : '置顶'; });
+elements.pin?.addEventListener('click', async () => { const pinned = await api.window.togglePin(); elements.pin.textContent = pinned ? '取消置顶' : '置顶'; });
 
 initialize().catch(error => setStatus(error.message || String(error), 'error'));

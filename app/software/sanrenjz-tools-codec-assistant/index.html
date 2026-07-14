@@ -1,9 +1,81 @@
 <!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>编解码助手</title><link rel="stylesheet" href="styles.css"></head>
-<body class="ui-tab-lab" data-ui="tab-lab" data-composition="tabs" data-density="compact" data-motif="glow">
-  <main class="app-shell">
-    <header class="hero"><div class="identity"><div class="logo-frame"><img id="pluginLogo" src="logo.svg" alt="编解码助手图标"></div><div class="identity-copy"><div class="meta-row"><span id="category" class="eyebrow">开发工具</span><span class="privacy-badge"><i></i>本地处理</span></div><h1 id="title">编解码助手</h1><p id="description">处理 Base64、URL、Unicode、HTML 实体和 Hex。</p></div></div><div class="hero-actions"><span class="tool-mode">多制式编码台</span><button id="pinButton" class="icon-button secondary">置顶</button><button id="copyButton" class="icon-button secondary">复制结果</button></div></header>
-    <section class="status-bar"><div id="status" class="status" aria-live="polite"><span class="status-dot"></span><span class="status-text">准备就绪</span></div><div class="shortcut-hints"><kbd>Ctrl</kbd><kbd>Enter</kbd><span>执行</span><kbd>Ctrl</kbd><kbd>S</kbd><span>保存</span></div></section>
-    <section class="workspace"><aside class="panel controls-panel"><div class="panel-heading"><span class="step-index">01</span><div><strong>编码制式</strong><small>专为编解码助手设计的操作区</small></div></div><div id="controls" class="controls"></div></aside><section class="panel result-panel"><div class="panel-heading"><span class="step-index">03</span><div><strong><span id="resultLabel">编码结果</span></strong><small>结果可复制、保存或导出</small></div><span id="resultCount" class="counter">等待处理</span></div><div class="result-surface"><div id="emptyState" class="empty-state"><img src="logo.svg" alt=""><strong>多制式编码台</strong><span>配置参数后开始本地处理</span></div><pre id="outputText" tabindex="0" hidden></pre><canvas id="previewCanvas" hidden></canvas><div id="cards" class="cards" hidden></div></div><div class="action-row result-actions"><button id="saveButton" class="secondary">保存结果</button><button id="exportButton" class="ghost">导出数据</button></div></section><section class="panel editor-panel"><div class="panel-heading"><span class="step-index">02</span><div><strong><span id="inputLabel">原始数据</span></strong><small><span id="inputHint">输入、粘贴或选择本地数据</span></small></div><span id="inputCount" class="counter">0 字符</span></div><div class="editor-surface"><textarea id="inputText" spellcheck="false" placeholder="在这里输入内容……"></textarea><div id="dropHint" class="drop-hint" hidden>拖放文件到这里</div></div><div class="action-row editor-actions"><button id="runButton" class="primary">开始处理</button><button id="previewButton" class="secondary">安全预览</button><button id="clearButton" class="ghost">清空</button></div></section></section>
-  </main><script src="renderer.js"></script>
-</body></html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>编解码助手</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#1a1410;--pan:#241e19;--sur:#302821;--brd:#4a3728;--txt:#f0e6d3;--mu:#a0896e;--ac:#d97706}
+html,body{height:100%;overflow:hidden}
+body{font:13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--txt);padding-top:32px}
+.custom-title-bar{background:var(--bg)!important;border-bottom-color:var(--brd)!important}.title-bar-title,.title-bar-pin-button,.window-control-button{color:var(--txt)!important}.title-bar-pin-button:hover,.window-control-button:hover{background:var(--pan)!important}
+.app{height:calc(100vh - 32px);display:flex;flex-direction:column}
+.bar{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--brd);flex-shrink:0}
+.bar span{font-size:14px;font-weight:600;color:var(--ac);margin-right:auto}
+.btn{font:12px var(--sans);padding:5px 12px;border:1px solid var(--brd);border-radius:6px;background:var(--pan);color:var(--txt);cursor:pointer;transition:all .12s}
+.btn:hover{background:var(--sur)}
+.btn.ac{background:var(--ac);color:#fff;border-color:var(--ac)}
+.tabs{display:flex;gap:2px;padding:0 14px;border-bottom:1px solid var(--brd);flex-shrink:0;background:var(--pan)}
+.tab{padding:7px 14px;border:none;background:none;color:var(--mu);font-size:12px;cursor:pointer;border-bottom:2px solid transparent;transition:all .1s}
+.tab:hover{color:var(--txt)}
+.tab.on{color:var(--ac);border-bottom-color:var(--ac)}
+.desc{padding:5px 14px;border-bottom:1px solid var(--brd);flex-shrink:0;font-size:11px;color:var(--mu);background:var(--sur)}
+.desc em{color:var(--ac);font-family:'JetBrains Mono',monospace;margin:0 6px;padding:2px 6px;background:var(--bg);border-radius:4px;font-style:normal}
+.main{flex:1;display:flex;min-height:0;gap:1px;background:var(--brd)}
+.pane{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--pan)}
+.ph{font-size:11px;font-weight:600;color:var(--mu);text-transform:uppercase;letter-spacing:.4px;padding:5px 10px;border-bottom:1px solid var(--brd);flex-shrink:0}
+#inp,#out{flex:1;border:none;background:var(--pan);color:var(--txt);font:13px/1.6 'JetBrains Mono',Consolas,monospace;padding:10px 12px;resize:none;outline:none;white-space:pre;overflow:auto;min-height:0}
+.act{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;width:44px;background:var(--sur);flex-shrink:0}
+.abtn{width:34px;height:34px;border:1px solid var(--brd);border-radius:8px;background:var(--pan);color:var(--ac);cursor:pointer;font-size:14px;display:grid;place-items:center;transition:all .15s}
+.abtn:hover{background:var(--ac);color:#fff}
+.flash{position:fixed;top:40px;left:50%;transform:translateX(-50%);padding:6px 16px;background:var(--ac);color:#fff;border-radius:6px;font-size:12px;z-index:100;opacity:0;transition:opacity .2s}
+.flash.on{opacity:1}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:var(--brd);border-radius:3px}
+@media(max-width:700px){.main{flex-direction:column}.act{flex-direction:row;width:auto;height:44px;padding:0 10px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="bar">
+    <span>编解码助手</span>
+    <button class="btn" id="sw">交换 ⇄</button>
+    <button class="btn" id="clr">清空</button>
+    <button class="btn ac" id="cpy">复制结果</button>
+  </div>
+  <div class="tabs">
+    <button class="tab on" data-c="base64">Base64</button>
+    <button class="tab" data-c="url">URL</button>
+    <button class="tab" data-c="hex">Hex</button>
+    <button class="tab" data-c="unicode">Unicode</button>
+    <button class="tab" data-c="html">HTML</button>
+  </div>
+  <div class="desc"><span id="cd">Base64 编码：将文本转换为 Base64 格式</span><em id="ex">"Hello" → SGVsbG8=</em></div>
+  <div class="main">
+    <div class="pane"><div class="ph">输入</div><textarea id="inp" spellcheck="false" placeholder="输入需要编码/解码的文本…"></textarea></div>
+    <div class="act"><button class="abtn" id="enc" title="编码">→</button><button class="abtn" id="dec" title="解码">←</button></div>
+    <div class="pane"><div class="ph">输出</div><textarea id="out" spellcheck="false" readonly placeholder="结果…"></textarea></div>
+  </div>
+</div>
+<div class="flash" id="fl">已复制</div>
+<script>
+(function(){
+const $=id=>document.getElementById(id);const inp=$('inp'),out=$('out');let codec='base64',act='encode';
+const info={base64:{d:'Base64 编码：将文本转换为 Base64 格式',e:'"Hello" → SGVsbG8='},url:{d:'URL 编码：对特殊字符进行百分号编码',e:'"a b&c" → a%20b%26c'},hex:{d:'Hex 编码：将文本转换为十六进制字符串',e:'"ABC" → 414243'},unicode:{d:'Unicode 编码：将字符转换为 \\uXXXX 转义',e:'"中文" → \\u4e2d\\u6587'},html:{d:'HTML 实体编码：将特殊字符转换为实体引用',e:'"<a>" → &lt;a&gt;'}};
+function fl(){$('fl').classList.add('on');setTimeout(()=>$('fl').classList.remove('on'),1000)}
+function sc(c){codec=c;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.c===c));$('cd').textContent=info[c].d;$('ex').textContent=info[c].e;if(inp.value.trim())run()}
+function run(){const t=inp.value;if(!t){out.value='';return}try{out.value=act==='encode'?window.services.encode(codec,t):window.services.decode(codec,t)}catch(e){out.value='错误: '+e.message}}
+function doEnc(){act='encode';run()}
+function doDec(){act='decode';run()}
+let dt;inp.addEventListener('input',()=>{clearTimeout(dt);dt=setTimeout(run,200)});
+inp.addEventListener('keydown',e=>{if(e.ctrlKey&&e.key==='Enter'){e.preventDefault();run()}});
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>sc(t.dataset.c)));
+$('enc').addEventListener('click',doEnc);$('dec').addEventListener('click',doDec);
+$('sw').addEventListener('click',()=>{const t=inp.value;inp.value=out.value;out.value=t;act=act==='encode'?'decode':'encode';run()});
+$('clr').addEventListener('click',()=>{inp.value='';out.value=''});
+$('cpy').addEventListener('click',()=>{if(out.value){window.services.clipboard.writeText(out.value);fl()}});
+window.addEventListener('plugin-enter',e=>{if(e.detail&&typeof e.detail==='string'){inp.value=e.detail;run()}});
+})();
+</script>
+</body>
+</html>

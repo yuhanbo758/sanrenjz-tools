@@ -1,9 +1,90 @@
 <!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>JWT 检查器</title><link rel="stylesheet" href="styles.css"></head>
-<body class="ui-token-inspector" data-ui="token-inspector" data-composition="table" data-density="airy" data-motif="glow">
-  <main class="app-shell">
-    <header class="hero"><div class="identity"><div class="logo-frame"><img id="pluginLogo" src="logo.svg" alt="JWT 检查器图标"></div><div class="identity-copy"><div class="meta-row"><span id="category" class="eyebrow">开发工具</span><span class="privacy-badge"><i></i>本地处理</span></div><h1 id="title">JWT 检查器</h1><p id="description">本地解码 JWT、检查有效期并验证 HMAC 签名。</p></div></div><div class="hero-actions"><span class="tool-mode">令牌解剖台</span><button id="pinButton" class="icon-button secondary">置顶</button><button id="copyButton" class="icon-button secondary">复制结果</button></div></header>
-    <section class="status-bar"><div id="status" class="status" aria-live="polite"><span class="status-dot"></span><span class="status-text">准备就绪</span></div><div class="shortcut-hints"><kbd>Ctrl</kbd><kbd>Enter</kbd><span>执行</span><kbd>Ctrl</kbd><kbd>S</kbd><span>保存</span></div></section>
-    <section class="workspace"><aside class="panel controls-panel"><div class="panel-heading"><span class="step-index">01</span><div><strong>验证设置</strong><small>专为JWT 检查器设计的操作区</small></div></div><div id="controls" class="controls"></div></aside><section class="panel editor-panel"><div class="panel-heading"><span class="step-index">02</span><div><strong><span id="inputLabel">JWT 令牌</span></strong><small><span id="inputHint">输入、粘贴或选择本地数据</span></small></div><span id="inputCount" class="counter">0 字符</span></div><div class="editor-surface"><textarea id="inputText" spellcheck="false" placeholder="在这里输入内容……"></textarea><div id="dropHint" class="drop-hint" hidden>拖放文件到这里</div></div><div class="action-row editor-actions"><button id="runButton" class="primary">开始处理</button><button id="previewButton" class="secondary">安全预览</button><button id="clearButton" class="ghost">清空</button></div></section><section class="panel result-panel"><div class="panel-heading"><span class="step-index">03</span><div><strong><span id="resultLabel">声明与签名</span></strong><small>结果可复制、保存或导出</small></div><span id="resultCount" class="counter">等待处理</span></div><div class="result-surface"><div id="emptyState" class="empty-state"><img src="logo.svg" alt=""><strong>令牌解剖台</strong><span>配置参数后开始本地处理</span></div><pre id="outputText" tabindex="0" hidden></pre><canvas id="previewCanvas" hidden></canvas><div id="cards" class="cards" hidden></div></div><div class="action-row result-actions"><button id="saveButton" class="secondary">保存结果</button><button id="exportButton" class="ghost">导出数据</button></div></section></section>
-  </main><script src="renderer.js"></script>
-</body></html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JWT 检查器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#1a1028;--pan:#261a38;--sur:#321e48;--brd:#4a3068;--txt:#f0e6ff;--mu:#a78bfa;--ac:#8b5cf6;--hd:#f59e0b;--pl:#3b82f6;--sg:#ec4899}
+html,body{height:100%;overflow:hidden}
+body{font:13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--txt);padding-top:32px}
+.custom-title-bar{background:var(--bg)!important;border-bottom-color:var(--brd)!important}.title-bar-title,.title-bar-pin-button,.window-control-button{color:var(--txt)!important}.title-bar-pin-button:hover,.window-control-button:hover{background:var(--pan)!important}
+.app{height:calc(100vh - 32px);display:flex;flex-direction:column}
+.bar{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--brd);flex-shrink:0;background:var(--pan)}
+.bar span{font-size:14px;font-weight:600;color:var(--ac);margin-right:auto}
+.btn{font:12px var(--sans);padding:5px 12px;border:1px solid var(--brd);border-radius:6px;background:var(--pan);color:var(--txt);cursor:pointer;transition:all .12s}
+.btn:hover{background:var(--sur)}
+.btn.ac{background:var(--ac);color:#fff;border-color:var(--ac)}
+.inp{padding:10px 14px;border-bottom:1px solid var(--brd);flex-shrink:0}
+.inp textarea{width:100%;min-height:56px;max-height:80px;border:1px solid var(--brd);border-radius:8px;background:var(--bg);color:var(--txt);font:12px/1.5 'JetBrains Mono',monospace;padding:8px 10px;resize:vertical;outline:none;word-break:break-all}
+.inp textarea:focus{border-color:var(--ac)}
+.verify{display:flex;align-items:center;gap:8px;padding:6px 14px;border-bottom:1px solid var(--brd);flex-shrink:0}
+.verify input{flex:1;padding:5px 10px;border:1px solid var(--brd);border-radius:6px;background:var(--bg);color:var(--txt);font:12px 'JetBrains Mono',monospace;outline:none}
+.verify input:focus{border-color:var(--ac)}
+.visual{display:flex;align-items:center;gap:4px;padding:6px 14px;border-bottom:1px solid var(--brd);flex-shrink:0;overflow-x:auto;font:10px 'JetBrains Mono',monospace}
+.visual .part{display:flex;align-items:center;gap:4px}
+.visual .part .lb{font-weight:700;padding:1px 5px;border-radius:3px;text-transform:uppercase;font-size:9px}
+.visual .part .lb.h{background:rgba(245,158,11,.2);color:var(--hd)}.visual .part .lb.p{background:rgba(59,130,246,.2);color:var(--pl)}.visual .part .lb.s{background:rgba(236,72,153,.2);color:var(--sg)}
+.visual .part .txt{color:var(--mu);max-width:150px;overflow:hidden;text-overflow:ellipsis}
+.visual .dot{color:var(--mu)}
+.sections{flex:1;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:10px;min-height:0}
+.sections .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--mu);gap:8px}
+.sections .empty b{font-size:36px;font-weight:300;opacity:.3}
+.sec{border:1px solid var(--brd);border-radius:10px;overflow:hidden;animation:in .2s ease}
+@keyframes in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.sec.h{border-left:3px solid var(--hd)}.sec.p{border-left:3px solid var(--pl)}.sec.s{border-left:3px solid var(--sg)}
+.sh{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--brd);background:var(--pan)}
+.sh .title{font-size:12px;font-weight:600;text-transform:uppercase}
+.sh .badge{margin-left:auto;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.sh .badge.ok{background:rgba(34,197,94,.15);color:#22c55e}
+.sh .badge.er{background:rgba(239,68,68,.15);color:#ef4444}
+.sh .cp{font-size:10px;padding:2px 8px;border:1px solid var(--brd);border-radius:4px;background:var(--pan);color:var(--mu);cursor:pointer}
+.sh .cp:hover{color:var(--ac);border-color:var(--ac)}
+.sb{padding:8px 10px}
+.json{font:12px/1.5 'JetBrains Mono',monospace;white-space:pre-wrap;color:var(--txt)}
+.json .jk{color:var(--ac)}.json .js{color:#7ee787}.json .jn{color:#79c0ff}.json .jb{color:#d2a8ff}.json .jl{color:var(--mu);font-style:italic}
+.claim{display:flex;align-items:flex-start;gap:8px;padding:3px 0;border-bottom:1px solid var(--brd)}
+.claim:last-child{border:none}
+.claim .ck{font:12px 'JetBrains Mono',monospace;color:var(--ac);min-width:100px}
+.claim .cv{flex:1;font:12px 'JetBrains Mono',monospace;word-break:break-all}
+.claim .cv.str{color:#7ee787}.claim .cv.num{color:#79c0ff}.claim .cv.bool{color:#d2a8ff}.claim .cv.nil{color:var(--mu);font-style:italic}.claim .cv.exp{color:#ef4444}.claim .cv.ok{color:#22c55e}
+.flash{position:fixed;top:40px;left:50%;transform:translateX(-50%);padding:6px 16px;background:var(--ac);color:#fff;border-radius:6px;font-size:12px;z-index:100;opacity:0;transition:opacity .2s}
+.flash.on{opacity:1}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:var(--brd);border-radius:3px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="bar"><span>JWT 检查器</span><button class="btn ac" id="cppl">复制 Payload</button></div>
+  <div class="inp"><textarea id="jwt" spellcheck="false" placeholder="粘贴 JWT 令牌…"></textarea></div>
+  <div class="verify">
+    <input type="text" id="secret" placeholder="HMAC 密钥（可选，用于验证签名）" spellcheck="false">
+    <button class="btn ac" id="vfy">验证签名</button>
+  </div>
+  <div class="visual" id="vis" style="display:none"></div>
+  <div class="sections" id="secs"><div class="empty"><b>🔑</b><div>粘贴 JWT 令牌后自动解码</div></div></div>
+</div>
+<div class="flash" id="fl">已复制</div>
+<script>
+(function(){
+const $=id=>document.getElementById(id);const jwt=$('jwt'),secret=$('secret'),secs=$('secs'),vis=$('vis');
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function fl(){$('fl').classList.add('on');setTimeout(()=>$('fl').classList.remove('on'),1000)}
+function hljson(o){const j=JSON.stringify(o,null,2);return esc(j).replace(/("(?:\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(?:true|false)\b|\bnull\b|-?\d+\.?\d*(?:[eE][+-]?\d+)?)/g,m=>{let c='jn';if(/^"/.test(m))c=/:\s*$/.test(m)?'jk':'js';else if(/^(true|false)$/.test(m))c='jb';else if(m==='null')c='jl';return'<span class="'+c+'">'+m+'</span>'})}
+function fmtTs(ts){if(!ts)return null;const d=new Date(ts*1000);return isNaN(d.getTime())?null:d.toISOString().replace('T',' ').replace('.000Z',' UTC')}
+function decode(){const t=jwt.value.trim();if(!t){secs.innerHTML='<div class="empty"><b>🔑</b><div>粘贴 JWT 令牌后自动解码</div></div>';vis.style.display='none';return}try{const d=window.services.decodeJwt(t);renderVis(t);renderSections(d)}catch(e){secs.innerHTML='<div class="empty" style="color:#ef4444"><b>⚠</b><div>'+esc(e.message)+'</div></div>';vis.style.display='none'}}
+function renderVis(t){const parts=t.split('.');vis.style.display='flex';vis.innerHTML='';const cfgs=[{l:'Header',t:parts[0],c:'h'},{l:'Payload',t:parts[1],c:'p'},{l:'Signature',t:parts[2],c:'s'}];cfgs.forEach((p,i)=>{if(i>0){const d=document.createElement('span');d.className='dot';d.textContent='·';vis.appendChild(d)}const el=document.createElement('div');el.className='part';el.innerHTML='<span class="lb '+p.c+'">'+p.l+'</span><span class="txt">'+esc(p.t)+'</span>';vis.appendChild(el)})}
+function renderSections(d){secs.innerHTML='';const vf=JSON.parse(jwt.dataset.vf||'null');secs.appendChild(mkSec('h','Header',hljson(d.header),d.header));secs.appendChild(mkPayloadSec(d));secs.appendChild(mkSigSec(d,vf))}
+function mkSec(cls,title,html,obj){const s=document.createElement('div');s.className='sec '+cls;const sh=document.createElement('div');sh.className='sh';sh.innerHTML='<span class="title">'+title+'</span>';const cp=document.createElement('button');cp.className='cp';cp.textContent='复制 JSON';cp.addEventListener('click',()=>{window.services.clipboard.writeText(JSON.stringify(obj,null,2));fl()});sh.appendChild(cp);const sb=document.createElement('div');sb.className='sb';sb.innerHTML='<div class="json">'+html+'</div>';s.append(sh,sb);return s}
+function mkPayloadSec(d){const s=document.createElement('div');s.className='sec p';const sh=document.createElement('div');sh.className='sh';sh.innerHTML='<span class="title">Payload</span>';if(d.expired!==null){sh.innerHTML+=d.expired?'<span class="badge er">已过期</span>':'<span class="badge ok">未过期</span>'}const cp=document.createElement('button');cp.className='cp';cp.textContent='复制 JSON';cp.addEventListener('click',()=>{window.services.clipboard.writeText(JSON.stringify(d.payload,null,2));fl()});sh.appendChild(cp);const sb=document.createElement('div');sb.className='sb';const claims=Object.entries(d.payload).map(([k,v])=>{let vh,vc='';if(k==='exp'||k==='iat'||k==='nbf'||k==='auth_time'){const ft=fmtTs(v);if(ft){vh=esc(String(v))+' <span style="color:var(--mu)">('+esc(ft)+')</span>';if(k==='exp')vc=d.expired?' exp':' ok'}else{vh=esc(String(v));vc=' num'}}else if(typeof v==='number'){vh=esc(String(v));vc=' num'}else if(typeof v==='string'){vh='"'+esc(v)+'"';vc=' str'}else if(typeof v==='boolean'){vh=esc(String(v));vc=' bool'}else if(v===null){vh='null';vc=' nil'}else{vh=esc(JSON.stringify(v))}return'<div class="claim"><span class="ck">'+esc(k)+'</span><span class="cv'+vc+'">'+vh+'</span></div>'}).join('');sb.innerHTML=claims;s.append(sh,sb);return s}
+function mkSigSec(d,vf){const s=document.createElement('div');s.className='sec s';const sh=document.createElement('div');sh.className='sh';sh.innerHTML='<span class="title">Signature</span>';if(vf){sh.innerHTML+=vf.verified?'<span class="badge ok">签名验证通过</span>':'<span class="badge er">签名验证失败</span>'}const sb=document.createElement('div');sb.className='sb';const sl=d.signature.length;sb.innerHTML='<div class="claim"><span class="ck">签名值</span><span class="cv" style="font-size:11px">'+esc(d.signature.substring(0,40)+(sl>40?'...':''))+'</span></div><div class="claim"><span class="ck">长度</span><span class="cv num">'+sl+' 字符</span></div><div class="claim"><span class="ck">算法</span><span class="cv str">'+esc(d.header.alg||'unknown')+'</span></div>';s.append(sh,sb);return s}
+function verify(){const t=jwt.value.trim();if(!t||!secret.value)return;try{const r=window.services.verifyJwt(t,secret.value);jwt.dataset.vf=JSON.stringify(r);decode()}catch(e){jwt.dataset.vf=JSON.stringify({verified:false,error:e.message});decode()}}
+let dt;jwt.addEventListener('input',()=>{delete jwt.dataset.vf;clearTimeout(dt);dt=setTimeout(decode,200)});secret.addEventListener('input',()=>{delete jwt.dataset.vf});
+$('vfy').addEventListener('click',verify);
+$('cppl').addEventListener('click',()=>{try{const d=window.services.decodeJwt(jwt.value);window.services.clipboard.writeText(JSON.stringify(d.payload,null,2));fl()}catch(e){}});
+window.addEventListener('plugin-enter',e=>{if(e.detail&&typeof e.detail==='string'){jwt.value=e.detail;delete jwt.dataset.vf;decode()}});
+})();
+</script>
+</body>
+</html>
