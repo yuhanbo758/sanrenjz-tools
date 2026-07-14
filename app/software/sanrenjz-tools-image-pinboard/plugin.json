@@ -1,0 +1,40 @@
+{
+  "pluginName": "图片悬浮板",
+  "description": "将剪贴板图片置顶悬浮并支持缩放和透明度。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "系统工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-image-pinboard",
+      "explain": "图片悬浮板",
+      "description": "将剪贴板图片置顶悬浮并支持缩放和透明度。",
+      "cmds": [
+        "图片悬浮",
+        "贴图",
+        "pin image"
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": false,
+      "category": "系统工具",
+      "priority": 20,
+      "useClipboardText": false
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

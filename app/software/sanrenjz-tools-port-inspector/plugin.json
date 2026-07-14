@@ -1,0 +1,40 @@
+{
+  "pluginName": "端口检查器",
+  "description": "查看监听端口、对应进程和网络连接状态。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "系统工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-port-inspector",
+      "explain": "端口检查器",
+      "description": "查看监听端口、对应进程和网络连接状态。",
+      "cmds": [
+        "端口",
+        "netstat",
+        "端口占用"
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": false,
+      "category": "系统工具",
+      "priority": 20,
+      "useClipboardText": false
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

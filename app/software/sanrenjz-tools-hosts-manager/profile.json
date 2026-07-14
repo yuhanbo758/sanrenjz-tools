@@ -1,0 +1,20 @@
+{
+  "id": "hosts-manager",
+  "folder": "sanrenjz-tools-hosts-manager",
+  "name": "Hosts 配置管家",
+  "description": "管理 Hosts 配置组，修改前自动备份并提示权限。",
+  "category": "系统工具",
+  "keywords": [
+    "hosts",
+    "hosts切换",
+    "域名解析"
+  ],
+  "batch": 5,
+  "order": 47,
+  "kind": "system",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

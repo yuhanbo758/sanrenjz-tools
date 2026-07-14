@@ -1,0 +1,20 @@
+{
+  "id": "local-file-search",
+  "folder": "sanrenjz-tools-local-file-search",
+  "name": "本地文件快搜",
+  "description": "Windows 优先接入 Everything，并提供目录索引回退。",
+  "category": "系统工具",
+  "keywords": [
+    "本地搜索",
+    "everything",
+    "文件快搜"
+  ],
+  "batch": 5,
+  "order": 42,
+  "kind": "system",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

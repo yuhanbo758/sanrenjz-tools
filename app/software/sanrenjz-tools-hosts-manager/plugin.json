@@ -1,0 +1,40 @@
+{
+  "pluginName": "Hosts 配置管家",
+  "description": "管理 Hosts 配置组，修改前自动备份并提示权限。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "系统工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-hosts-manager",
+      "explain": "Hosts 配置管家",
+      "description": "管理 Hosts 配置组，修改前自动备份并提示权限。",
+      "cmds": [
+        "hosts",
+        "hosts切换",
+        "域名解析"
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": false,
+      "category": "系统工具",
+      "priority": 20,
+      "useClipboardText": false
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

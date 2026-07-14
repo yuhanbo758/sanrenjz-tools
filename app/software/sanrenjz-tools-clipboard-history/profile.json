@@ -1,0 +1,20 @@
+{
+  "id": "clipboard-history",
+  "folder": "sanrenjz-tools-clipboard-history",
+  "name": "剪贴板历史",
+  "description": "保存文本和图片剪贴板历史，支持搜索与收藏。",
+  "category": "系统工具",
+  "keywords": [
+    "剪贴板",
+    "粘贴板",
+    "clipboard"
+  ],
+  "batch": 5,
+  "order": 41,
+  "kind": "system",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

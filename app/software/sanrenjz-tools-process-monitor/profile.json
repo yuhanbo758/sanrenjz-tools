@@ -1,0 +1,20 @@
+{
+  "id": "process-monitor",
+  "folder": "sanrenjz-tools-process-monitor",
+  "name": "进程监控器",
+  "description": "按应用查看 CPU 和内存，并在确认后结束进程。",
+  "category": "系统工具",
+  "keywords": [
+    "进程",
+    "任务管理器",
+    "内存占用"
+  ],
+  "batch": 5,
+  "order": 44,
+  "kind": "system",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "pluginName": "进程监控器",
+  "description": "按应用查看 CPU 和内存，并在确认后结束进程。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "系统工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-process-monitor",
+      "explain": "进程监控器",
+      "description": "按应用查看 CPU 和内存，并在确认后结束进程。",
+      "cmds": [
+        "进程",
+        "任务管理器",
+        "内存占用"
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": false,
+      "category": "系统工具",
+      "priority": 20,
+      "useClipboardText": false
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

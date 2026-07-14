@@ -1,0 +1,20 @@
+{
+  "id": "disk-analyzer",
+  "folder": "sanrenjz-tools-disk-analyzer",
+  "name": "磁盘空间分析",
+  "description": "分析目录占用、文件类型分布并定位大文件。",
+  "category": "系统工具",
+  "keywords": [
+    "磁盘分析",
+    "大文件",
+    "空间占用"
+  ],
+  "batch": 5,
+  "order": 43,
+  "kind": "system",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

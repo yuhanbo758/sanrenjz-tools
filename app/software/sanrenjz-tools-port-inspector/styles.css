@@ -1,0 +1,78 @@
+:root {
+  color-scheme: dark;
+  --bg: #07111f;
+  --panel: rgba(16, 29, 48, 0.92);
+  --panel-strong: #12233b;
+  --line: rgba(148, 163, 184, 0.2);
+  --text: #edf6ff;
+  --muted: #9db0c8;
+  --accent: #38bdf8;
+  --accent-2: #22d3a6;
+  --danger: #fb7185;
+}
+
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+  margin: 0;
+  padding: 32px 0 0;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(56, 189, 248, 0.18), transparent 32%),
+    radial-gradient(circle at 100% 20%, rgba(34, 211, 166, 0.12), transparent 30%),
+    var(--bg);
+  font: 14px/1.55 "Microsoft YaHei UI", "Segoe UI", sans-serif;
+}
+
+button, input, select, textarea { font: inherit; }
+button, input, select { -webkit-app-region: no-drag; }
+.app-shell { width: min(1420px, 100%); margin: 0 auto; padding: 24px; }
+.hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
+.hero h1 { margin: 4px 0 6px; font-size: 30px; letter-spacing: -0.5px; }
+.hero p { margin: 0; color: var(--muted); }
+.eyebrow { color: var(--accent); font-size: 12px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; }
+.hero-actions, .action-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.status { margin-bottom: 14px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; color: var(--muted); background: rgba(3, 10, 20, 0.55); }
+.status.error { color: #fecdd3; border-color: rgba(251, 113, 133, 0.5); }
+.status.success { color: #a7f3d0; border-color: rgba(34, 211, 166, 0.45); }
+.workspace { display: grid; grid-template-columns: 260px minmax(320px, 1fr) minmax(320px, 1fr); gap: 14px; min-height: 610px; }
+.panel { border: 1px solid var(--line); border-radius: 16px; background: var(--panel); box-shadow: 0 18px 44px rgba(0, 0, 0, 0.24); }
+.controls { padding: 16px; overflow: auto; }
+.editor-panel, .result-panel { padding: 16px; display: flex; flex-direction: column; min-width: 0; }
+label, .control-title { display: block; margin-bottom: 7px; color: #cfe4f8; font-weight: 650; }
+.control-group { margin-bottom: 15px; }
+input, select, textarea {
+  width: 100%; border: 1px solid var(--line); border-radius: 9px; color: var(--text); background: #081627; outline: none;
+}
+input, select { min-height: 38px; padding: 7px 10px; }
+textarea { flex: 1; min-height: 430px; resize: none; padding: 13px; font-family: Consolas, "Microsoft YaHei UI", monospace; }
+input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12); }
+button { min-height: 38px; padding: 8px 14px; border: 0; border-radius: 9px; color: white; cursor: pointer; transition: transform .15s ease, opacity .15s ease; }
+button:hover { transform: translateY(-1px); }
+button:disabled { cursor: wait; opacity: .55; transform: none; }
+.primary { background: linear-gradient(135deg, var(--accent), #2563eb); }
+.secondary { background: #1f3a5b; border: 1px solid rgba(148, 163, 184, .22); }
+.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+.danger { background: #9f1239; }
+.action-row { margin-top: 12px; }
+pre {
+  flex: 1; min-height: 430px; margin: 0; padding: 13px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+  border: 1px solid var(--line); border-radius: 9px; background: #06101d; color: #dbeafe; font-family: Consolas, monospace;
+}
+canvas { width: 100%; max-height: 470px; object-fit: contain; border-radius: 9px; background: #0b1727; }
+.cards { flex: 1; min-height: 430px; overflow: auto; display: grid; align-content: start; gap: 9px; }
+.card { padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-strong); }
+.card strong { display: block; margin-bottom: 4px; }
+.card small { color: var(--muted); }
+.card-actions { display: flex; gap: 7px; margin-top: 9px; }
+.hint { color: var(--muted); font-size: 12px; }
+
+@media (max-width: 1050px) {
+  .workspace { grid-template-columns: 220px 1fr; }
+  .result-panel { grid-column: 1 / -1; }
+}
+@media (max-width: 720px) {
+  .hero { flex-direction: column; }
+  .workspace { grid-template-columns: 1fr; }
+  .result-panel { grid-column: auto; }
+}

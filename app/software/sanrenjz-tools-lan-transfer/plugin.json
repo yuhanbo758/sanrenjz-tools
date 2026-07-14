@@ -1,0 +1,40 @@
+{
+  "pluginName": "局域网快传",
+  "description": "通过局域网浏览器传输文字和文件，不经过云端。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "系统工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-lan-transfer",
+      "explain": "局域网快传",
+      "description": "通过局域网浏览器传输文字和文件，不经过云端。",
+      "cmds": [
+        "局域网传输",
+        "文件快传",
+        "lan"
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": false,
+      "category": "系统工具",
+      "priority": 20,
+      "useClipboardText": false
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

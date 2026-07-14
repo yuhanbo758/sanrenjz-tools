@@ -58,7 +58,7 @@ const optionSchemas = {
   'port-inspector': [],
   'environment-manager': [text('name', '变量名', ''), text('value', '变量值', '')],
   'hosts-manager': [],
-  'lan-transfer': [select('action', '操作', [['start', '启动服务'], ['stop', '停止服务']]), number('port', '端口（0为自动）', 0, 0, 65535)],
+  'lan-transfer': [select('action', '操作', [['start', '启动服务'], ['stop', '停止服务']]), number('port', '端口（0为自动）', 0, 0, 65535), directory('outputDirectory', '选择文件接收目录')],
   'image-pinboard': [range('opacity', '透明度', 90, 20, 100)],
   'project-launcher': [directory('directory', '选择项目目录'), text('command', '启动命令', 'npm start'), select('action', '操作', [['start', '启动'], ['status', '查看状态'], ['stop', '停止']])]
 };
@@ -129,6 +129,11 @@ function formatResult(result) {
 }
 
 async function run(execute) {
+  const destructive = ['batch-renamer', 'text-encoding', 'pdf-organizer', 'archive-tool', 'process-monitor', 'environment-manager', 'hosts-manager', 'project-launcher'];
+  if (execute && destructive.includes(profile.id)) {
+    const accepted = window.confirm(`即将执行“${profile.name}”的写入或系统操作。请确认已经通过“预览”检查目标和参数。`);
+    if (!accepted) { setStatus('已取消，未修改任何数据'); return; }
+  }
   elements.run.disabled = true; elements.preview.disabled = true;
   setStatus(execute ? '正在处理，请稍候……' : '正在生成安全预览……');
   try {
@@ -287,7 +292,10 @@ function togglePomodoro() {
 
 async function runLocalSystem(execute) {
   if (profile.id === 'clipboard-history') {
-    const value = api.readClipboardText(); if (value && !state.items.some(item => item.content === value)) { state.items.unshift({ id: cryptoId(), title: value.slice(0, 40), content: value, createdAt: new Date().toISOString() }); state.items = state.items.slice(0, Number(state.values.limit || 200)); await persistItems(); }
+    const value = api.readClipboardText(); const image = value ? '' : api.readClipboardImage();
+    if (value && !state.items.some(item => item.content === value)) state.items.unshift({ id: cryptoId(), title: value.slice(0, 40), content: value, type: 'text', createdAt: new Date().toISOString() });
+    else if (image && !state.items.some(item => item.content === image)) state.items.unshift({ id: cryptoId(), title: '剪贴板图片', content: image, type: 'image', createdAt: new Date().toISOString() });
+    state.items = state.items.slice(0, Number(state.values.limit || 200)); await persistItems();
     if (execute && state.values.keepAlive) await api.window.keepAlive(); renderItems(); return;
   }
   const dataUrl = api.readClipboardImage(); if (!dataUrl) throw new Error('剪贴板中没有图片'); const image = new Image(); image.src = dataUrl; await image.decode(); elements.canvas.width = image.width; elements.canvas.height = image.height; elements.canvas.getContext('2d').globalAlpha = Number(state.values.opacity || 90) / 100; elements.canvas.getContext('2d').drawImage(image, 0, 0); state.dataUrl = dataUrl; elements.output.hidden = true; elements.canvas.hidden = false; if (execute) { await api.window.togglePin(); await api.window.showIndicator(); }
@@ -315,6 +323,7 @@ function renderItems() {
     if (profile.id === 'bookmark-launcher' && item.url) return api.openExternal(item.url);
     if (profile.id === 'habit-tracker') { const today = new Date().toISOString().slice(0, 10); item.dates ||= []; if (!item.dates.includes(today)) item.dates.push(today); await persistItems(); renderItems(); return; }
     if (profile.id === 'todo-list') { item.completed = !item.completed; item.completedAt = item.completed ? new Date().toISOString() : null; await persistItems(); renderItems(); return; }
+    if (item.type === 'image') { const image = new Image(); image.src = item.content; await image.decode(); elements.canvas.width = image.width; elements.canvas.height = image.height; elements.canvas.getContext('2d').drawImage(image, 0, 0); state.dataUrl = item.content; elements.output.hidden = true; elements.cards.hidden = true; elements.canvas.hidden = false; return; }
     elements.input.value = item.content || ''; state.output = item.content || ''; api.copyText(item.content || item.title);
   }, deleteAction: async () => { state.items = state.items.filter(row => row.id !== item.id); await persistItems(); renderItems(); } })); showCards(cards); state.output = profile.id === 'worklog' ? buildWorklogReport() : JSON.stringify(state.items, null, 2);
 }
@@ -353,6 +362,11 @@ async function initialize() {
   if (profile.kind === 'productivity' || ['clipboard-history'].includes(profile.id)) { const stored = await api.storage.get('state'); state.items = stored?.items || []; renderItems(); }
   window.addEventListener('plugin-enter', event => { const payload = event.detail?.payload || event.detail?.clipboardText || ''; if (payload) elements.input.value = typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2); });
   if (profile.id === 'clipboard-history') setInterval(() => runLocalSystem(false).catch(() => {}), 1500);
+  if (profile.id === 'image-pinboard' && new URLSearchParams(location.search).get('view') === 'indicator') {
+    document.querySelector('.hero').hidden = true; elements.status.hidden = true; elements.controls.hidden = true;
+    document.querySelector('.editor-panel').hidden = true; document.querySelector('.workspace').style.display = 'block';
+    await runLocalSystem(false);
+  }
   setStatus('准备就绪；所有数据默认仅在本机处理。');
 }
 

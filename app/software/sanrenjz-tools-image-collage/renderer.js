@@ -41,9 +41,9 @@ const optionSchemas = {
   'qr-barcode': [select('action', '操作', [['generate', '生成二维码'], ['decode', '识别二维码']]), imageFiles(), text('qrText', '二维码内容', 'https://sanrenjz.com'), number('qrSize', '尺寸', 480, 128, 1600)],
   'svg-workbench': [number('width', '导出宽度', 1200, 64, 6000), checkbox('minify', '移除多余空白', true)],
   'screenshot-beautifier': [imageFiles(), number('padding', '留白', 80, 0, 500), number('radius', '圆角', 22, 0, 100), text('background', '背景色', '#2563eb')],
-  'markdown-notes': [text('title', '标题', '新笔记'), text('tags', '标签', '工作,灵感')],
+  'markdown-notes': [text('title', '标题', '新笔记'), text('tags', '标签', '工作,灵感'), text('search', '全文搜索', '')],
   'floating-notes': [text('title', '便签标题', '随手记'), text('color', '便签颜色', '#fde68a')],
-  'todo-list': [text('title', '任务', ''), select('priority', '优先级', [['high', '高'], ['medium', '中'], ['low', '低']], 'medium'), text('due', '截止日期', 'YYYY-MM-DD')],
+  'todo-list': [text('title', '任务', ''), text('group', '分组', '默认'), select('priority', '优先级', [['high', '高'], ['medium', '中'], ['low', '低']], 'medium'), text('due', '截止日期', 'YYYY-MM-DD')],
   'pomodoro-focus': [number('focusMinutes', '专注分钟', 25, 1, 180), number('breakMinutes', '休息分钟', 5, 1, 60)],
   'calculation-paper': [],
   'unit-converter': [select('unitType', '类型', [['length', '长度'], ['weight', '重量'], ['temperature', '温度'], ['speed', '速度']]), text('fromUnit', '源单位', 'm'), text('toUnit', '目标单位', 'km')],
@@ -58,7 +58,7 @@ const optionSchemas = {
   'port-inspector': [],
   'environment-manager': [text('name', '变量名', ''), text('value', '变量值', '')],
   'hosts-manager': [],
-  'lan-transfer': [select('action', '操作', [['start', '启动服务'], ['stop', '停止服务']]), number('port', '端口（0为自动）', 0, 0, 65535)],
+  'lan-transfer': [select('action', '操作', [['start', '启动服务'], ['stop', '停止服务']]), number('port', '端口（0为自动）', 0, 0, 65535), directory('outputDirectory', '选择文件接收目录')],
   'image-pinboard': [range('opacity', '透明度', 90, 20, 100)],
   'project-launcher': [directory('directory', '选择项目目录'), text('command', '启动命令', 'npm start'), select('action', '操作', [['start', '启动'], ['status', '查看状态'], ['stop', '停止']])]
 };
@@ -129,6 +129,11 @@ function formatResult(result) {
 }
 
 async function run(execute) {
+  const destructive = ['batch-renamer', 'text-encoding', 'pdf-organizer', 'archive-tool', 'process-monitor', 'environment-manager', 'hosts-manager', 'project-launcher'];
+  if (execute && destructive.includes(profile.id)) {
+    const accepted = window.confirm(`即将执行“${profile.name}”的写入或系统操作。请确认已经通过“预览”检查目标和参数。`);
+    if (!accepted) { setStatus('已取消，未修改任何数据'); return; }
+  }
   elements.run.disabled = true; elements.preview.disabled = true;
   setStatus(execute ? '正在处理，请稍候……' : '正在生成安全预览……');
   try {
@@ -252,6 +257,8 @@ async function runProductivity(execute) {
   const item = { id: cryptoId(), createdAt: new Date().toISOString(), title, content: elements.input.value, ...state.values };
   if (profile.id === 'habit-tracker') item.dates = [new Date().toISOString().slice(0, 10)];
   state.items.unshift(item); await persistItems(); renderItems();
+  if (profile.id === 'floating-notes') await api.window.togglePin();
+  if (profile.id === 'worklog') state.output = buildWorklogReport();
 }
 
 function calculatePaper() {
@@ -285,7 +292,10 @@ function togglePomodoro() {
 
 async function runLocalSystem(execute) {
   if (profile.id === 'clipboard-history') {
-    const value = api.readClipboardText(); if (value && !state.items.some(item => item.content === value)) { state.items.unshift({ id: cryptoId(), title: value.slice(0, 40), content: value, createdAt: new Date().toISOString() }); state.items = state.items.slice(0, Number(state.values.limit || 200)); await persistItems(); }
+    const value = api.readClipboardText(); const image = value ? '' : api.readClipboardImage();
+    if (value && !state.items.some(item => item.content === value)) state.items.unshift({ id: cryptoId(), title: value.slice(0, 40), content: value, type: 'text', createdAt: new Date().toISOString() });
+    else if (image && !state.items.some(item => item.content === image)) state.items.unshift({ id: cryptoId(), title: '剪贴板图片', content: image, type: 'image', createdAt: new Date().toISOString() });
+    state.items = state.items.slice(0, Number(state.values.limit || 200)); await persistItems();
     if (execute && state.values.keepAlive) await api.window.keepAlive(); renderItems(); return;
   }
   const dataUrl = api.readClipboardImage(); if (!dataUrl) throw new Error('剪贴板中没有图片'); const image = new Image(); image.src = dataUrl; await image.decode(); elements.canvas.width = image.width; elements.canvas.height = image.height; elements.canvas.getContext('2d').globalAlpha = Number(state.values.opacity || 90) / 100; elements.canvas.getContext('2d').drawImage(image, 0, 0); state.dataUrl = dataUrl; elements.output.hidden = true; elements.canvas.hidden = false; if (execute) { await api.window.togglePin(); await api.window.showIndicator(); }
@@ -293,15 +303,54 @@ async function runLocalSystem(execute) {
 
 function showCards(cards) {
   elements.cards.innerHTML = ''; elements.cards.hidden = false; elements.output.hidden = true; elements.canvas.hidden = true;
-  cards.forEach(cardData => { const card = document.createElement('div'); card.className = 'card'; if (cardData.color) card.style.borderLeft = `8px solid ${cardData.color}`; const title = document.createElement('strong'); title.textContent = cardData.title; const subtitle = document.createElement('small'); subtitle.textContent = cardData.subtitle || ''; card.append(title, subtitle); if (cardData.action) card.addEventListener('click', cardData.action); elements.cards.appendChild(card); });
+  cards.forEach(cardData => {
+    const card = document.createElement('div'); card.className = 'card'; if (cardData.color) card.style.borderLeft = `8px solid ${cardData.color}`;
+    const title = document.createElement('strong'); title.textContent = cardData.title; const subtitle = document.createElement('small'); subtitle.textContent = cardData.subtitle || ''; card.append(title, subtitle);
+    if (cardData.action || cardData.deleteAction) {
+      const actions = document.createElement('div'); actions.className = 'card-actions';
+      if (cardData.action) { const open = document.createElement('button'); open.className = 'secondary'; open.textContent = '打开/切换'; open.addEventListener('click', event => { event.stopPropagation(); cardData.action(); }); actions.appendChild(open); }
+      if (cardData.deleteAction) { const remove = document.createElement('button'); remove.className = 'danger'; remove.textContent = '删除'; remove.addEventListener('click', event => { event.stopPropagation(); cardData.deleteAction(); }); actions.appendChild(remove); }
+      card.appendChild(actions);
+    }
+    elements.cards.appendChild(card);
+  });
 }
 
 function renderItems() {
-  const cards = state.items.map(item => ({ title: item.title, subtitle: `${item.createdAt?.slice(0, 10) || ''} ${item.content?.slice(0, 80) || ''}`, action: async () => {
+  const query = String(state.values.search || '').trim().toLowerCase();
+  const visibleItems = query ? state.items.filter(item => `${item.title} ${item.content} ${item.tags}`.toLowerCase().includes(query)) : state.items;
+  const cards = visibleItems.map(item => ({ title: itemTitle(item), subtitle: itemSubtitle(item), action: async () => {
     if (profile.id === 'bookmark-launcher' && item.url) return api.openExternal(item.url);
     if (profile.id === 'habit-tracker') { const today = new Date().toISOString().slice(0, 10); item.dates ||= []; if (!item.dates.includes(today)) item.dates.push(today); await persistItems(); renderItems(); return; }
+    if (profile.id === 'todo-list') { item.completed = !item.completed; item.completedAt = item.completed ? new Date().toISOString() : null; await persistItems(); renderItems(); return; }
+    if (item.type === 'image') { const image = new Image(); image.src = item.content; await image.decode(); elements.canvas.width = image.width; elements.canvas.height = image.height; elements.canvas.getContext('2d').drawImage(image, 0, 0); state.dataUrl = item.content; elements.output.hidden = true; elements.cards.hidden = true; elements.canvas.hidden = false; return; }
     elements.input.value = item.content || ''; state.output = item.content || ''; api.copyText(item.content || item.title);
-  } })); showCards(cards); state.output = JSON.stringify(state.items, null, 2);
+  }, deleteAction: async () => { state.items = state.items.filter(row => row.id !== item.id); await persistItems(); renderItems(); } })); showCards(cards); state.output = profile.id === 'worklog' ? buildWorklogReport() : JSON.stringify(state.items, null, 2);
+}
+
+function itemTitle(item) {
+  if (profile.id === 'todo-list') return `${item.completed ? '✅' : '⬜'} [${item.priority || 'medium'}] ${item.title}`;
+  if (profile.id === 'habit-tracker') return `${item.title} · 连续 ${habitStreak(item.dates || [])} 天`;
+  return item.title;
+}
+
+function itemSubtitle(item) {
+  if (profile.id === 'worklog') return `${item.date || item.createdAt?.slice(0, 10)} · ${item.project || item.title} · ${item.minutes || 0} 分钟`;
+  if (profile.id === 'bookmark-launcher') return `${item.alias || ''} ${item.url || ''}`.trim();
+  if (profile.id === 'todo-list') return `${item.group || '默认'} · 截止 ${item.due || '未设置'}`;
+  return `${item.createdAt?.slice(0, 10) || ''} ${item.content?.slice(0, 80) || ''}`;
+}
+
+function habitStreak(dates) {
+  const set = new Set(dates); let streak = 0; const cursor = new Date();
+  while (set.has(cursor.toISOString().slice(0, 10))) { streak += 1; cursor.setDate(cursor.getDate() - 1); }
+  return streak;
+}
+
+function buildWorklogReport() {
+  const totals = new Map(); let all = 0;
+  state.items.forEach(item => { const minutes = Number(item.minutes || 0); all += minutes; totals.set(item.project || item.title, (totals.get(item.project || item.title) || 0) + minutes); });
+  return [`工时合计：${Math.floor(all / 60)} 小时 ${all % 60} 分钟`, ...[...totals.entries()].map(([project, minutes]) => `- ${project}: ${Math.floor(minutes / 60)}小时${minutes % 60}分钟`)].join('\n');
 }
 
 async function persistItems() { await api.storage.set('state', { schemaVersion: 1, items: state.items }); }
@@ -313,6 +362,11 @@ async function initialize() {
   if (profile.kind === 'productivity' || ['clipboard-history'].includes(profile.id)) { const stored = await api.storage.get('state'); state.items = stored?.items || []; renderItems(); }
   window.addEventListener('plugin-enter', event => { const payload = event.detail?.payload || event.detail?.clipboardText || ''; if (payload) elements.input.value = typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2); });
   if (profile.id === 'clipboard-history') setInterval(() => runLocalSystem(false).catch(() => {}), 1500);
+  if (profile.id === 'image-pinboard' && new URLSearchParams(location.search).get('view') === 'indicator') {
+    document.querySelector('.hero').hidden = true; elements.status.hidden = true; elements.controls.hidden = true;
+    document.querySelector('.editor-panel').hidden = true; document.querySelector('.workspace').style.display = 'block';
+    await runLocalSystem(false);
+  }
   setStatus('准备就绪；所有数据默认仅在本机处理。');
 }
 

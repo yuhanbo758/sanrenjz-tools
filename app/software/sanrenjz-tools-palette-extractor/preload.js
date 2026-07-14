@@ -177,10 +177,10 @@ function parseCsv(text, delimiter = ',') {
   return rows;
 }
 
-function runPowerShell(script) {
+function runPowerShell(script, extraEnv = {}) {
   return new Promise((resolve, reject) => {
     execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
-      { windowsHide: true, maxBuffer: 20 * 1024 * 1024 },
+      { windowsHide: true, maxBuffer: 20 * 1024 * 1024, env: { ...process.env, ...extraEnv } },
       (error, stdout, stderr) => error ? reject(new Error(stderr.trim() || error.message)) : resolve(stdout.trim()));
   });
 }
@@ -433,7 +433,11 @@ async function runSystemTask(input, options, execute) {
     case 'environment-manager': {
       if (execute && options.name) {
         if (!/^[A-Za-z_][A-Za-z0-9_()]*$/.test(options.name)) throw new Error('环境变量名称格式不正确');
-        if (process.platform === 'win32') await runPowerShell(`[Environment]::SetEnvironmentVariable(${JSON.stringify(options.name)}, ${JSON.stringify(options.value || '')}, 'User')`);
+        if (process.platform === 'win32') {
+          const previous = await runPowerShell("[Environment]::GetEnvironmentVariable($env:SANRENJZ_ENV_NAME, 'User')", { SANRENJZ_ENV_NAME: options.name });
+          await runPowerShell("[Environment]::SetEnvironmentVariable($env:SANRENJZ_ENV_NAME, $env:SANRENJZ_ENV_VALUE, 'User')", { SANRENJZ_ENV_NAME: options.name, SANRENJZ_ENV_VALUE: String(options.value || '') });
+          return { updated: options.name, previous, current: String(options.value || ''), restoreHint: '把原值重新填入并执行即可恢复' };
+        }
         else throw new Error('首版环境变量写入仅支持 Windows 用户变量');
       }
       if (process.platform === 'win32') {
@@ -459,7 +463,7 @@ async function runSystemTask(input, options, execute) {
   }
 }
 
-function handleLanTransfer(options, execute) {
+async function handleLanTransfer(options, execute) {
   if (!execute) return lanServer ? { running: true, address: lanServer.address() } : { running: false };
   if (options.action === 'stop') {
     if (lanServer) lanServer.close();
@@ -472,14 +476,21 @@ function handleLanTransfer(options, execute) {
     if (request.method === 'POST') {
       const chunks = [];
       request.on('data', chunk => { if (chunks.reduce((sum, item) => sum + item.length, 0) < 20 * 1024 * 1024) chunks.push(chunk); });
-      request.on('end', () => { received.push({ time: new Date().toISOString(), text: Buffer.concat(chunks).toString('utf8') }); response.end('已收到'); });
+      request.on('end', () => {
+        const data = Buffer.concat(chunks); const requestedName = request.headers['x-filename'];
+        if (requestedName && options.outputDirectory) {
+          const safeName = path.basename(decodeURIComponent(String(requestedName))); const target = path.join(options.outputDirectory, `${Date.now()}-${safeName}`);
+          fs.mkdirSync(options.outputDirectory, { recursive: true }); fs.writeFileSync(target, data); received.push({ time: new Date().toISOString(), file: target, bytes: data.length });
+        } else received.push({ time: new Date().toISOString(), text: data.toString('utf8') });
+        response.end('已收到');
+      });
       return;
     }
     response.setHeader('Content-Type', 'text/html; charset=utf-8');
-    response.end('<meta name="viewport" content="width=device-width"><h2>局域网快传</h2><textarea id="t" style="width:100%;height:200px"></textarea><button onclick="fetch(\'/\',{method:\'POST\',body:t.value}).then(()=>alert(\'发送成功\'))">发送到电脑</button>');
+    response.end('<meta name="viewport" content="width=device-width"><h2>局域网快传</h2><textarea id="t" style="width:100%;height:160px" placeholder="输入文字"></textarea><button onclick="fetch(\'/\',{method:\'POST\',body:t.value}).then(()=>alert(\'文字发送成功\'))">发送文字</button><hr><input id="f" type="file"><button onclick="f.files[0]&&fetch(\'/\',{method:\'POST\',headers:{\'X-Filename\':encodeURIComponent(f.files[0].name)},body:f.files[0]}).then(()=>alert(\'文件发送成功\'))">发送文件</button>');
   });
   lanServer.received = received;
-  lanServer.listen(Number(options.port || 0), '0.0.0.0');
+  await new Promise((resolve, reject) => { lanServer.once('error', reject); lanServer.listen(Number(options.port || 0), '0.0.0.0', resolve); });
   const address = lanServer.address();
   const networks = Object.values(os.networkInterfaces()).flat().filter(item => item && item.family === 'IPv4' && !item.internal);
   return { running: true, port: address.port, urls: networks.map(item => `http://${item.address}:${address.port}`), received };
@@ -491,8 +502,9 @@ function handleProject(options, execute) {
   }
   if (!execute) return { running: Boolean(projectProcess), pid: projectProcess?.pid || null };
   if (!options.directory || !options.command) throw new Error('请选择项目目录并填写启动命令');
-  const [command, ...args] = String(options.command).match(/(?:[^\s"]+|"[^"]*")+/g)?.map(item => item.replace(/^"|"$/g, '')) || [];
+  let [command, ...args] = String(options.command).match(/(?:[^\s"]+|"[^"]*")+/g)?.map(item => item.replace(/^"|"$/g, '')) || [];
   if (!command) throw new Error('启动命令为空');
+  if (process.platform === 'win32' && ['npm', 'npx', 'pnpm', 'yarn'].includes(command.toLowerCase())) command = `${command}.cmd`;
   projectProcess = spawn(command, args, { cwd: options.directory, shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
   const logs = [];
   projectProcess.stdout?.on('data', chunk => logs.push(chunk.toString('utf8')));

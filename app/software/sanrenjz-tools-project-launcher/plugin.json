@@ -1,0 +1,40 @@
+{
+  "pluginName": "项目启动器",
+  "description": "管理项目目录、启动命令、运行日志和停止操作。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "开发工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-project-launcher",
+      "explain": "项目启动器",
+      "description": "管理项目目录、启动命令、运行日志和停止操作。",
+      "cmds": [
+        "项目启动",
+        "服务管理",
+        "project launcher"
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": false,
+      "category": "开发工具",
+      "priority": 20,
+      "useClipboardText": false
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

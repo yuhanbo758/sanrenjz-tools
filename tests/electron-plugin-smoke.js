@@ -67,6 +67,19 @@ async function smokePlugin(plugin) {
     })()`);
     if (result.statusClass.includes('error') || (!result.cards && !result.output)) pageErrors.push(`效率工具核心流程未产生结果：${JSON.stringify(result)}`);
   }
+  if (plugin.batch === 5 && !['clipboard-history', 'image-pinboard'].includes(plugin.id)) {
+    const fixtureDirectory = path.join(os.tmpdir(), 'sanrenjz-system-smoke'); fs.mkdirSync(fixtureDirectory, { recursive: true }); fs.writeFileSync(path.join(fixtureDirectory, 'smoke-target.txt'), 'system smoke', 'utf8');
+    const result = await window.webContents.executeJavaScript(`(async () => {
+      const options = { directory: ${JSON.stringify(fixtureDirectory)}, query: 'smoke-target', action: 'status', outputDirectory: ${JSON.stringify(fixtureDirectory)} };
+      if (profile.id === 'lan-transfer') {
+        options.action = 'start'; const started = await window.pluginAPI.runTask({ options, execute: true });
+        options.action = 'stop'; const stopped = await window.pluginAPI.runTask({ options, execute: true });
+        return { ok: started.ok && stopped.ok, result: started.result, error: started.error || stopped.error };
+      }
+      return window.pluginAPI.runTask({ options, execute: false });
+    })()`);
+    if (!result.ok) pageErrors.push(`系统工具安全读取流程失败：${result.error || JSON.stringify(result)}`);
+  }
   window.destroy();
   if (!state.hasApi || state.profileId !== plugin.id || state.title !== plugin.name || pageErrors.length) {
     throw new Error(`${plugin.name} 加载失败：${JSON.stringify({ state, pageErrors })}`);

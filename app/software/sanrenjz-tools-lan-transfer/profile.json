@@ -1,0 +1,20 @@
+{
+  "id": "lan-transfer",
+  "folder": "sanrenjz-tools-lan-transfer",
+  "name": "局域网快传",
+  "description": "通过局域网浏览器传输文字和文件，不经过云端。",
+  "category": "系统工具",
+  "keywords": [
+    "局域网传输",
+    "文件快传",
+    "lan"
+  ],
+  "batch": 5,
+  "order": 48,
+  "kind": "system",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

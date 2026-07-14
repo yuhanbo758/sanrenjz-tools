@@ -1,0 +1,40 @@
+{
+  "pluginName": "剪贴板历史",
+  "description": "保存文本和图片剪贴板历史，支持搜索与收藏。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "系统工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-clipboard-history",
+      "explain": "剪贴板历史",
+      "description": "保存文本和图片剪贴板历史，支持搜索与收藏。",
+      "cmds": [
+        "剪贴板",
+        "粘贴板",
+        "clipboard"
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": false,
+      "category": "系统工具",
+      "priority": 20,
+      "useClipboardText": false
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

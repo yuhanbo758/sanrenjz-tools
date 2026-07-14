@@ -1,0 +1,20 @@
+{
+  "id": "image-pinboard",
+  "folder": "sanrenjz-tools-image-pinboard",
+  "name": "图片悬浮板",
+  "description": "将剪贴板图片置顶悬浮并支持缩放和透明度。",
+  "category": "系统工具",
+  "keywords": [
+    "图片悬浮",
+    "贴图",
+    "pin image"
+  ],
+  "batch": 5,
+  "order": 49,
+  "kind": "system",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

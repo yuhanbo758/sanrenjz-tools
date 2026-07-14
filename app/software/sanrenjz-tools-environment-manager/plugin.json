@@ -1,0 +1,40 @@
+{
+  "pluginName": "环境变量管家",
+  "description": "查看、备份、编辑和恢复用户环境变量。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "系统工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-environment-manager",
+      "explain": "环境变量管家",
+      "description": "查看、备份、编辑和恢复用户环境变量。",
+      "cmds": [
+        "环境变量",
+        "path",
+        "env"
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": false,
+      "category": "系统工具",
+      "priority": 20,
+      "useClipboardText": false
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "pluginName": "磁盘空间分析",
+  "description": "分析目录占用、文件类型分布并定位大文件。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "系统工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-disk-analyzer",
+      "explain": "磁盘空间分析",
+      "description": "分析目录占用、文件类型分布并定位大文件。",
+      "cmds": [
+        "磁盘分析",
+        "大文件",
+        "空间占用"
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": false,
+      "category": "系统工具",
+      "priority": 20,
+      "useClipboardText": false
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}
