@@ -1,0 +1,20 @@
+{
+  "id": "line-processor",
+  "folder": "sanrenjz-tools-line-processor",
+  "name": "行处理器",
+  "description": "对文本行进行去重、排序、过滤、编号和前后缀处理。",
+  "category": "文本工具",
+  "keywords": [
+    "行处理",
+    "文本去重",
+    "文本排序"
+  ],
+  "batch": 2,
+  "order": 16,
+  "kind": "file",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

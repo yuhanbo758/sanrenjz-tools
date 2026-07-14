@@ -1,0 +1,21 @@
+{
+  "id": "text-encoding",
+  "folder": "sanrenjz-tools-text-encoding",
+  "name": "文本编码转换",
+  "description": "批量转换 UTF-8、GBK、UTF-16、换行符和 BOM。",
+  "category": "文件工具",
+  "keywords": [
+    "编码转换",
+    "gbk",
+    "utf8",
+    "换行符"
+  ],
+  "batch": 2,
+  "order": 14,
+  "kind": "file",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

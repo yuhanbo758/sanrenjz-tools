@@ -1,0 +1,40 @@
+{
+  "pluginName": "PDF 页面整理",
+  "description": "本地合并、拆分、旋转、排序和提取 PDF 页面。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "办公工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-pdf-organizer",
+      "explain": "PDF 页面整理",
+      "description": "本地合并、拆分、旋转、排序和提取 PDF 页面。",
+      "cmds": [
+        "pdf合并",
+        "pdf拆分",
+        "pdf旋转"
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": false,
+      "category": "办公工具",
+      "priority": 20,
+      "useClipboardText": false
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

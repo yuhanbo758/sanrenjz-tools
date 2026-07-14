@@ -1,6 +1,8 @@
 const assert = require('assert');
 const path = require('path');
 const Module = require('module');
+const fs = require('fs');
+const os = require('os');
 const { catalog } = require('../scripts/plugin-market/catalog');
 
 const root = path.resolve(__dirname, '..');
@@ -55,7 +57,53 @@ async function run() {
     assert.strictEqual(response.ok, true, `${plugin.name}: ${response.error}`);
     verify(response.result);
   }
-  console.log('plugin market logic tests passed: batch 1');
+  if (Number(process.argv[2] || 5) >= 2) await testBatch2();
+  console.log(`plugin market logic tests passed: batches 1-${Math.min(2, Number(process.argv[2] || 5))}`);
+}
+
+async function testBatch2() {
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'sanrenjz-plugin-test-'));
+  try {
+    const left = path.join(temporary, '左侧目录'); const right = path.join(temporary, '右侧目录');
+    fs.mkdirSync(left); fs.mkdirSync(right);
+    fs.writeFileSync(path.join(left, 'alpha.txt'), '第一行\n搜索目标', 'utf8');
+    fs.writeFileSync(path.join(right, 'alpha.txt'), '第一行\n不同内容', 'utf8');
+    const getApi = id => loadPluginApi(catalog.find(item => item.id === id));
+
+    let response = await getApi('batch-renamer').runTask({ options: { directory: left, find: 'alpha', replace: 'beta' }, execute: false });
+    assert.strictEqual(response.ok, true); assert.strictEqual(response.result[0].after, 'beta.txt');
+
+    response = await getApi('file-content-search').runTask({ options: { directory: left, query: '搜索目标', extensions: 'txt' } });
+    assert.strictEqual(response.result[0].line, 2);
+
+    response = await getApi('folder-compare').runTask({ options: { directoryA: left, directoryB: right, hash: true } });
+    assert.ok(response.result.some(item => item.status === '不同'));
+
+    const encoded = path.join(temporary, '编码.txt'); fs.writeFileSync(encoded, Buffer.from('编码测试'));
+    response = await getApi('text-encoding').runTask({ options: { files: [encoded], sourceEncoding: 'utf8', targetEncoding: 'utf8', newline: 'lf', suffix: '.out' }, execute: true });
+    assert.ok(fs.existsSync(`${encoded}.out`));
+
+    response = await getApi('csv-table').runTask({ input: 'name,age\n小明,18', options: { action: 'json', delimiter: ',' } });
+    assert.match(response.result, /"name": "小明"/);
+
+    response = await getApi('line-processor').runTask({ input: 'b\na\na', options: { unique: true, sort: true } });
+    assert.strictEqual(response.result, 'a\nb');
+
+    response = await getApi('directory-tree').runTask({ options: { directory: left, format: 'markdown' } });
+    assert.match(response.result, /alpha\.txt/);
+
+    response = await getApi('file-checksum').runTask({ options: { files: [path.join(left, 'alpha.txt')] } });
+    assert.strictEqual(response.result[0].sha256.length, 64);
+
+    const { PDFDocument } = require('pdf-lib'); const pdf = await PDFDocument.create(); pdf.addPage([200, 200]); const sourcePdf = path.join(temporary, 'source.pdf'); fs.writeFileSync(sourcePdf, await pdf.save());
+    const outputPdf = path.join(temporary, 'output.pdf'); response = await getApi('pdf-organizer').runTask({ options: { files: [sourcePdf], output: outputPdf, rotation: 0 }, execute: true });
+    assert.strictEqual(response.result.pages, 1); assert.ok(fs.existsSync(outputPdf));
+
+    const zipPath = path.join(temporary, 'result.zip'); response = await getApi('archive-tool').runTask({ options: { action: 'create', files: [path.join(left, 'alpha.txt')], output: zipPath }, execute: true });
+    assert.ok(fs.existsSync(zipPath));
+  } finally {
+    fs.rmSync(temporary, { recursive: true, force: true });
+  }
 }
 
 run().catch(error => { console.error(error); process.exit(1); });

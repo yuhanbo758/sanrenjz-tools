@@ -1,0 +1,40 @@
+{
+  "pluginName": "批量重命名",
+  "description": "预览并执行文件批量重命名，支持替换、序号和撤销。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "文件工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-batch-renamer",
+      "explain": "批量重命名",
+      "description": "预览并执行文件批量重命名，支持替换、序号和撤销。",
+      "cmds": [
+        "批量重命名",
+        "文件改名",
+        "rename"
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": false,
+      "category": "文件工具",
+      "priority": 20,
+      "useClipboardText": false
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

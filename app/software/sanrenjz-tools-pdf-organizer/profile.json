@@ -1,0 +1,20 @@
+{
+  "id": "pdf-organizer",
+  "folder": "sanrenjz-tools-pdf-organizer",
+  "name": "PDF 页面整理",
+  "description": "本地合并、拆分、旋转、排序和提取 PDF 页面。",
+  "category": "办公工具",
+  "keywords": [
+    "pdf合并",
+    "pdf拆分",
+    "pdf旋转"
+  ],
+  "batch": 2,
+  "order": 19,
+  "kind": "file",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

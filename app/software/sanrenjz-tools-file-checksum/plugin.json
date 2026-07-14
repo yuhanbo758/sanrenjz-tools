@@ -1,0 +1,40 @@
+{
+  "pluginName": "文件校验器",
+  "description": "批量生成和验证 SHA-256 文件校验清单。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "文件工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-file-checksum",
+      "explain": "文件校验器",
+      "description": "批量生成和验证 SHA-256 文件校验清单。",
+      "cmds": [
+        "文件校验",
+        "checksum",
+        "sha256文件"
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": false,
+      "category": "文件工具",
+      "priority": 20,
+      "useClipboardText": false
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

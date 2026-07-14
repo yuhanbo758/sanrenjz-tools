@@ -1,0 +1,20 @@
+{
+  "id": "folder-compare",
+  "folder": "sanrenjz-tools-folder-compare",
+  "name": "文件夹对比",
+  "description": "按相对路径、大小、修改时间或哈希比较两个目录。",
+  "category": "文件工具",
+  "keywords": [
+    "文件夹对比",
+    "目录比较",
+    "folder diff"
+  ],
+  "batch": 2,
+  "order": 13,
+  "kind": "file",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

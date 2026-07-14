@@ -1,0 +1,49 @@
+{
+  "pluginName": "CSV 表格工具",
+  "description": "编辑、筛选、排序并在 CSV 和 JSON 之间转换。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "办公工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-csv-table",
+      "explain": "CSV 表格工具",
+      "description": "编辑、筛选、排序并在 CSV 和 JSON 之间转换。",
+      "cmds": [
+        "csv",
+        "csv转json",
+        "表格工具",
+        {
+          "type": "over",
+          "label": [
+            "用CSV 表格工具处理",
+            "CSV 表格工具"
+          ],
+          "minLength": 1,
+          "maxLength": 200000
+        }
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": true,
+      "category": "办公工具",
+      "priority": 20,
+      "useClipboardText": true
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

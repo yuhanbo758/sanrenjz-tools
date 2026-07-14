@@ -1,0 +1,20 @@
+{
+  "id": "archive-tool",
+  "folder": "sanrenjz-tools-archive-tool",
+  "name": "压缩包工具",
+  "description": "本地创建、预览和安全解压 ZIP 压缩包。",
+  "category": "文件工具",
+  "keywords": [
+    "zip",
+    "压缩包",
+    "解压"
+  ],
+  "batch": 2,
+  "order": 20,
+  "kind": "file",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

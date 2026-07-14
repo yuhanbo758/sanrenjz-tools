@@ -1,0 +1,20 @@
+{
+  "id": "csv-table",
+  "folder": "sanrenjz-tools-csv-table",
+  "name": "CSV 表格工具",
+  "description": "编辑、筛选、排序并在 CSV 和 JSON 之间转换。",
+  "category": "办公工具",
+  "keywords": [
+    "csv",
+    "csv转json",
+    "表格工具"
+  ],
+  "batch": 2,
+  "order": 15,
+  "kind": "file",
+  "platforms": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}
