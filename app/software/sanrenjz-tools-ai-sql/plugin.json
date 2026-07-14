@@ -1,0 +1,49 @@
+{
+  "pluginName": "AI SQL 助手",
+  "description": "按数据库方言生成、解释、格式化和优化 SQL，不连接数据库。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "AI 工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-ai-sql",
+      "explain": "AI SQL 助手",
+      "description": "按数据库方言生成、解释、格式化和优化 SQL，不连接数据库。",
+      "cmds": [
+        "AI SQL 助手",
+        "生成 SQL",
+        "解释 SQL",
+        "优化 SQL",
+        {
+          "type": "over",
+          "label": "用AI SQL 助手处理",
+          "minLength": 1,
+          "maxLength": 200000
+        }
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": true,
+      "category": "AI 工具",
+      "priority": 22,
+      "useClipboardText": true
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "minWidth": 900,
+    "minHeight": 650,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

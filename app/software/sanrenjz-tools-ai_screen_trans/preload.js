@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const PLUGIN_NAME = 'AI 屏幕翻译';
+const AI_SHARED_NAME = 'AI 共享配置中心';
 
 /**
  * 配置版本 2 使用统一供应商目录。
@@ -54,6 +55,10 @@ function writeStoredSettings(settings) {
  * 自动迁移 1.x 的单 URL/Key 配置。旧用户继续使用原供应商，新安装则默认 DeepSeek V4 Pro。
  */
 async function ensureSettings() {
+    const shared = ipcRenderer.sendSync('plugin-storage-get', AI_SHARED_NAME, 'runtime-config');
+    if (shared?.schemaVersion === 1 && Array.isArray(shared.providers) && shared.providers.length) {
+        return { settingsVersion: 2, providers: shared.providers, textSelection: shared.selections?.text, ocrSelection: shared.selections?.vision || shared.selections?.text };
+    }
     const stored = readStoredSettings();
     if (stored?.settingsVersion === 2 && Array.isArray(stored.providers)) {
         return { ...cloneDefaults(), ...stored };
@@ -92,10 +97,11 @@ async function saveSettings(settings, providerSecrets = {}) {
     }));
     let encryptionAvailable = true;
     for (const [providerId, secret] of Object.entries(providerSecrets)) {
-        const result = await ipcRenderer.invoke('plugin-secret-set', PLUGIN_NAME, `provider:${providerId}`, secret);
+        const result = await ipcRenderer.invoke('plugin-secret-set', AI_SHARED_NAME, `provider:${providerId}`, secret);
         if (result?.encryptionAvailable === false) encryptionAvailable = false;
     }
     writeStoredSettings(clean);
+    ipcRenderer.sendSync('plugin-storage-set', AI_SHARED_NAME, 'runtime-config', { schemaVersion: 1, providers: clean.providers, selections: { text: clean.textSelection, vision: clean.ocrSelection }, timeoutMs: 60000 });
     return { settings: clean, encryptionAvailable };
 }
 
@@ -109,8 +115,8 @@ function handleEnter(mode, action) {
 const services = {
     getSettings: ensureSettings,
     saveSettings,
-    getProviderSecret: async providerId => ipcRenderer.invoke('plugin-secret-get', PLUGIN_NAME, `provider:${providerId}`),
-    removeProviderSecret: async providerId => ipcRenderer.invoke('plugin-secret-remove', PLUGIN_NAME, `provider:${providerId}`),
+    getProviderSecret: async providerId => (await ipcRenderer.invoke('plugin-secret-get', AI_SHARED_NAME, `provider:${providerId}`)) || ipcRenderer.invoke('plugin-secret-get', PLUGIN_NAME, `provider:${providerId}`),
+    removeProviderSecret: async providerId => ipcRenderer.invoke('plugin-secret-remove', AI_SHARED_NAME, `provider:${providerId}`),
     captureRegion: options => ipcRenderer.invoke('capture-screen-region', options || {}),
     setPromptMode: enabled => ipcRenderer.invoke('set-plugin-window-prompt-mode', enabled === true),
     copyText: text => {

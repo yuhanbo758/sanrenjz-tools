@@ -1,0 +1,103 @@
+{
+  "pluginName": "视觉设计实验室",
+  "description": "从图片与 SVG 中提取颜色，检查对比度并导出作品。",
+  "version": "2.0.0",
+  "author": "三人聚智",
+  "category": "效率工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-palette-extractor",
+      "explain": "色板提取",
+      "description": "从图片与 SVG 中提取颜色，检查对比度并导出作品。",
+      "cmds": [
+        "提取颜色",
+        "色板",
+        "主色",
+        {
+          "type": "over",
+          "label": "用视觉设计实验室处理",
+          "minLength": 1,
+          "maxLength": 200000
+        }
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": true,
+      "category": "效率工具",
+      "priority": 20,
+      "useClipboardText": true
+    },
+    {
+      "code": "plugin-market-color-workbench",
+      "explain": "颜色 / 对比度",
+      "description": "从图片与 SVG 中提取颜色，检查对比度并导出作品。",
+      "cmds": [
+        "颜色转换",
+        "对比度",
+        "hex",
+        "rgb",
+        {
+          "type": "over",
+          "label": "用视觉设计实验室处理",
+          "minLength": 1,
+          "maxLength": 200000
+        }
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": true,
+      "category": "效率工具",
+      "priority": 20,
+      "useClipboardText": true
+    },
+    {
+      "code": "plugin-market-svg-workbench",
+      "explain": "SVG",
+      "description": "从图片与 SVG 中提取颜色，检查对比度并导出作品。",
+      "cmds": [
+        "svg",
+        "svg压缩",
+        "svg转png",
+        {
+          "type": "over",
+          "label": "用视觉设计实验室处理",
+          "minLength": 1,
+          "maxLength": 200000
+        }
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": true,
+      "category": "效率工具",
+      "priority": 20,
+      "useClipboardText": true
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "minWidth": 900,
+    "minHeight": 650,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "pluginName": "任务与习惯",
+  "description": "把一次性任务和长期习惯放在同一条进度线上。",
+  "version": "2.0.0",
+  "author": "三人聚智",
+  "category": "效率工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-todo-list",
+      "explain": "待办",
+      "description": "把一次性任务和长期习惯放在同一条进度线上。",
+      "cmds": [
+        "待办",
+        "todo",
+        "任务清单",
+        {
+          "type": "over",
+          "label": "用任务与习惯处理",
+          "minLength": 1,
+          "maxLength": 200000
+        }
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": true,
+      "category": "效率工具",
+      "priority": 20,
+      "useClipboardText": true
+    },
+    {
+      "code": "plugin-market-habit-tracker",
+      "explain": "习惯",
+      "description": "把一次性任务和长期习惯放在同一条进度线上。",
+      "cmds": [
+        "习惯",
+        "打卡",
+        "habit",
+        {
+          "type": "over",
+          "label": "用任务与习惯处理",
+          "minLength": 1,
+          "maxLength": 200000
+        }
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": true,
+      "category": "效率工具",
+      "priority": 20,
+      "useClipboardText": true
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "minWidth": 900,
+    "minHeight": 650,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

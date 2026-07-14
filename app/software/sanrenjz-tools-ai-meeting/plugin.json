@@ -1,0 +1,49 @@
+{
+  "pluginName": "AI 会议纪要",
+  "description": "把转写文本整理为议题、结论、决策和待办。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "AI 工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-ai-meeting",
+      "explain": "AI 会议纪要",
+      "description": "把转写文本整理为议题、结论、决策和待办。",
+      "cmds": [
+        "AI 会议纪要",
+        "整理纪要",
+        "提取决策",
+        "提取待办",
+        {
+          "type": "over",
+          "label": "用AI 会议纪要处理",
+          "minLength": 1,
+          "maxLength": 200000
+        }
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": true,
+      "category": "AI 工具",
+      "priority": 22,
+      "useClipboardText": true
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "minWidth": 900,
+    "minHeight": 650,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}
