@@ -8,7 +8,8 @@ const software = path.join(root, 'app', 'software');
 const errors = [];
 const codes = new Map();
 const layouts = new Set();
-const required = ['plugin.json','index.html','preload.js','logo.svg','logo.png','logo.ico','README.md'];
+const iconNames = new Set();
+const required = ['plugin.json','index.html','preload.js','logo.svg','logo.png','logo.ico','icon-source.json','README.md'];
 
 function fail(message) { errors.push(message); }
 function readJson(file) { try { return JSON.parse(fs.readFileSync(file,'utf8')); } catch (error) { fail(`${file}: ${error.message}`); return null; } }
@@ -27,6 +28,8 @@ for(const plugin of catalog){
   const directory=path.join(software,plugin.folder);
   if(!fs.existsSync(directory)){fail(`${plugin.folder}: 目录不存在`);continue;}
   for(const file of required) if(!fs.existsSync(path.join(directory,file))) fail(`${plugin.folder}: 缺少 ${file}`);
+  const iconLicense=path.join(directory,'THIRD_PARTY_LICENSES','Tabler-Icons-LICENSE.txt');
+  if(!fs.existsSync(iconLicense))fail(`${plugin.folder}: 缺少 Tabler Icons MIT 许可证`);
   const manifest=readJson(path.join(directory,'plugin.json'));if(!manifest)continue;
   if(manifest.pluginName!==plugin.name)fail(`${plugin.folder}: 名称不匹配`);
   if(manifest.pluginSetting?.width!==1180||manifest.pluginSetting?.height!==760)fail(`${plugin.folder}: 默认窗口不是 1180x760`);
@@ -42,6 +45,15 @@ for(const plugin of catalog){
   if(!layout)fail(`${plugin.folder}: 缺少独立布局标识`);else if(layouts.has(layout))fail(`${plugin.folder}: 布局标识重复 ${layout}`);else layouts.add(layout);
   if(/准备就绪|所有数据默认仅在本机处理|本地处理|\d+\s*·\s*系统工具/.test(html))fail(`${plugin.folder}: 含有废弃模板文案`);
   for(const script of ['preload.js']){const result=spawnSync(process.execPath,['--check',path.join(directory,script)],{encoding:'utf8'});if(result.status!==0)fail(`${plugin.folder}/${script}: ${result.stderr.trim()}`);}
+  // 图标必须保留可追溯来源，而且 30 个插件不能再次退化成同一图形的换色模板。
+  const iconSource=readJson(path.join(directory,'icon-source.json'));
+  if(iconSource){
+    if(iconSource.collection!=='Tabler Icons'||iconSource.license!=='MIT'||!iconSource.sourceUrl?.startsWith('https://raw.githubusercontent.com/tabler/tabler-icons/'))fail(`${plugin.folder}: 图标来源信息不完整`);
+    if(iconNames.has(iconSource.name))fail(`${plugin.folder}: 图标图形重复 ${iconSource.name}`);else iconNames.add(iconSource.name);
+  }
+  const svg=fs.readFileSync(path.join(directory,'logo.svg'),'utf8');
+  if(/<text\b/i.test(svg))fail(`${plugin.folder}: SVG 不应使用文字充当图标`);
+  if(!svg.includes('aria-label='))fail(`${plugin.folder}: SVG 缺少无障碍名称`);
   const ico=fs.readFileSync(path.join(directory,'logo.ico'));if(ico.length<64||ico.readUInt16LE(2)!==1||ico.readUInt16LE(4)<5)fail(`${plugin.folder}: ICO 不完整`);
 }
 

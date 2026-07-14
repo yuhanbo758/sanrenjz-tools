@@ -22,6 +22,7 @@
     "test:plugins": "node scripts/validate-plugins.js && node tests/plugin-market.test.js && node tests/ai-runtime.test.js",
     "test:plugins:electron": "electron tests/electron-plugin-smoke.js",
     "test:plugins:gallery": "electron tests/electron-plugin-gallery.js",
+    "test:plugins:icons": "electron tests/electron-icon-gallery.js",
     "preinstall": "echo \"检查Node.js环境...\"",
     "postinstall": "echo \"依赖安装完成，可以运行 npm start 启动应用\""
   },
