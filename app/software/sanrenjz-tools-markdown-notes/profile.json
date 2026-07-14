@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#22c55e",
+    "accent2": "#0284c7",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "notebook",
+    "metaphor": "沉浸笔记本",
+    "controlsTitle": "笔记属性",
+    "inputTitle": "Markdown 编辑",
+    "resultTitle": "阅读预览",
+    "composition": "timeline",
+    "radius": 8,
+    "density": "compact",
+    "motif": "grid"
+  }
 }

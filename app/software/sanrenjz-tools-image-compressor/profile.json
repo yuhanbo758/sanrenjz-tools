@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#ec4899",
+    "accent2": "#7c3aed",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "compression-compare",
+    "metaphor": "压缩对比台",
+    "controlsTitle": "质量参数",
+    "inputTitle": "原图区域",
+    "resultTitle": "压缩预览",
+    "composition": "table",
+    "radius": 8,
+    "density": "airy",
+    "motif": "grid"
+  }
 }

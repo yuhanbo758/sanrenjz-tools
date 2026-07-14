@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#f43f5e",
+    "accent2": "#8b5cf6",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "palette-gallery",
+    "metaphor": "色板画廊",
+    "controlsTitle": "取色设置",
+    "inputTitle": "图片来源",
+    "resultTitle": "主色色板",
+    "composition": "split",
+    "radius": 8,
+    "density": "balanced",
+    "motif": "grid"
+  }
 }

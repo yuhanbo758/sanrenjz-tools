@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#22c55e",
+    "accent2": "#0284c7",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "focus-dial",
+    "metaphor": "专注仪表盘",
+    "controlsTitle": "周期设置",
+    "inputTitle": "本轮目标",
+    "resultTitle": "专注计时",
+    "composition": "canvas",
+    "radius": 22,
+    "density": "compact",
+    "motif": "glow"
+  }
 }

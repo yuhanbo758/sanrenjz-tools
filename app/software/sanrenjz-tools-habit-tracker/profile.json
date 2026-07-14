@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#22c55e",
+    "accent2": "#0284c7",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "streak-calendar",
+    "metaphor": "习惯日历",
+    "controlsTitle": "习惯设置",
+    "inputTitle": "今日记录",
+    "resultTitle": "连续打卡",
+    "composition": "tabs",
+    "radius": 28,
+    "density": "compact",
+    "motif": "plain"
+  }
 }

@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#2563eb",
+    "accent2": "#7c3aed",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "process-dashboard",
+    "metaphor": "进程仪表盘",
+    "controlsTitle": "进程操作",
+    "inputTitle": "PID / 筛选",
+    "resultTitle": "资源列表",
+    "composition": "testbench",
+    "radius": 22,
+    "density": "balanced",
+    "motif": "glow"
+  }
 }

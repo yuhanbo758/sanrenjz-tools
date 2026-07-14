@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#14b8a6",
+    "accent2": "#4f46e5",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "paper-calculator",
+    "metaphor": "计算稿纸",
+    "controlsTitle": "变量区域",
+    "inputTitle": "逐行算式",
+    "resultTitle": "计算轨迹",
+    "composition": "board",
+    "radius": 28,
+    "density": "balanced",
+    "motif": "plain"
+  }
 }

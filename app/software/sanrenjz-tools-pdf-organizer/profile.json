@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#fb923c",
+    "accent2": "#dc2626",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "page-sorter",
+    "metaphor": "页面编排台",
+    "controlsTitle": "页面操作",
+    "inputTitle": "PDF 队列",
+    "resultTitle": "页面序列",
+    "composition": "timeline",
+    "radius": 22,
+    "density": "compact",
+    "motif": "glow"
+  }
 }

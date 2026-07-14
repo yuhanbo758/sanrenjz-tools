@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#d946ef",
+    "accent2": "#4f46e5",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "qr-studio",
+    "metaphor": "码图工作室",
+    "controlsTitle": "码制设置",
+    "inputTitle": "文本或图片",
+    "resultTitle": "二维码画布",
+    "composition": "tabs",
+    "radius": 16,
+    "density": "compact",
+    "motif": "lines"
+  }
 }

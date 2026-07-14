@@ -17,5 +17,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#ec4899",
+    "accent2": "#7c3aed",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "color-lab",
+    "metaphor": "颜色实验室",
+    "controlsTitle": "颜色参数",
+    "inputTitle": "色值输入",
+    "resultTitle": "无障碍报告",
+    "composition": "inspector",
+    "radius": 12,
+    "density": "airy",
+    "motif": "dots"
+  }
 }

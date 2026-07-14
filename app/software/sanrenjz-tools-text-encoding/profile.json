@@ -17,5 +17,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#eab308",
+    "accent2": "#ca8a04",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "batch-pipeline",
+    "metaphor": "编码流水线",
+    "controlsTitle": "转换管线",
+    "inputTitle": "文件清单",
+    "resultTitle": "转换报告",
+    "composition": "split",
+    "radius": 22,
+    "density": "balanced",
+    "motif": "glow"
+  }
 }

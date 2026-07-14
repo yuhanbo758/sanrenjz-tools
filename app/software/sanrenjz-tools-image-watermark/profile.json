@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#ec4899",
+    "accent2": "#7c3aed",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "watermark-canvas",
+    "metaphor": "水印画布",
+    "controlsTitle": "水印属性",
+    "inputTitle": "素材区",
+    "resultTitle": "合成预览",
+    "composition": "dashboard",
+    "radius": 22,
+    "density": "airy",
+    "motif": "glow"
+  }
 }

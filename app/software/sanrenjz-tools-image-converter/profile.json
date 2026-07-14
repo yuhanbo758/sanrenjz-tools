@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#d946ef",
+    "accent2": "#4f46e5",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "format-carousel",
+    "metaphor": "格式转换舱",
+    "controlsTitle": "目标格式",
+    "inputTitle": "图片来源",
+    "resultTitle": "格式预览",
+    "composition": "canvas",
+    "radius": 12,
+    "density": "compact",
+    "motif": "dots"
+  }
 }

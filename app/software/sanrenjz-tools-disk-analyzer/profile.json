@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#6366f1",
+    "accent2": "#0891b2",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "storage-dashboard",
+    "metaphor": "存储仪表盘",
+    "controlsTitle": "扫描范围",
+    "inputTitle": "分析备注",
+    "resultTitle": "空间分布",
+    "composition": "timeline",
+    "radius": 16,
+    "density": "compact",
+    "motif": "lines"
+  }
 }

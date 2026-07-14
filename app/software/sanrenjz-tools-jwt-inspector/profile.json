@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#0ea5e9",
+    "accent2": "#4f46e5",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "token-inspector",
+    "metaphor": "令牌解剖台",
+    "controlsTitle": "验证设置",
+    "inputTitle": "JWT 令牌",
+    "resultTitle": "声明与签名",
+    "composition": "table",
+    "radius": 22,
+    "density": "airy",
+    "motif": "glow"
+  }
 }

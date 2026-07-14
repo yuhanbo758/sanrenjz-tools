@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#06b6d4",
+    "accent2": "#2563eb",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "code-studio",
+    "metaphor": "代码编辑台",
+    "controlsTitle": "查询与格式",
+    "inputTitle": "JSON 源码",
+    "resultTitle": "树形结果",
+    "composition": "studio",
+    "radius": 8,
+    "density": "compact",
+    "motif": "grid"
+  }
 }

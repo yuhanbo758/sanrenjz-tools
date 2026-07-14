@@ -17,5 +17,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#3b82f6",
+    "accent2": "#7c3aed",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "bridge",
+    "metaphor": "格式转换桥",
+    "controlsTitle": "格式映射",
+    "inputTitle": "源配置",
+    "resultTitle": "目标配置",
+    "composition": "split",
+    "radius": 12,
+    "density": "balanced",
+    "motif": "dots"
+  }
 }

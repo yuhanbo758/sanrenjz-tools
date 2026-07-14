@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#fb923c",
+    "accent2": "#dc2626",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "line-workbench",
+    "metaphor": "行处理工作台",
+    "controlsTitle": "处理步骤",
+    "inputTitle": "原始行",
+    "resultTitle": "处理后行",
+    "composition": "tabs",
+    "radius": 8,
+    "density": "compact",
+    "motif": "grid"
+  }
 }

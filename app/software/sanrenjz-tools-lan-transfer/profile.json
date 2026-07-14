@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#3b82f6",
+    "accent2": "#0f766e",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "transfer-room",
+    "metaphor": "局域网传输室",
+    "controlsTitle": "服务设置",
+    "inputTitle": "传输文字",
+    "resultTitle": "配对与队列",
+    "composition": "dashboard",
+    "radius": 16,
+    "density": "airy",
+    "motif": "lines"
+  }
 }

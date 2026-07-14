@@ -1,50 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>三人聚智插件</title>
-  <link rel="stylesheet" href="styles.css">
-</head>
-<body>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>单位换算器</title><link rel="stylesheet" href="styles.css"></head>
+<body class="ui-converter-scale" data-ui="converter-scale" data-composition="dashboard" data-density="airy" data-motif="grid">
   <main class="app-shell">
-    <header class="hero">
-      <div>
-        <span id="category" class="eyebrow">本地效率工具</span>
-        <h1 id="title">插件加载中</h1>
-        <p id="description">所有处理默认在本机完成。</p>
-      </div>
-      <div class="hero-actions">
-        <button id="pinButton" class="secondary">置顶</button>
-        <button id="copyButton" class="secondary">复制结果</button>
-      </div>
-    </header>
-
-    <section id="status" class="status" aria-live="polite">准备就绪</section>
-
-    <section class="workspace">
-      <aside id="controls" class="panel controls"></aside>
-      <div class="panel editor-panel">
-        <label for="inputText">输入 / 数据</label>
-        <textarea id="inputText" spellcheck="false" placeholder="输入内容，或通过左侧按钮选择本地文件……"></textarea>
-        <div class="action-row">
-          <button id="runButton" class="primary">开始处理</button>
-          <button id="previewButton" class="secondary">预览</button>
-          <button id="clearButton" class="ghost">清空</button>
-        </div>
-      </div>
-      <div class="panel result-panel">
-        <label for="outputText">结果 / 预览</label>
-        <pre id="outputText" tabindex="0">尚未生成结果</pre>
-        <canvas id="previewCanvas" hidden></canvas>
-        <div id="cards" class="cards" hidden></div>
-        <div class="action-row">
-          <button id="saveButton" class="secondary">保存结果</button>
-          <button id="exportButton" class="ghost">导出数据</button>
-        </div>
-      </div>
-    </section>
-  </main>
-  <script src="renderer.js"></script>
-</body>
-</html>
+    <header class="hero"><div class="identity"><div class="logo-frame"><img id="pluginLogo" src="logo.svg" alt="单位换算器图标"></div><div class="identity-copy"><div class="meta-row"><span id="category" class="eyebrow">效率工具</span><span class="privacy-badge"><i></i>本地处理</span></div><h1 id="title">单位换算器</h1><p id="description">换算长度、面积、重量、容量、速度和温度。</p></div></div><div class="hero-actions"><span class="tool-mode">单位天平</span><button id="pinButton" class="icon-button secondary">置顶</button><button id="copyButton" class="icon-button secondary">复制结果</button></div></header>
+    <section class="status-bar"><div id="status" class="status" aria-live="polite"><span class="status-dot"></span><span class="status-text">准备就绪</span></div><div class="shortcut-hints"><kbd>Ctrl</kbd><kbd>Enter</kbd><span>执行</span><kbd>Ctrl</kbd><kbd>S</kbd><span>保存</span></div></section>
+    <section class="workspace"><section class="panel result-panel"><div class="panel-heading"><span class="step-index">03</span><div><strong><span id="resultLabel">换算读数</span></strong><small>结果可复制、保存或导出</small></div><span id="resultCount" class="counter">等待处理</span></div><div class="result-surface"><div id="emptyState" class="empty-state"><img src="logo.svg" alt=""><strong>单位天平</strong><span>配置参数后开始本地处理</span></div><pre id="outputText" tabindex="0" hidden></pre><canvas id="previewCanvas" hidden></canvas><div id="cards" class="cards" hidden></div></div><div class="action-row result-actions"><button id="saveButton" class="secondary">保存结果</button><button id="exportButton" class="ghost">导出数据</button></div></section><aside class="panel controls-panel"><div class="panel-heading"><span class="step-index">01</span><div><strong>单位选择</strong><small>专为单位换算器设计的操作区</small></div></div><div id="controls" class="controls"></div></aside><section class="panel editor-panel"><div class="panel-heading"><span class="step-index">02</span><div><strong><span id="inputLabel">数值输入</span></strong><small><span id="inputHint">输入、粘贴或选择本地数据</span></small></div><span id="inputCount" class="counter">0 字符</span></div><div class="editor-surface"><textarea id="inputText" spellcheck="false" placeholder="在这里输入内容……"></textarea><div id="dropHint" class="drop-hint" hidden>拖放文件到这里</div></div><div class="action-row editor-actions"><button id="runButton" class="primary">开始处理</button><button id="previewButton" class="secondary">安全预览</button><button id="clearButton" class="ghost">清空</button></div></section></section>
+  </main><script src="renderer.js"></script>
+</body></html>

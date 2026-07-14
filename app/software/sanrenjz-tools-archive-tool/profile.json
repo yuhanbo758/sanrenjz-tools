@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#eab308",
+    "accent2": "#ca8a04",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "archive-browser",
+    "metaphor": "压缩包浏览器",
+    "controlsTitle": "压缩设置",
+    "inputTitle": "文件队列",
+    "resultTitle": "包内目录",
+    "composition": "testbench",
+    "radius": 28,
+    "density": "balanced",
+    "motif": "plain"
+  }
 }

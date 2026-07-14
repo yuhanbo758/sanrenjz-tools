@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#10b981",
+    "accent2": "#0d9488",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "bookmark-grid",
+    "metaphor": "网址启动台",
+    "controlsTitle": "书签属性",
+    "inputTitle": "网址备注",
+    "resultTitle": "书签网格",
+    "composition": "inspector",
+    "radius": 22,
+    "density": "airy",
+    "motif": "glow"
+  }
 }

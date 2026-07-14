@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#f43f5e",
+    "accent2": "#8b5cf6",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "vector-stage",
+    "metaphor": "矢量舞台",
+    "controlsTitle": "导出参数",
+    "inputTitle": "SVG 源码",
+    "resultTitle": "矢量预览",
+    "composition": "console",
+    "radius": 22,
+    "density": "balanced",
+    "motif": "glow"
+  }
 }

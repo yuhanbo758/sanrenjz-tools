@@ -17,5 +17,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#06b6d4",
+    "accent2": "#2563eb",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "tab-lab",
+    "metaphor": "多制式编码台",
+    "controlsTitle": "编码制式",
+    "inputTitle": "原始数据",
+    "resultTitle": "编码结果",
+    "composition": "tabs",
+    "radius": 22,
+    "density": "compact",
+    "motif": "glow"
+  }
 }

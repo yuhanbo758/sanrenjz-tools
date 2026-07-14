@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#f59e0b",
+    "accent2": "#ea580c",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "manifest-check",
+    "metaphor": "校验清单台",
+    "controlsTitle": "校验范围",
+    "inputTitle": "文件备注",
+    "resultTitle": "哈希清单",
+    "composition": "deck",
+    "radius": 16,
+    "density": "airy",
+    "motif": "lines"
+  }
 }

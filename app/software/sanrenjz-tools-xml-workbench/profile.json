@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#0ea5e9",
+    "accent2": "#4f46e5",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "inspector",
+    "metaphor": "节点检查器",
+    "controlsTitle": "文档操作",
+    "inputTitle": "XML 文档",
+    "resultTitle": "节点结构",
+    "composition": "inspector",
+    "radius": 16,
+    "density": "airy",
+    "motif": "lines"
+  }
 }

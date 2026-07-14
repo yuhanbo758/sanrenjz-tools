@@ -17,5 +17,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#3b82f6",
+    "accent2": "#7c3aed",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "security-console",
+    "metaphor": "摘要安全台",
+    "controlsTitle": "算法与密钥",
+    "inputTitle": "待摘要文本",
+    "resultTitle": "指纹结果",
+    "composition": "console",
+    "radius": 28,
+    "density": "balanced",
+    "motif": "plain"
+  }
 }

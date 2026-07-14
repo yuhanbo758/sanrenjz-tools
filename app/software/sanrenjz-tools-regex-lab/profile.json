@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#3b82f6",
+    "accent2": "#7c3aed",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "testbench",
+    "metaphor": "正则试验台",
+    "controlsTitle": "表达式参数",
+    "inputTitle": "测试文本",
+    "resultTitle": "匹配分组",
+    "composition": "testbench",
+    "radius": 16,
+    "density": "balanced",
+    "motif": "lines"
+  }
 }

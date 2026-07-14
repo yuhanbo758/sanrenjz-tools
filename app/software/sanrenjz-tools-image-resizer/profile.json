@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#f43f5e",
+    "accent2": "#8b5cf6",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "resize-stage",
+    "metaphor": "尺寸舞台",
+    "controlsTitle": "画布尺寸",
+    "inputTitle": "图片来源",
+    "resultTitle": "缩放预览",
+    "composition": "board",
+    "radius": 16,
+    "density": "balanced",
+    "motif": "lines"
+  }
 }

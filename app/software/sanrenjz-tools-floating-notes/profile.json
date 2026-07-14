@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#14b8a6",
+    "accent2": "#4f46e5",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "sticky-board",
+    "metaphor": "便签墙",
+    "controlsTitle": "便签外观",
+    "inputTitle": "速记内容",
+    "resultTitle": "便签集合",
+    "composition": "testbench",
+    "radius": 12,
+    "density": "balanced",
+    "motif": "dots"
+  }
 }

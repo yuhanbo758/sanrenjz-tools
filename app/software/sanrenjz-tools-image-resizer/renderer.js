@@ -6,6 +6,8 @@ const elements = {
   title: document.getElementById('title'), description: document.getElementById('description'), category: document.getElementById('category'),
   status: document.getElementById('status'), controls: document.getElementById('controls'), input: document.getElementById('inputText'),
   output: document.getElementById('outputText'), canvas: document.getElementById('previewCanvas'), cards: document.getElementById('cards'),
+  logo: document.getElementById('pluginLogo'), empty: document.getElementById('emptyState'), inputCount: document.getElementById('inputCount'), resultCount: document.getElementById('resultCount'),
+  inputLabel: document.getElementById('inputLabel'), inputHint: document.getElementById('inputHint'), resultLabel: document.getElementById('resultLabel'), dropHint: document.getElementById('dropHint'),
   run: document.getElementById('runButton'), preview: document.getElementById('previewButton'), clear: document.getElementById('clearButton'),
   copy: document.getElementById('copyButton'), save: document.getElementById('saveButton'), export: document.getElementById('exportButton'), pin: document.getElementById('pinButton')
 };
@@ -76,7 +78,9 @@ function imageFiles(multiple = false) { return files('files', multiple ? '选择
 function formats(selected) { return [['json', 'JSON'], ['yaml', 'YAML'], ['toml', 'TOML'], ['properties', 'Properties']].map(item => item[0] === selected ? item : item); }
 
 function setStatus(message, type = '') {
-  elements.status.textContent = message;
+  const textNode = elements.status.querySelector('.status-text');
+  if (textNode) textNode.textContent = message;
+  else elements.status.textContent = message;
   elements.status.className = `status ${type}`;
 }
 
@@ -153,7 +157,8 @@ async function run(execute) {
 
 function showText(text) {
   state.output = String(text || ''); elements.output.textContent = state.output || '无结果';
-  elements.output.hidden = false; elements.canvas.hidden = true; elements.cards.hidden = true;
+  elements.empty.hidden = true; elements.output.hidden = false; elements.canvas.hidden = true; elements.cards.hidden = true;
+  elements.resultCount.textContent = `${state.output.length} 字符`;
 }
 
 async function loadImages() {
@@ -182,7 +187,8 @@ async function runImage() {
   }
   const mime = profile.id === 'image-converter' ? state.values.format : profile.id === 'image-compressor' ? 'image/jpeg' : 'image/png';
   state.dataUrl = canvas.toDataURL(mime || 'image/png', Number(state.values.quality || 90) / 100);
-  elements.output.hidden = true; elements.cards.hidden = true; canvas.hidden = false;
+  elements.empty.hidden = true; elements.output.hidden = true; elements.cards.hidden = true; canvas.hidden = false;
+  elements.resultCount.textContent = `${canvas.width} × ${canvas.height}`;
 }
 
 function drawSingleImage(canvas, context, image) {
@@ -238,7 +244,7 @@ async function runQr() {
     const response = await api.decodeQr(api.readFileDataUrl(files[0])); if (!response.ok) throw new Error(response.error); showText(response.text || '未识别到二维码'); return;
   }
   const response = await api.generateQr(state.values.qrText || elements.input.value, Number(state.values.qrSize || 480)); if (!response.ok) throw new Error(response.error);
-  const image = new Image(); image.src = response.dataUrl; await image.decode(); elements.canvas.width = image.width; elements.canvas.height = image.height; elements.canvas.getContext('2d').drawImage(image, 0, 0); state.dataUrl = response.dataUrl; elements.output.hidden = true; elements.canvas.hidden = false;
+  const image = new Image(); image.src = response.dataUrl; await image.decode(); elements.canvas.width = image.width; elements.canvas.height = image.height; elements.canvas.getContext('2d').drawImage(image, 0, 0); state.dataUrl = response.dataUrl; elements.empty.hidden = true; elements.output.hidden = true; elements.canvas.hidden = false; elements.resultCount.textContent = `${image.width} × ${image.height}`;
 }
 
 function parseColor(value) { const text = String(value).trim().replace('#', ''); if (!/^[0-9a-f]{6}$/i.test(text)) throw new Error('颜色必须是 6 位 HEX'); return [0, 2, 4].map(index => parseInt(text.slice(index, index + 2), 16)); }
@@ -302,7 +308,8 @@ async function runLocalSystem(execute) {
 }
 
 function showCards(cards) {
-  elements.cards.innerHTML = ''; elements.cards.hidden = false; elements.output.hidden = true; elements.canvas.hidden = true;
+  elements.cards.innerHTML = ''; elements.empty.hidden = true; elements.cards.hidden = false; elements.output.hidden = true; elements.canvas.hidden = true;
+  elements.resultCount.textContent = `${cards.length} 项`;
   cards.forEach(cardData => {
     const card = document.createElement('div'); card.className = 'card'; if (cardData.color) card.style.borderLeft = `8px solid ${cardData.color}`;
     const title = document.createElement('strong'); title.textContent = cardData.title; const subtitle = document.createElement('small'); subtitle.textContent = cardData.subtitle || ''; card.append(title, subtitle);
@@ -358,6 +365,21 @@ function cryptoId() { return `${Date.now().toString(36)}-${Math.random().toStrin
 
 async function initialize() {
   elements.title.textContent = profile.name; elements.description.textContent = profile.description; elements.category.textContent = `${String(profile.order).padStart(2, '0')} · ${profile.category}`; document.title = profile.name;
+  document.body.dataset.kind = profile.kind;
+  const accent = profile.visual?.accent || '#38bdf8'; const accent2 = profile.visual?.accent2 || '#6366f1';
+  document.documentElement.style.setProperty('--accent', accent); document.documentElement.style.setProperty('--accent-2', accent2); document.documentElement.style.setProperty('--accent-rgb', hexToRgb(accent).join(', '));
+  elements.logo.src = 'logo.svg';
+  const labels = {
+    text: ['输入文本', '支持粘贴或从超级面板带入内容', '转换结果'],
+    file: ['文件或结构化数据', '通过左侧按钮选择文件，写入前先预览', '文件处理结果'],
+    image: ['图片来源', '选择图片或输入 SVG / 颜色数据', '视觉预览'],
+    productivity: ['记录内容', '输入新记录，也可从右侧管理历史', '我的数据'],
+    system: ['筛选与补充参数', '系统操作默认只读，写入操作需要确认', '系统检测结果']
+  }[profile.kind] || ['输入内容', '粘贴文本或选择文件', '处理结果'];
+  elements.inputLabel.textContent = profile.ui?.inputTitle || labels[0];
+  elements.inputHint.textContent = profile.ui ? `${profile.ui.metaphor} · ${labels[1]}` : labels[1];
+  elements.resultLabel.textContent = profile.ui?.resultTitle || labels[2];
+  elements.input.placeholder = profile.kind === 'image' ? '可输入 SVG、颜色值或二维码文本；图片请从左侧选择……' : profile.kind === 'productivity' ? '写下内容、备注或说明……' : '在这里输入内容，或通过左侧按钮选择本地文件……';
   renderControls();
   if (profile.kind === 'productivity' || ['clipboard-history'].includes(profile.id)) { const stored = await api.storage.get('state'); state.items = stored?.items || []; renderItems(); }
   window.addEventListener('plugin-enter', event => { const payload = event.detail?.payload || event.detail?.clipboardText || ''; if (payload) elements.input.value = typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2); });
@@ -367,12 +389,41 @@ async function initialize() {
     document.querySelector('.editor-panel').hidden = true; document.querySelector('.workspace').style.display = 'block';
     await runLocalSystem(false);
   }
+  elements.input.addEventListener('input', updateInputCount); updateInputCount();
+  setupDropZone(); setupKeyboardShortcuts();
   setStatus('准备就绪；所有数据默认仅在本机处理。');
+}
+
+function hexToRgb(value) {
+  const match = String(value).match(/^#([0-9a-f]{6})$/i); if (!match) return [56, 189, 248];
+  return [0, 2, 4].map(index => parseInt(match[1].slice(index, index + 2), 16));
+}
+
+function updateInputCount() { elements.inputCount.textContent = `${elements.input.value.length} 字符`; }
+
+function setupDropZone() {
+  if (!['file', 'image', 'system'].includes(profile.kind)) return;
+  const surface = document.querySelector('.editor-surface');
+  surface.addEventListener('dragover', event => { event.preventDefault(); elements.dropHint.hidden = false; });
+  surface.addEventListener('dragleave', () => { elements.dropHint.hidden = true; });
+  surface.addEventListener('drop', event => {
+    event.preventDefault(); elements.dropHint.hidden = true;
+    const paths = [...event.dataTransfer.files].map(file => file.path).filter(Boolean);
+    if (!paths.length) return;
+    state.values.files = paths; elements.input.value = paths.join('\n'); updateInputCount(); setStatus(`已接收 ${paths.length} 个本地文件`, 'success');
+  });
+}
+
+function setupKeyboardShortcuts() {
+  document.addEventListener('keydown', event => {
+    if (event.ctrlKey && event.key === 'Enter') { event.preventDefault(); run(!event.shiftKey); }
+    if (event.ctrlKey && event.key.toLowerCase() === 's') { event.preventDefault(); elements.save.click(); }
+  });
 }
 
 elements.run.addEventListener('click', () => run(true));
 elements.preview.addEventListener('click', () => run(false));
-elements.clear.addEventListener('click', () => { elements.input.value = ''; showText('尚未生成结果'); setStatus('已清空'); });
+elements.clear.addEventListener('click', () => { elements.input.value = ''; state.output = ''; state.dataUrl = ''; elements.output.hidden = true; elements.canvas.hidden = true; elements.cards.hidden = true; elements.empty.hidden = false; elements.resultCount.textContent = '等待处理'; updateInputCount(); setStatus('已清空'); });
 elements.copy.addEventListener('click', () => { api.copyText(state.output || elements.output.textContent); setStatus('结果已复制', 'success'); });
 elements.save.addEventListener('click', () => { const result = api.saveResult(state.dataUrl ? { title: '保存图片', defaultPath: `${profile.name}.png`, dataUrl: state.dataUrl } : { title: '保存结果', defaultPath: `${profile.name}.txt`, text: state.output }); if (!result.cancelled) setStatus(`已保存到 ${result.path}`, 'success'); });
 elements.export.addEventListener('click', () => { const result = api.saveResult({ title: '导出插件数据', defaultPath: `${profile.id}-data.json`, text: JSON.stringify({ schemaVersion: 1, items: state.items, output: state.output }, null, 2) }); if (!result.cancelled) setStatus(`已导出到 ${result.path}`, 'success'); });

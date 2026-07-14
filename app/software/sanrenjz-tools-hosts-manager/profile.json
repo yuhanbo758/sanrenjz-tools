@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#2563eb",
+    "accent2": "#7c3aed",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "host-switchboard",
+    "metaphor": "Hosts 切换台",
+    "controlsTitle": "配置操作",
+    "inputTitle": "Hosts 内容",
+    "resultTitle": "配置组",
+    "composition": "board",
+    "radius": 12,
+    "density": "balanced",
+    "motif": "dots"
+  }
 }

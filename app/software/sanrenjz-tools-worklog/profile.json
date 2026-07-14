@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#14b8a6",
+    "accent2": "#4f46e5",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "timesheet",
+    "metaphor": "工时表",
+    "controlsTitle": "记录字段",
+    "inputTitle": "工作说明",
+    "resultTitle": "工时报表",
+    "composition": "split",
+    "radius": 16,
+    "density": "balanced",
+    "motif": "lines"
+  }
 }

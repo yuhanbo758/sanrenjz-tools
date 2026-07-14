@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#06b6d4",
+    "accent2": "#2563eb",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "diff-split",
+    "metaphor": "双栏差异台",
+    "controlsTitle": "对比规则",
+    "inputTitle": "左侧文本",
+    "resultTitle": "差异标记",
+    "composition": "canvas",
+    "radius": 28,
+    "density": "compact",
+    "motif": "plain"
+  }
 }

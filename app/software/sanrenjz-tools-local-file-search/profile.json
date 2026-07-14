@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#3b82f6",
+    "accent2": "#0f766e",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "search-command",
+    "metaphor": "文件命令台",
+    "controlsTitle": "索引范围",
+    "inputTitle": "快速搜索",
+    "resultTitle": "文件结果",
+    "composition": "deck",
+    "radius": 12,
+    "density": "airy",
+    "motif": "dots"
+  }
 }

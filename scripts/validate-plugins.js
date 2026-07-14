@@ -2,15 +2,17 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { catalog } = require('./plugin-market/catalog');
+const { specs } = require('./plugin-market/ui-specs');
 
 const root = path.resolve(__dirname, '..');
 const pluginRoot = path.join(root, 'app', 'software');
-const required = ['plugin.json', 'profile.json', 'index.html', 'preload.js', 'renderer.js', 'styles.css', 'logo.ico', 'README.md'];
+const required = ['plugin.json', 'profile.json', 'index.html', 'preload.js', 'renderer.js', 'styles.css', 'logo.svg', 'logo.png', 'logo.ico', 'README.md'];
 const maxBatch = Number(process.argv[2] || 5);
 const selectedCatalog = catalog.filter(plugin => plugin.batch <= maxBatch);
 const errors = [];
 const featureCodes = new Map();
 const pluginNames = new Map();
+const uiIds = new Set();
 
 for (const directory of fs.readdirSync(pluginRoot, { withFileTypes: true }).filter(item => item.isDirectory())) {
   const manifestPath = path.join(pluginRoot, directory.name, 'plugin.json');
@@ -41,8 +43,15 @@ for (const plugin of selectedCatalog) {
 
   const html = fs.readFileSync(path.join(directory, 'index.html'), 'utf8');
   if (/<(?:script|link)[^>]+(?:src|href)=["']https?:/i.test(html)) errors.push(`${plugin.folder}: 页面引用了远程脚本或样式`);
+  const ui = specs[plugin.id];
+  if (!ui || storedProfile.ui?.id !== ui.id || !html.includes(`data-ui="${ui.id}"`)) errors.push(`${plugin.folder}: 独立界面规格未正确落盘`);
+  if (uiIds.has(ui?.id)) errors.push(`${plugin.folder}: 独立界面 ID 重复：${ui?.id}`); else uiIds.add(ui?.id);
   const ico = fs.readFileSync(path.join(directory, 'logo.ico'));
-  if (ico.length < 32 || ico.readUInt16LE(2) !== 1) errors.push(`${plugin.folder}: logo.ico 不是有效 ICO`);
+  if (ico.length < 32 || ico.readUInt16LE(2) !== 1 || ico.readUInt16LE(4) < 5) errors.push(`${plugin.folder}: logo.ico 不是有效的多尺寸 ICO`);
+  const png = fs.readFileSync(path.join(directory, 'logo.png'));
+  if (!png.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))) errors.push(`${plugin.folder}: logo.png 不是有效 PNG`);
+  const svg = fs.readFileSync(path.join(directory, 'logo.svg'), 'utf8');
+  if (!svg.includes('<svg') || !svg.includes('<linearGradient') || !storedProfile.visual?.iconStyle) errors.push(`${plugin.folder}: 原创 SVG 或视觉配置不完整`);
   for (const script of ['preload.js', 'renderer.js']) {
     const result = spawnSync(process.execPath, ['--check', path.join(directory, script)], { encoding: 'utf8' });
     if (result.status !== 0) errors.push(`${plugin.folder}/${script}: ${result.stderr.trim()}`);

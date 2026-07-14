@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#22c55e",
+    "accent2": "#0284c7",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "clock-wall",
+    "metaphor": "世界时钟墙",
+    "controlsTitle": "日期规则",
+    "inputTitle": "日期输入",
+    "resultTitle": "时区卡片",
+    "composition": "studio",
+    "radius": 12,
+    "density": "compact",
+    "motif": "dots"
+  }
 }

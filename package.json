@@ -17,9 +17,11 @@
     "rebuild": "npm run clean && npm install && npm start",
     "test": "echo \"启动应用进行测试...\" && npm start",
     "test:logic": "node tests/logic.test.js",
-    "generate:plugins": "node scripts/generate-plugin-market.js all",
+    "generate:plugins": "node scripts/generate-plugin-market.js all && electron scripts/render-plugin-icons.js",
+    "generate:icons": "electron scripts/render-plugin-icons.js",
     "test:plugins": "node scripts/validate-plugins.js && node tests/plugin-market.test.js",
     "test:plugins:electron": "electron tests/electron-plugin-smoke.js",
+    "test:plugins:gallery": "electron tests/electron-plugin-gallery.js",
     "preinstall": "echo \"检查Node.js环境...\"",
     "postinstall": "echo \"依赖安装完成，可以运行 npm start 启动应用\""
   },

@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#06b6d4",
+    "accent2": "#2563eb",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "timeline",
+    "metaphor": "时间轴换算",
+    "controlsTitle": "时区设置",
+    "inputTitle": "时间输入",
+    "resultTitle": "换算时间轴",
+    "composition": "timeline",
+    "radius": 12,
+    "density": "compact",
+    "motif": "dots"
+  }
 }

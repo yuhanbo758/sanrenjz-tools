@@ -16,5 +16,21 @@
     "win32",
     "darwin",
     "linux"
-  ]
+  ],
+  "visual": {
+    "accent": "#2563eb",
+    "accent2": "#7c3aed",
+    "iconStyle": "original-duotone-v1"
+  },
+  "ui": {
+    "id": "clipboard-stream",
+    "metaphor": "剪贴板流",
+    "controlsTitle": "记录设置",
+    "inputTitle": "筛选文本",
+    "resultTitle": "历史时间线",
+    "composition": "console",
+    "radius": 8,
+    "density": "balanced",
+    "motif": "grid"
+  }
 }
