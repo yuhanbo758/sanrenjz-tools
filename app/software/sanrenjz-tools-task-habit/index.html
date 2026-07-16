@@ -1,12 +1,162 @@
-<!doctype html><html lang="zh-CN" data-layout="kanban-garden"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>任务与习惯</title><style>
-:root{--accent:#2b8a3e;--ink:#172033;--muted:#667085;--line:color-mix(in srgb,var(--accent) 18%,#dbe2ea);--paper:#f8fafc;--panel:#fff;--radius:34px}*{box-sizing:border-box}html,body{height:100%;overflow:hidden}body{margin:0;padding-top:32px;background:radial-gradient(circle at 57% 38%,color-mix(in srgb,var(--accent) 14%,transparent),transparent 34%),var(--paper);color:var(--ink);font:14px/1.5 "Segoe UI","Microsoft YaHei",sans-serif}.shell{height:calc(100vh - 32px);display:grid;grid-template-columns:260px minmax(0,1fr);min-height:0}.rail{min-height:0;overflow:hidden;padding:26px;background:color-mix(in srgb,var(--accent) 13%,white);border-right:1px solid var(--line);display:flex;flex-direction:column}.brand{padding:10px 8px 22px}.brand i{display:block;width:44px;height:5px;border-radius:9px;background:var(--accent);margin-bottom:14px}.brand h1{font-size:22px;margin:0 0 8px}.brand p{margin:0;color:var(--muted);font-size:12px}.tabs{display:flex;flex-direction:column;gap:8px;min-height:0;overflow:auto}.tool-tab{border:0;background:transparent;text-align:left;padding:11px 12px;border-radius:26px;color:var(--muted);cursor:pointer}.tool-tab span{font:11px ui-monospace;margin-right:10px;opacity:.55}.tool-tab.active{background:var(--panel);color:var(--accent);box-shadow:0 10px 28px color-mix(in srgb,var(--accent) 12%,transparent);font-weight:700}.workspace{min-width:0;min-height:0;overflow:hidden;padding:24px}.tool-panel{height:100%;min-height:0;display:none;flex-direction:column;gap:14px}.tool-panel.active{display:flex}.tool-panel>header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex:none}.tool-panel h2{margin:0;font-size:24px}.tool-panel header p{margin:4px 0 0;color:var(--muted)}button,input,textarea,select{font:inherit}.run,.pick-row button,.drop-zone button{border:0;border-radius:24px;padding:10px 18px;background:var(--accent);color:white;cursor:pointer}.editor-pair{display:grid;grid-template-columns:1.08fr 1fr;gap:14px;flex:1;min-height:0}.source,.result{width:100%;min-height:0;resize:none;border:1px solid var(--line);border-radius:var(--radius);padding:16px;background:var(--panel);color:var(--ink);outline:none}.source:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)}.pick-row{display:flex;gap:8px;flex:none}.pick-row input,.record-board input{flex:1;border:1px solid var(--line);border-radius:10px;padding:10px;background:white}.pick-row+.source{flex:1}.drop-zone{border:2px dashed var(--line);border-radius:var(--radius);padding:20px;display:flex;align-items:center;justify-content:center;gap:14px;color:var(--muted)}.image-preview,.qr-preview{flex:1;min-height:0;display:grid;place-items:center;overflow:hidden;background:repeating-conic-gradient(#eef2f6 0 25%,#fff 0 50%) 0/20px 20px;border-radius:var(--radius)}canvas{max-width:100%;max-height:100%}.record-board{display:grid;grid-template-columns:320px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:12px;flex:1;min-height:0}.record-board input{grid-column:1/-1}.record-list{border:1px solid var(--line);border-radius:var(--radius);background:white;padding:16px;overflow:auto;color:var(--muted)}.status{min-height:20px;color:var(--muted);flex:none}@media(max-width:960px){.shell{grid-template-columns:176px minmax(0,1fr)}.workspace{padding:14px}.editor-pair{grid-template-columns:1fr}.result{display:none}.brand p{display:none}}
-</style><style data-composition>.shell{grid-template:108px minmax(0,1fr)/1fr}.rail{flex-direction:row;align-items:center;padding:18px 28px;background:#ecfdf3;border:0}.brand{padding:0}.tabs{display:grid;grid-template-columns:1fr 1fr;margin-left:auto}.workspace{padding:18px 28px}.record-board{grid-template-columns:repeat(3,1fr)}.record-board .source{grid-column:1/3}.record-list{grid-column:3}.tool-panel>header{border-radius:14px;background:white;padding:12px 18px}</style></head><body><main class="shell"><aside class="rail"><div class="brand"><i></i><h1>任务与习惯</h1><p>把一次性任务和长期习惯放在同一条进度线上。</p></div><nav class="tabs"><button class="tool-tab active" data-tool="todo-list"><span>01</span>待办</button><button class="tool-tab" data-tool="habit-tracker"><span>02</span>习惯</button></nav></aside><article class="workspace"><section class="tool-panel active" data-panel="todo-list"><header><div><h2>待办</h2><p>管理分组、优先级、截止日期和完成归档。</p></div><button class="run">运行</button></header><div class="record-board"><input data-field="title" placeholder="标题 / 项目"><textarea class="source" placeholder="记录内容或配置"></textarea><div class="record-list" data-output>尚无记录</div></div><div class="status" role="status"></div></section><section class="tool-panel" data-panel="habit-tracker"><header><div><h2>习惯</h2><p>每日习惯打卡、连续天数和本地统计。</p></div><button class="run">运行</button></header><div class="record-board"><input data-field="title" placeholder="标题 / 项目"><textarea class="source" placeholder="记录内容或配置"></textarea><div class="record-list" data-output>尚无记录</div></div><div class="status" role="status"></div></section></article></main><script>
-const api=window.pluginAPI;let current="todo-list";const $=(s,r=document)=>r.querySelector(s);
-document.querySelectorAll('.tool-tab').forEach(btn=>btn.onclick=()=>openTool(btn.dataset.tool));
-function openTool(id){current=id;document.querySelectorAll('.tool-tab').forEach(x=>x.classList.toggle('active',x.dataset.tool===id));document.querySelectorAll('.tool-panel').forEach(x=>x.classList.toggle('active',x.dataset.panel===id));}
-document.querySelectorAll('.run').forEach(btn=>btn.onclick=()=>run(btn.closest('.tool-panel')));
-document.querySelectorAll('[data-pick]').forEach(btn=>btn.onclick=()=>{const panel=btn.closest('.tool-panel');const value=btn.dataset.pick==='dir'?api.selectDirectory('选择目录'):api.selectFiles({multiple:true});const path=panel.querySelector('[data-field=path]');if(path)path.value=Array.isArray(value)?value.join(';'):value;});
-async function run(panel){const input=panel.querySelector('.source')?.value||'';const path=panel.querySelector('[data-field=path]')?.value||'';const status=panel.querySelector('.status');status.textContent='处理中…';const options=optionsFor(current,path,panel);if((current.startsWith('image-')||['palette-extractor','screenshot-beautifier'].includes(current))&&path){const canvas=panel.querySelector('canvas'),image=new Image();image.onload=()=>{const scale=Math.min(canvas.width/image.width,canvas.height/image.height);const w=image.width*scale,h=image.height*scale;const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,(canvas.width-w)/2,(canvas.height-h)/2,w,h)};image.src=api.readFileDataUrl(path.split(';')[0])}const response=await api.runTask({toolId:current,input,options,execute:false});if(current==='qr-barcode'&&response.ok&&response.result?.dataUrl){const canvas=panel.querySelector('canvas'),image=new Image();image.onload=()=>canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);image.src=response.result.dataUrl}status.textContent=response.ok?'已完成':'操作失败：'+response.error;const out=panel.querySelector('.result,[data-output]');if(out&&response.ok){const text=typeof response.result==='string'?response.result:JSON.stringify(response.result,null,2);if('value'in out)out.value=text;else out.textContent=text;}}
-function optionsFor(id,path,panel){const files=path?path.split(';').filter(Boolean):[];if(id==='json-workbench')return{action:'format',query:''};if(id==='config-converter')return{source:'json',target:'yaml'};if(id==='xml-workbench')return{action:'format'};if(id==='hash-hmac')return{algorithm:'sha256'};if(id==='id-generator')return{type:'uuid',count:8};if(id==='regex-lab')return{pattern:'\w+',flags:'g'};if(id==='csv-table')return{action:'json',delimiter:','};if(id==='line-processor')return{unique:true,sort:true};if(id==='batch-renamer')return{directory:path,find:'',replace:''};if(id==='file-content-search')return{directory:path,query:panel.querySelector('.source')?.value||'',extensions:'txt,md,js,json'};if(id==='folder-compare')return{directoryA:files[0]||path,directoryB:files[1]||'',hash:true};if(id==='directory-tree')return{directory:path,format:'markdown'};if(id==='file-checksum')return{files};if(id==='pdf-organizer')return{files,rotation:0};if(id==='archive-tool')return{action:'preview',file:files[0]||path};return{files,directory:path};}
-window.addEventListener('plugin-enter',e=>{const id=e.detail?.toolId;if(id)openTool(id);const text=e.detail?.action?.payload||e.detail?.action?.clipboardText||'';const input=document.querySelector('.tool-panel.active .source');if(input&&text)input.value=text;});api.migrateLegacy().catch(()=>{});
-</script></body></html>
+﻿<!DOCTYPE html>
+<html lang="zh-CN" data-layout="kanban-garden">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>任务与习惯</title>
+<style>
+:root{
+  --accent:#2b8a3e;--accent-2:#40c057;--accent-soft:rgba(43,138,62,.1);--accent-line:rgba(43,138,62,.3);
+  --bg:#f3faf4;--surface:#fff;--surface-2:#e9f5ec;--border:#cde9d3;
+  --ink:#0f2e16;--muted:#5a7560;--faint:#9ab0a0;
+  --ok:#16a34a;--err:#dc2626;--warn:#d97706;--info:#2563eb;
+  --mono:'JetBrains Mono',Consolas,monospace;
+  --sans:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans)}
+.app{height:calc(100vh - 32px);display:flex;flex-direction:column;min-height:0}
+.head{display:flex;align-items:center;gap:14px;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
+.icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;flex:none}
+.icon svg{width:18px;height:18px;color:#fff}
+.head h1{margin:0;font-size:17px;font-weight:700}
+.head p{margin:0;color:var(--muted);font-size:12px}
+.spacer{flex:1}
+.tabs{display:flex;gap:6px;padding:10px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
+.tab{border:0;background:transparent;color:var(--muted);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;transition:.15s;display:flex;align-items:center;gap:7px}
+.tab svg{width:15px;height:15px}
+.tab:hover{background:var(--surface-2)}.tab.active{background:var(--accent);color:#fff}
+.content{flex:1;min-height:0;overflow:hidden;padding:16px 24px}
+.panel{height:100%;min-height:0;display:none;flex-direction:column;gap:14px}
+.panel.active{display:flex}
+/* todo */
+.add-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:none}
+.inp{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font:14px var(--sans);color:var(--ink);outline:none}
+.inp:focus{border-color:var(--accent-line);box-shadow:0 0 0 3px var(--accent-soft)}
+.sel{background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:7px;padding:8px 10px;font-size:13px;cursor:pointer;outline:none}
+.btn{border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:8px;padding:9px 16px;font-size:13px;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--accent-line)}
+.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;border-color:transparent}
+.todo-stats{display:flex;gap:14px;flex:none}
+.stat-pill{display:flex;align-items:center;gap:6px;font:600 13px var(--mono);color:var(--muted)}
+.stat-pill .n{font-size:18px;color:var(--accent)}
+.todo-list{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px}
+.todo-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:12px;transition:.15s}
+.todo-item:hover{border-color:var(--accent-line);box-shadow:0 2px 8px rgba(43,138,62,.08)}
+.todo-item.done{opacity:.55}
+.todo-item.done .todo-text{text-decoration:line-through;color:var(--faint)}
+.todo-check{width:22px;height:22px;border:2px solid var(--border);border-radius:6px;cursor:pointer;flex:none;display:flex;align-items:center;justify-content:center;transition:.15s}
+.todo-check.checked{background:var(--accent);border-color:var(--accent)}
+.todo-check.checked svg{display:block}
+.todo-check svg{display:none;width:14px;height:14px;color:#fff}
+.todo-text{flex:1;font-size:14px}
+.todo-pri{font:600 10px var(--mono);padding:3px 8px;border-radius:999px}
+.pri-high{background:rgba(220,38,38,.12);color:var(--err)}
+.pri-normal{background:var(--accent-soft);color:var(--accent)}
+.pri-low{background:rgba(154,176,160,.15);color:var(--faint)}
+.todo-due{font:12px var(--mono);color:var(--warn)}
+.todo-del{border:0;background:transparent;color:var(--faint);cursor:pointer;font-size:16px;padding:4px}
+.todo-del:hover{color:var(--err)}
+.todo-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--faint);gap:10px}
+.todo-empty svg{width:48px;height:48px;opacity:.3}
+/* habits */
+.habit-grid{flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;align-content:start}
+.habit-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px}
+.habit-name{font-weight:700;font-size:15px;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between}
+.habit-streak{font:600 12px var(--mono);color:var(--accent)}
+.week-row{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:12px}
+.day-cell{text-align:center}
+.day-label{font-size:10px;color:var(--faint);margin-bottom:4px}
+.day-check{width:100%;aspect-ratio:1;border:2px solid var(--border);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s}
+.day-check.checked{background:var(--accent);border-color:var(--accent)}
+.day-check.checked svg{display:block}
+.day-check svg{display:none;width:14px;height:14px;color:#fff}
+.habit-del{border:0;background:transparent;color:var(--faint);cursor:pointer;font-size:14px}
+.habit-del:hover{color:var(--err)}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#0f2e16;color:#fff;padding:10px 22px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:50}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#bcd8c4;border-radius:4px}
+</style>
+</head>
+<body>
+<main class="app">
+  <div class="head">
+    <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+    <div><h1>任务与习惯</h1><p>把一次性任务和长期习惯放在同一条进度线上</p></div>
+    <div class="spacer"></div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" data-tool="todo-list"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>待办任务</button>
+    <button class="tab" data-tool="habit-tracker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>习惯打卡</button>
+  </div>
+  <div class="content">
+    <div class="panel active" data-panel="todo-list">
+      <div class="add-row">
+        <input class="inp" id="todoInput" placeholder="输入任务后回车添加…" style="flex:1;min-width:200px">
+        <select class="sel" id="todoPri"><option value="normal">普通</option><option value="high">高优先级</option><option value="low">低优先级</option></select>
+        <input class="inp" id="todoDue" type="date">
+        <button class="btn primary" id="todoAdd">添加任务</button>
+      </div>
+      <div class="todo-stats">
+        <span class="stat-pill"><span class="n" id="todoTotal">0</span>总任务</span>
+        <span class="stat-pill"><span class="n" id="todoDone">0</span>已完成</span>
+        <span class="stat-pill"><span class="n" id="todoPct">0%</span>完成率</span>
+      </div>
+      <div class="todo-list" id="todoList"></div>
+    </div>
+    <div class="panel" data-panel="habit-tracker">
+      <div class="add-row">
+        <input class="inp" id="habitInput" placeholder="输入习惯名称…" style="flex:1;min-width:200px">
+        <button class="btn primary" id="habitAdd">添加习惯</button>
+      </div>
+      <div class="habit-grid" id="habitGrid"></div>
+    </div>
+  </div>
+</main>
+<div class="toast" id="toast"></div>
+<script>
+const api=window.pluginAPI;const $=s=>document.querySelector(s);const $$=s=>document.querySelectorAll(s);
+let current='todo-list';
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1600);}
+$$('.tab').forEach(t=>t.onclick=()=>{current=t.dataset.tool;$$('.tab').forEach(x=>x.classList.toggle('active',x===t));$$('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===current));if(current==='habit-tracker')renderHabits();});
+// Todo
+let todos=[];
+async function loadTodos(){todos=await api.storage.get('todos')||[];renderTodos();}
+function renderTodos(){
+  const done=todos.filter(t=>t.completed).length;
+  $('#todoTotal').textContent=todos.length;$('#todoDone').textContent=done;
+  $('#todoPct').textContent=todos.length?Math.round(done/todos.length*100)+'%':'0%';
+  if(!todos.length){$('#todoList').innerHTML='<div class="todo-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>还没有任务，添加一个吧</span></div>';return;}
+  const sorted=[...todos].sort((a,b)=>(a.completed-b.completed)||({high:0,normal:1,low:2}[a.priority]??1)-({high:0,normal:1,low:2}[b.priority]??1));
+  $('#todoList').innerHTML=sorted.map(t=>{const idx=todos.indexOf(t);return `<div class="todo-item${t.completed?' done':''}"><div class="todo-check${t.completed?' checked':''}" data-tog="${idx}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></div><span class="todo-text">${esc(t.title)}</span>${t.dueDate?`<span class="todo-due">📅 ${t.dueDate}</span>`:''}<span class="todo-pri pri-${t.priority||'normal'}">${{high:'高',normal:'普通',low:'低'}[t.priority||'normal']}</span><button class="todo-del" data-del="${idx}">×</button></div>`;}).join('');
+  $$('#todoList [data-tog]').forEach(el=>el.onclick=async()=>{todos[+el.dataset.tog].completed=!todos[+el.dataset.tog].completed;await api.storage.set('todos',todos);renderTodos();});
+  $$('#todoList [data-del]').forEach(el=>el.onclick=async()=>{todos.splice(+el.dataset.del,1);await api.storage.set('todos',todos);renderTodos();});
+}
+$('#todoAdd').onclick=addTodo;$('#todoInput').onkeydown=e=>{if(e.key==='Enter')addTodo();};
+async function addTodo(){const title=$('#todoInput').value.trim();if(!title){toast('请输入任务');return;}todos.unshift({title,priority:$('#todoPri').value,dueDate:$('#todoDue').value,completed:false});await api.storage.set('todos',todos);$('#todoInput').value='';$('#todoDue').value='';renderTodos();}
+loadTodos();
+// Habits
+let habits=[];const dayLabels=['一','二','三','四','五','六','日'];
+async function loadHabits(){habits=await api.storage.get('habits')||[];renderHabits();}
+function getWeekKey(date){const d=new Date(date);const y=d.getFullYear();const w=Math.floor((d-new Date(y,0,1))/604800000);return `${y}-W${w}`;}
+function renderHabits(){
+  if(!habits.length){$('#habitGrid').innerHTML='<div style="grid-column:1/-1;color:var(--faint);text-align:center;padding:40px">添加一个习惯开始打卡</div>';return;}
+  const weekKey=getWeekKey(new Date());const today=new Date().getDay()||7;
+  $('#habitGrid').innerHTML=habits.map((h,i)=>{
+    const checks=h.weeks?.[weekKey]||[false,false,false,false,false,false,false];
+    const streak=checks.filter(Boolean).length;
+    return `<div class="habit-card"><div class="habit-name">${esc(h.name)}<button class="habit-del" data-hdel="${i}">×</button></div><div class="habit-streak">本周打卡 ${streak}/7 天</div><div class="week-row">${checks.map((c,di)=>`<div class="day-cell"><div class="day-label">周${dayLabels[di]}</div><div class="day-check${c?' checked':''}" data-h="${i}" data-d="${di}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></div></div>`).join('')}</div></div>`;
+  }).join('');
+  $$('#habitGrid [data-hdel]').forEach(el=>el.onclick=async()=>{habits.splice(+el.dataset.hdel,1);await api.storage.set('habits',habits);renderHabits();});
+  $$('#habitGrid [data-h]').forEach(el=>el.onclick=async()=>{const hi=+el.dataset.h,di=+el.dataset.d;const wk=getWeekKey(new Date());if(!habits[hi].weeks)habits[hi].weeks={};if(!habits[hi].weeks[wk])habits[hi].weeks[wk]=[false,false,false,false,false,false,false];habits[hi].weeks[wk][di]=!habits[hi].weeks[wk][di];await api.storage.set('habits',habits);renderHabits();});
+}
+$('#habitAdd').onclick=async()=>{const name=$('#habitInput').value.trim();if(!name){toast('请输入习惯名称');return;}habits.push({name,weeks:{}});await api.storage.set('habits',habits);$('#habitInput').value='';renderHabits();};
+$('#habitInput').onkeydown=e=>{if(e.key==='Enter')$('#habitAdd').click();};
+loadHabits();
+window.addEventListener('plugin-enter',e=>{const text=e.detail?.action?.payload||e.detail?.action?.clipboardText||e.detail?.payload||e.detail?.clipboardText||'';if(text&&current==='todo-list'){$('#todoInput').value=text;}});
+</script>
+</body></html>

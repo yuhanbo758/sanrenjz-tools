@@ -16,6 +16,7 @@
 - 30 个新增插件以 `scripts/plugin-market/catalog-v2.js` 为唯一目录清单；20 个套件保留 44 个旧 Feature Code，10 个 AI 插件各有独立入口。
 - 新插件共享 `app/plugin_runtime/tool-runtime.js` 和 `app/plugin_runtime/ai-runtime.js`，但每个插件拥有独立的 HTML、布局标识、配色和业务交互。
 - 插件密钥通过主进程 `plugin-secret-*` 接口保存，并在系统支持时使用 Electron `safeStorage` 加密；不得把 API Key 写入页面或普通 JSON 存储。
+- 10 个 AI 插件通过 `app/plugin_runtime/ai-provider-manager.js` 共享多供应商目录；可同时保留 GLM、DeepSeek 等供应商和多个模型，文本与视觉模型选择分别持久化，视觉插件只展示声明 `vision` 能力的模型。
 
 ## 开发环境与约束
 
@@ -31,9 +32,9 @@
 
 | 用途 | 命令 | 验证日期 | 适用条件 |
 |------|------|----------|----------|
-| 插件协议与逻辑测试 | `npm run test:plugins` | 2026-07-14 | 校验 20 个套件、10 个 AI 插件、旧入口、AI Mock 和临时文件流程 |
-| Electron 三尺寸冒烟 | `npm run test:plugins:electron` | 2026-07-14 | 每个新增插件验证 900×650、1180×760、最大化三种尺寸 |
-| 插件界面截图 | `npm run test:plugins:gallery` | 2026-07-14 | 输出到 `dist/plugin-ui-gallery-v2/`，用于人工检查布局 |
+| 插件协议与逻辑测试 | `npm run test:plugins` | 2026-07-15 | 校验 20 个套件、10 个 AI 插件、旧入口、AI Mock 和临时文件流程 |
+| Electron 三尺寸冒烟 | `npm run test:plugins:electron` | 2026-07-15 | 每个新增插件验证 900×650、1180×760、最大化三种尺寸 |
+| 插件界面截图 | `npm run test:plugins:gallery` | 2026-07-15 | 输出到 `dist/plugin-ui-gallery-v2/`，用于人工检查布局 |
 | 图标缩略图检查 | `npm run test:plugins:icons` | 2026-07-14 | 输出到 `dist/plugin-icon-gallery/`，检查 30 个图标的语义与辨识度 |
 | 重建插件图标 | `node scripts/regenerate-tabler-icons.js` 后运行 `npm run generate:icons` | 2026-07-14 | 先更新官方 Tabler SVG，再生成 PNG 和多尺寸 ICO |
 
@@ -48,6 +49,7 @@
 
 - 将 50 个候选功能收敛为 20 个工具套件并新增 10 个 AI 插件，删除与 Windows 自带能力高度重复的系统工具；原因是降低碎片化和维护成本，同时保留 44 个有价值的旧功能入口。
 - AI 插件共享供应商、密钥、流式请求、取消和超时能力，但不共享页面结构；原因是安全逻辑需要集中维护，而用户明确要求每个插件保持独立设计。
+- AI 供应商配置采用一个共享目录而不是每个插件独立维护；原因是供应商和密钥应一次配置、多处复用，同时每次请求仍需显式传递当前模型选择，避免切换配置时互相覆盖。
 - 30 个插件图标参考 Icon-Icons 的 Tabler 图标包，但从 Tabler 官方 MIT 源获取并在每个插件保存来源与许可证；原因是保证授权清晰且可追溯。
 
 ## 已知陷阱与可靠处理方式
@@ -56,6 +58,8 @@
 - 文件修改、批量重命名、Hosts 等破坏性能力必须先预览、备份、二次确认，并明确反馈失败；测试只能使用临时目录。
 - 插件图标不能只保留 SVG；主界面和系统入口还需要 PNG 与包含多个尺寸的 ICO，统一使用 `scripts/render-plugin-icons.js` 生成。
 - `main.js` 已超过 8000 行，修改 IPC 或窗口生命周期时应进行窄范围改动并重点验证资源释放，避免继续复制同类 handler。
+- `tool-runtime.saveResult()` 会自行打开保存对话框；页面不得先调用 `chooseSavePath()` 再调用它。只有由具体任务直接写入 `options.output` 时才先选择路径。
+- `createToolRuntime()` 会按 `allowedTools` 拒绝跨套件工具 ID；页面需要的小型展示逻辑应本地实现，不能随意调用其他套件的 `runTask`。
 
 ## 待确认或可能过期的信息
 
@@ -66,4 +70,6 @@
 
 | 日期 | 新增/修订内容 | 依据 |
 |------|---------------|------|
+| 2026-07-15 | 记录 AI 多供应商目录、文本/视觉模型筛选和显式请求选择 | AI Runtime/组件测试、30 插件三尺寸 Electron 冒烟与界面图库 |
+| 2026-07-15 | 更新 30 个插件界面验证日期，并记录保存对话框与工具权限陷阱 | `npm run test:plugins`、`npm run test:plugins:electron`、界面图库与运行时审计 |
 | 2026-07-14 | 创建项目记忆，记录插件重组架构、用户确认的界面约束和已验证测试命令 | 当前代码、`package.json`、插件校验与 Electron 冒烟结果 |

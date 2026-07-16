@@ -1,5 +1,108 @@
-<!doctype html><html lang="zh-CN" data-layout="meeting-board"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI 会议纪要</title><style>
-:root{--a:#0f766e;--bg:#fffaf6;--ink:#18202b;--muted:#687284}*{box-sizing:border-box}html,body{height:100%;overflow:hidden}body{margin:0;padding-top:32px;background:linear-gradient(129deg,color-mix(in srgb,var(--a) 10%,var(--bg)),var(--bg) 45%);color:var(--ink);font:14px/1.5 "Segoe UI","Microsoft YaHei",sans-serif}.app{height:calc(100vh - 32px);display:flex;flex-direction:column;min-height:0}.mast{height:106px;flex:none;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid color-mix(in srgb,var(--a) 18%,transparent)}.mast h1{margin:0;font-size:24px}.mast p{margin:4px 0 0;color:var(--muted)}.gear{border:1px solid color-mix(in srgb,var(--a) 30%,#ddd);background:white;color:var(--a);border-radius:8px;padding:9px 14px}.modes{display:flex;gap:8px;padding:12px 24px;overflow-x:auto;flex:none}.mode{border:0;background:transparent;color:var(--muted);padding:8px 13px;border-radius:999px;white-space:nowrap}.mode.active{background:var(--a);color:white}.desk{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:0 24px 20px;flex:1;min-height:0}.source-card,.result-card,.side-card{min-width:0;min-height:0;background:rgba(255,255,255,.9);border:1px solid color-mix(in srgb,var(--a) 16%,#d9dee7);border-radius:14px;display:flex;flex-direction:column;overflow:hidden}.card-head{padding:12px 14px;border-bottom:1px solid #edf0f4;color:var(--muted);font-size:12px}.source,.result{border:0;outline:0;resize:none;padding:16px;flex:1;min-height:0;background:transparent;color:inherit;line-height:1.75}.result{overflow:auto;white-space:pre-wrap}.actions{padding:12px;display:flex;gap:8px}.primary,.stop{border:0;padding:10px 18px;border-radius:999px;color:white;background:var(--a)}.stop{background:#64748b}.side-card{padding:15px}.side-card h3{margin:0 0 12px}.hint{color:var(--muted);font-size:12px}.settings{position:fixed;inset:32px 0 0 auto;width:min(430px,92vw);background:white;box-shadow:-20px 0 60px #0002;padding:22px;z-index:5;display:none;overflow:auto}.settings.open{display:block}.settings label{display:block;margin:12px 0 5px;color:var(--muted)}.settings input{width:100%;padding:10px;border:1px solid #d9dee7;border-radius:8px}.settings button{margin-top:14px;padding:10px 14px;border:0;background:var(--a);color:#fff;border-radius:8px}@media(max-width:960px){.desk{grid-template-columns:1fr}.side-card{display:none}.mast p{display:none}}
-</style><style data-composition>.mast{background:#dff7f3}.desk{grid-template-columns:1fr 1fr}.source-card,.result-card{border-radius:2px}.side-card{position:absolute;right:40px;top:48px;width:290px;background:#fffbe8;transform:rotate(1.2deg);box-shadow:4px 6px 18px #0002}.mast{padding-right:350px}</style></head><body><main class="app"><header class="mast"><div><h1>AI 会议纪要</h1><p>把转写文本整理为议题、结论、决策和待办。</p></div><button class="gear">供应商设置</button></header><nav class="modes"><button class="mode active">整理纪要</button><button class="mode">提取决策</button><button class="mode">提取待办</button></nav><section class="desk"><div class="source-card"><div class="card-head">素材与要求</div><textarea class="source" placeholder="粘贴内容，或描述你希望 AI 完成的任务"></textarea><div class="actions"><button class="primary">开始生成</button><button class="stop">取消</button></div></div><div class="result-card"><div class="card-head">生成结果</div><div class="result"></div></div><aside class="side-card"><h3>提取待办</h3><p class="hint">结果将按当前任务的结构输出。模型配置在十个 AI 插件间共享。</p><div class="hint status">等待输入</div></aside></section></main><aside class="settings"><h2>统一供应商配置</h2><label>服务名称</label><input class="provider-name" value="OpenAI 兼容服务"><label>Base URL</label><input class="base-url" value="https://api.openai.com/v1"><label>模型 ID</label><input class="model-id" value="gpt-4o-mini"><label>API Key</label><input class="api-key" type="password" placeholder="仅保存到系统安全存储"><button class="save-settings">保存并共享</button></aside><script>
-const api=window.aiAPI,$=s=>document.querySelector(s);let requestId='',mode="整理纪要";document.querySelectorAll('.mode').forEach(b=>b.onclick=()=>{document.querySelectorAll('.mode').forEach(x=>x.classList.remove('active'));b.classList.add('active');mode=b.textContent});$('.gear').onclick=()=>$('.settings').classList.toggle('open');$('.save-settings').onclick=async()=>{const provider={id:'custom',name:$('.provider-name').value,baseUrl:$('.base-url').value,models:[{id:$('.model-id').value,label:$('.model-id').value,capabilities:['text','vision']}]};const config=await api.getConfig();config.providers=[provider,...config.providers.filter(x=>x.id!=='custom')];config.selections={text:{providerId:'custom',modelId:provider.models[0].id},vision:{providerId:'custom',modelId:provider.models[0].id}};await api.saveConfig(config);if($('.api-key').value)await api.saveProviderSecret('custom',$('.api-key').value);$('.settings').classList.remove('open')};api.onChunk(chunk=>{$('.result').textContent=chunk.text});$('.primary').onclick=async()=>{const text=$('.source').value.trim();if(!text)return;requestId=crypto.randomUUID();$('.result').textContent='';$('.status').textContent='生成中…';const capability="text";const prompt="AI 会议纪要"+' / '+mode+'\n请用中文清晰输出。\n\n'+text;try{const r=await api.complete({requestId,capability,stream:true,messages:[{role:'user',content:prompt}]});$('.result').textContent=r.text;$('.status').textContent='已完成'}catch(e){$('.result').textContent=e.message;$('.status').textContent='失败'}};$('.stop').onclick=()=>requestId&&api.cancel(requestId);window.addEventListener('plugin-enter',e=>{const text=e.detail?.payload||e.detail?.clipboardText||'';if(text)$('.source').value=text});
-</script><script data-business>const bar=document.querySelector('.actions');const load=document.createElement('button');load.className='stop';load.textContent='载入转写文本';bar.prepend(load);load.onclick=()=>{const file=aiAPI.pickTranscript();if(file){document.querySelector('.source').value=aiAPI.readTranscript(file);document.querySelector('.status').textContent='转写文本已载入'}};</script></body></html>
+﻿<!DOCTYPE html>
+<html lang="zh-CN" data-layout="meeting-board">
+<head data-business>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI 会议纪要</title>
+<style>
+:root{--a:#0f766e;--a2:#14b8a6;--as:rgba(15,118,110,.1);--al:rgba(15,118,110,.3);--bg:#f0fafa;--sf:#fff;--s2:#d0f0ee;--bd:#b8e0dc;--ink:#0a2e2c;--mt:#4a7570;--ft:#7aa0a0;--ok:#16a34a;--err:#dc2626;--warn:#d97706;--info:#2563eb;--mono:'JetBrains Mono',Consolas,monospace;--sans:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif}
+*{box-sizing:border-box}html,body{height:100%;overflow:hidden}body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans)}
+.app{height:calc(100vh - 32px);display:flex;flex-direction:column;min-height:0}
+.head{display:flex;align-items:center;gap:14px;padding:14px 24px;background:var(--sf);border-bottom:1px solid var(--bd);flex:none}
+.icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--a),var(--a2));display:flex;align-items:center;justify-content:center;flex:none}.icon svg{width:18px;height:18px;color:#fff}
+.head h1{margin:0;font-size:17px;font-weight:700}.head p{margin:0;color:var(--mt);font-size:12px}
+.spacer{flex:1}.gear{border:1px solid var(--bd);background:var(--sf);color:var(--a);border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px}.gear svg{width:14px;height:14px}
+.body{flex:1;min-height:0;display:grid;grid-template-rows:auto 1fr;gap:14px;padding:14px 24px;overflow:hidden}
+.input-section{display:flex;flex-direction:column;gap:10px;flex:none}
+.input-head{display:flex;align-items:center;gap:10px}
+.quick-btn{border:1px solid var(--al);background:var(--as);color:var(--a);border-radius:999px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer}.quick-btn:hover{background:var(--a);color:#fff}
+.input-head .title{font-weight:700;font-size:14px;flex:1}
+.input-head .cnt{font:11px var(--mono);color:var(--ft)}
+.transcript{height:120px;border:1px solid var(--bd);border-radius:10px;padding:12px;font:13px/1.6 var(--mono);background:var(--sf);color:var(--ink);outline:none;resize:none;width:100%}
+.transcript:focus{border-color:var(--al)}
+.gen-btn{border:0;background:linear-gradient(135deg,var(--a),var(--a2));color:#fff;border-radius:8px;padding:8px 22px;font-size:13px;font-weight:600;cursor:pointer}.gen-btn:disabled{opacity:.5}
+.output-section{flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:repeat(2,1fr);gap:12px;align-content:start}
+.out-card{background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:16px;display:flex;flex-direction:column;min-height:0}
+.out-card h3{margin:0 0 10px;font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+.out-card h3 .badge{font:10px var(--mono);padding:2px 8px;border-radius:999px}
+.out-card .content{font-size:13px;line-height:1.7;white-space:pre-wrap;word-break:break-word;flex:1;overflow:auto;color:var(--ink)}
+.out-card .content.empty{color:var(--ft);font-style:italic}
+.out-card.decisions h3 .badge{background:var(--as);color:var(--a)}
+.out-card.todos h3 .badge{background:rgba(217,119,6,.12);color:var(--warn)}
+.out-card.agenda h3 .badge{background:rgba(37,99,235,.12);color:var(--info)}
+.out-card.summary h3 .badge{background:rgba(22,163,74,.12);color:var(--ok)}
+.drawer{position:fixed;top:32px;right:0;bottom:0;width:min(420px,92vw);background:var(--sf);box-shadow:-12px 0 40px rgba(0,0,0,.1);z-index:50;transform:translateX(100%);transition:.25s;overflow:auto;padding:24px}.drawer.open{transform:translateX(0)}.drawer h2{margin:0 0 16px;font-size:16px}.drawer .close{position:absolute;top:16px;right:16px;border:0;background:transparent;font-size:20px;color:var(--ft);cursor:pointer}
+.field{margin-bottom:16px}.field label{display:block;font-size:12px;color:var(--mt);font-weight:600;margin-bottom:6px}.field input{width:100%;border:1px solid var(--bd);border-radius:8px;padding:9px 12px;font:14px var(--sans);outline:none;background:var(--s2);color:var(--ink)}.field input:focus{border-color:var(--al)}
+.overlay{position:fixed;inset:32px 0 0 0;background:rgba(0,0,0,.3);z-index:40;display:none}.overlay.show{display:block}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#0a2e2c;color:#fff;padding:10px 22px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:60}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#a8d8d2;border-radius:4px}
+</style>
+</head>
+<body>
+<main class="app">
+  <div class="head">
+    <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 10h18M8 14h2M8 18v2M16 18v2"/></svg></div>
+    <div><h1>AI 会议纪要</h1><p>把转写文本整理为议题、结论、决策和待办</p></div>
+    <div class="spacer"></div>
+    <button class="gear" onclick="toggleDrawer()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 1-.1 1.2l2 1.5-2 3.4-2.3-1a7 7 0 0 1-2 1.2l-.4 2.5H9l-.4-2.5a7 7 0 0 1-2-1.2l-2.3 1-2-3.4 2-1.5A7 7 0 0 1 4 12a7 7 0 0 1 .1-1.2l-2-1.5 2-3.4 2.3 1a7 7 0 0 1 2-1.2L9 1h4l.4 2.5a7 7 0 0 1 2 1.2l2.3-1 2 3.4-2 1.5A7 7 0 0 1 19 12z"/></svg>供应商设置</button>
+  </div>
+  <div class="body">
+    <div class="input-section">
+      <div class="input-head"><span class="title">会议转写文本</span><span class="cnt" id="cnt">0 字</span>
+        <button class="quick-btn" onclick="quickGen('纪要')">整理纪要</button>
+        <button class="quick-btn" onclick="quickGen('决策')">提取决策</button>
+        <button class="quick-btn" onclick="quickGen('待办')">提取待办</button>
+        <button class="gen-btn" id="genBtn" onclick="generateAll()">生成全部</button>
+      </div>
+      <textarea class="transcript" id="transcript" placeholder="粘贴会议转写文本或会议记录…"></textarea>
+    </div>
+    <div class="output-section">
+      <div class="out-card agenda"><h3>议题 <span class="badge">AGENDA</span></h3><div class="content empty" id="outAgenda">点击生成</div></div>
+      <div class="out-card summary"><h3>结论 <span class="badge">SUMMARY</span></h3><div class="content empty" id="outSummary">点击生成</div></div>
+      <div class="out-card decisions"><h3>决策 <span class="badge">DECISIONS</span></h3><div class="content empty" id="outDecisions">点击生成</div></div>
+      <div class="out-card todos"><h3>待办事项 <span class="badge">TODOS</span></h3><div class="content empty" id="outTodos">点击生成</div></div>
+    </div>
+  </div>
+</main>
+<div class="overlay" id="overlay" onclick="toggleDrawer()"></div>
+<aside class="drawer" id="drawer"><button class="close" onclick="toggleDrawer()">×</button><h2>统一供应商配置</h2>
+  <div class="field"><label>服务名称</label><input id="pName" value="OpenAI 兼容服务"></div>
+  <div class="field"><label>Base URL</label><input id="pUrl" value="https://api.openai.com/v1"></div>
+  <div class="field"><label>模型 ID</label><input id="pModel" value="gpt-4o-mini"></div>
+  <div class="field"><label>API Key</label><input id="pKey" type="password" placeholder="仅保存到系统安全存储"></div>
+  <button class="gen-btn" style="width:100%" onclick="saveProvider()">保存并共享</button>
+</aside>
+<div class="toast" id="toast"></div>
+<script src="../../plugin_runtime/ai-provider-manager.js"></script>
+<script>
+const api=window.aiAPI;const $=s=>document.querySelector(s);
+let requestId='';
+const providerManager=AIProviderManager.create(api,{capability:'text',notify:toast});
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1600);}
+function toggleDrawer(){$('#drawer').classList.toggle('open');$('#overlay').classList.toggle('show');}
+$('#transcript').addEventListener('input',()=>$('#cnt').textContent=$('#transcript').value.length+' 字');
+const prompts={'纪要':'请将以下会议转写整理为结构化纪要，包含议题、讨论要点和结论：\n\n','决策':'请从以下会议记录中提取所有明确做出的决策，用列表格式输出：\n\n','待办':'请从以下会议记录中提取所有待办事项，格式为「- [ ] 负责人：任务内容（截止时间如有）」：\n\n','全部':'请将以下会议转写整理为四个部分，用 Markdown 标题分隔：\n## 议题\n## 结论\n## 决策\n## 待办事项\n\n会议文本：\n'};
+async function callAI(prompt,targetId){
+  const el=$('#'+targetId);el.classList.remove('empty');el.textContent='生成中…';requestId=crypto.randomUUID();
+  api.onChunk(chunk=>{if(chunk.requestId===requestId)el.textContent=chunk.text;});
+  try{const r=await api.complete({requestId,capability:'text',selection:await providerManager.getSelection(),stream:true,messages:[{role:'user',content:prompt+$('#transcript').value}]});el.textContent=r.text;}
+  catch(e){el.textContent='错误：'+e.message;}
+}
+function quickGen(type){if(!$('#transcript').value.trim()){toast('请先输入转写文本');return;}const targets={'纪要':'outSummary','决策':'outDecisions','待办':'outTodos'};callAI(prompts[type],targets[type]);}
+async function generateAll(){
+  if(!$('#transcript').value.trim()){toast('请先输入转写文本');return;}$('#genBtn').disabled=true;
+  requestId=crypto.randomUUID();
+  api.onChunk(chunk=>{if(chunk.requestId===requestId){parseSections(chunk.text);}});
+  try{const r=await api.complete({requestId,capability:'text',selection:await providerManager.getSelection(),stream:true,messages:[{role:'user',content:prompts['全部']+$('#transcript').value}]});parseSections(r.text);}
+  catch(e){$('#outSummary').textContent='错误：'+e.message;}
+  finally{$('#genBtn').disabled=false;}
+}
+function parseSections(text){
+  const parts=text.split(/##\s*/);const map={};
+  parts.forEach(p=>{const lines=p.split('\n');const h=lines[0].trim();const body=lines.slice(1).join('\n').trim();map[h]=body;});
+  const setOut=(key,id)=>{const el=$('#'+id);el.classList.remove('empty');el.textContent=map[key]||'无';};
+  setOut('议题','outAgenda');setOut('结论','outSummary');setOut('决策','outDecisions');setOut('待办事项','outTodos');
+}
+window.addEventListener('plugin-enter',e=>{const text=e.detail?.payload||e.detail?.clipboardText||'';if(text){$('#transcript').value=text;$('#cnt').textContent=text.length+' 字';}});
+</script>
+</body></html>

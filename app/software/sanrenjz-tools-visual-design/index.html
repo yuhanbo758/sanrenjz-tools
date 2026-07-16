@@ -1,12 +1,164 @@
-<!doctype html><html lang="zh-CN" data-layout="swatch-wall"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>视觉设计实验室</title><style>
-:root{--accent:#5f3dc4;--ink:#172033;--muted:#667085;--line:color-mix(in srgb,var(--accent) 18%,#dbe2ea);--paper:#f8fafc;--panel:#fff;--radius:8px}*{box-sizing:border-box}html,body{height:100%;overflow:hidden}body{margin:0;padding-top:32px;background:radial-gradient(circle at 48% 32%,color-mix(in srgb,var(--accent) 14%,transparent),transparent 34%),var(--paper);color:var(--ink);font:14px/1.5 "Segoe UI","Microsoft YaHei",sans-serif}.shell{height:calc(100vh - 32px);display:grid;grid-template-columns:190px minmax(0,1fr);min-height:0}.rail{min-height:0;overflow:hidden;padding:26px;background:color-mix(in srgb,var(--accent) 9%,white);border-right:1px solid var(--line);display:flex;flex-direction:column}.brand{padding:10px 8px 22px}.brand i{display:block;width:49px;height:5px;border-radius:9px;background:var(--accent);margin-bottom:14px}.brand h1{font-size:22px;margin:0 0 8px}.brand p{margin:0;color:var(--muted);font-size:12px}.tabs{display:flex;flex-direction:column;gap:9px;min-height:0;overflow:auto}.tool-tab{border:0;background:transparent;text-align:left;padding:11px 12px;border-radius:4px;color:var(--muted);cursor:pointer}.tool-tab span{font:11px ui-monospace;margin-right:10px;opacity:.55}.tool-tab.active{background:var(--panel);color:var(--accent);box-shadow:0 10px 28px color-mix(in srgb,var(--accent) 12%,transparent);font-weight:700}.workspace{min-width:0;min-height:0;overflow:hidden;padding:27px}.tool-panel{height:100%;min-height:0;display:none;flex-direction:column;gap:14px}.tool-panel.active{display:flex}.tool-panel>header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex:none}.tool-panel h2{margin:0;font-size:25px}.tool-panel header p{margin:4px 0 0;color:var(--muted)}button,input,textarea,select{font:inherit}.run,.pick-row button,.drop-zone button{border:0;border-radius:6px;padding:10px 18px;background:var(--accent);color:white;cursor:pointer}.editor-pair{display:grid;grid-template-columns:1fr 1.08fr;gap:14px;flex:1;min-height:0}.source,.result{width:100%;min-height:0;resize:none;border:1px solid var(--line);border-radius:var(--radius);padding:16px;background:var(--panel);color:var(--ink);outline:none}.source:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)}.pick-row{display:flex;gap:8px;flex:none}.pick-row input,.record-board input{flex:1;border:1px solid var(--line);border-radius:10px;padding:10px;background:white}.pick-row+.source{flex:1}.drop-zone{border:2px dashed var(--line);border-radius:var(--radius);padding:20px;display:flex;align-items:center;justify-content:center;gap:14px;color:var(--muted)}.image-preview,.qr-preview{flex:1;min-height:0;display:grid;place-items:center;overflow:hidden;background:repeating-conic-gradient(#eef2f6 0 25%,#fff 0 50%) 0/20px 20px;border-radius:var(--radius)}canvas{max-width:100%;max-height:100%}.record-board{display:grid;grid-template-columns:minmax(0,1fr) 320px;grid-template-rows:auto minmax(0,1fr);gap:12px;flex:1;min-height:0}.record-board input{grid-column:1/-1}.record-list{border:1px solid var(--line);border-radius:var(--radius);background:white;padding:16px;overflow:auto;color:var(--muted)}.status{min-height:20px;color:var(--muted);flex:none}@media(max-width:960px){.shell{grid-template-columns:176px minmax(0,1fr)}.workspace{padding:14px}.editor-pair{grid-template-columns:1fr}.result{display:none}.brand p{display:none}}
-</style><style data-composition>.shell{grid-template-columns:minmax(0,1fr) 290px}.rail{grid-column:2;grid-row:1;background:linear-gradient(#f3e8ff,#fff);border-left:1px solid var(--line);border-right:0}.workspace{grid-column:1;grid-row:1;padding:28px}.tool-tab{display:grid;grid-template-columns:36px 1fr}.image-preview{border-radius:2px}.tool-panel>header{border-bottom:6px solid color-mix(in srgb,var(--accent) 20%,transparent);padding-bottom:12px}</style></head><body><main class="shell"><aside class="rail"><div class="brand"><i></i><h1>视觉设计实验室</h1><p>从图片与 SVG 中提取颜色，检查对比度并导出作品。</p></div><nav class="tabs"><button class="tool-tab active" data-tool="palette-extractor"><span>01</span>色板提取</button><button class="tool-tab" data-tool="color-workbench"><span>02</span>颜色 / 对比度</button><button class="tool-tab" data-tool="svg-workbench"><span>03</span>SVG</button></nav></aside><article class="workspace"><section class="tool-panel active" data-panel="palette-extractor"><header><div><h2>色板提取</h2><p>从图片中提取主色并生成可复制色板。</p></div><button class="run">运行</button></header><div class="drop-zone"><input data-field="path" type="hidden"><button data-pick="files">选择图片</button><span>也可以把图片拖到画布</span></div><div class="image-preview"><canvas width="760" height="420"></canvas></div><div class="status" role="status"></div></section><section class="tool-panel" data-panel="color-workbench"><header><div><h2>颜色 / 对比度</h2><p>转换 HEX、RGB、HSL 并检查颜色对比度。</p></div><button class="run">运行</button></header><div class="editor-pair"><textarea class="source" placeholder="在这里输入内容"></textarea><textarea class="result" readonly placeholder="结果会显示在这里"></textarea></div><div class="status" role="status"></div></section><section class="tool-panel" data-panel="svg-workbench"><header><div><h2>SVG</h2><p>预览、格式化、轻量压缩 SVG 并导出 PNG。</p></div><button class="run">运行</button></header><div class="editor-pair"><textarea class="source" placeholder="在这里输入内容"></textarea><textarea class="result" readonly placeholder="结果会显示在这里"></textarea></div><div class="status" role="status"></div></section></article></main><script>
-const api=window.pluginAPI;let current="palette-extractor";const $=(s,r=document)=>r.querySelector(s);
-document.querySelectorAll('.tool-tab').forEach(btn=>btn.onclick=()=>openTool(btn.dataset.tool));
-function openTool(id){current=id;document.querySelectorAll('.tool-tab').forEach(x=>x.classList.toggle('active',x.dataset.tool===id));document.querySelectorAll('.tool-panel').forEach(x=>x.classList.toggle('active',x.dataset.panel===id));}
-document.querySelectorAll('.run').forEach(btn=>btn.onclick=()=>run(btn.closest('.tool-panel')));
-document.querySelectorAll('[data-pick]').forEach(btn=>btn.onclick=()=>{const panel=btn.closest('.tool-panel');const value=btn.dataset.pick==='dir'?api.selectDirectory('选择目录'):api.selectFiles({multiple:true});const path=panel.querySelector('[data-field=path]');if(path)path.value=Array.isArray(value)?value.join(';'):value;});
-async function run(panel){const input=panel.querySelector('.source')?.value||'';const path=panel.querySelector('[data-field=path]')?.value||'';const status=panel.querySelector('.status');status.textContent='处理中…';const options=optionsFor(current,path,panel);if((current.startsWith('image-')||['palette-extractor','screenshot-beautifier'].includes(current))&&path){const canvas=panel.querySelector('canvas'),image=new Image();image.onload=()=>{const scale=Math.min(canvas.width/image.width,canvas.height/image.height);const w=image.width*scale,h=image.height*scale;const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,(canvas.width-w)/2,(canvas.height-h)/2,w,h)};image.src=api.readFileDataUrl(path.split(';')[0])}const response=await api.runTask({toolId:current,input,options,execute:false});if(current==='qr-barcode'&&response.ok&&response.result?.dataUrl){const canvas=panel.querySelector('canvas'),image=new Image();image.onload=()=>canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);image.src=response.result.dataUrl}status.textContent=response.ok?'已完成':'操作失败：'+response.error;const out=panel.querySelector('.result,[data-output]');if(out&&response.ok){const text=typeof response.result==='string'?response.result:JSON.stringify(response.result,null,2);if('value'in out)out.value=text;else out.textContent=text;}}
-function optionsFor(id,path,panel){const files=path?path.split(';').filter(Boolean):[];if(id==='json-workbench')return{action:'format',query:''};if(id==='config-converter')return{source:'json',target:'yaml'};if(id==='xml-workbench')return{action:'format'};if(id==='hash-hmac')return{algorithm:'sha256'};if(id==='id-generator')return{type:'uuid',count:8};if(id==='regex-lab')return{pattern:'\w+',flags:'g'};if(id==='csv-table')return{action:'json',delimiter:','};if(id==='line-processor')return{unique:true,sort:true};if(id==='batch-renamer')return{directory:path,find:'',replace:''};if(id==='file-content-search')return{directory:path,query:panel.querySelector('.source')?.value||'',extensions:'txt,md,js,json'};if(id==='folder-compare')return{directoryA:files[0]||path,directoryB:files[1]||'',hash:true};if(id==='directory-tree')return{directory:path,format:'markdown'};if(id==='file-checksum')return{files};if(id==='pdf-organizer')return{files,rotation:0};if(id==='archive-tool')return{action:'preview',file:files[0]||path};return{files,directory:path};}
-window.addEventListener('plugin-enter',e=>{const id=e.detail?.toolId;if(id)openTool(id);const text=e.detail?.action?.payload||e.detail?.action?.clipboardText||'';const input=document.querySelector('.tool-panel.active .source');if(input&&text)input.value=text;});api.migrateLegacy().catch(()=>{});
-</script></body></html>
+﻿<!DOCTYPE html>
+<html lang="zh-CN" data-layout="swatch-wall">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>视觉设计实验室</title>
+<style>
+:root{
+  --accent:#5f3dc4;--accent-2:#845ef7;--accent-soft:rgba(95,61,196,.1);--accent-line:rgba(95,61,196,.3);
+  --bg:#f7f5fc;--surface:#fff;--surface-2:#efeaf8;--border:#ddd4f0;
+  --ink:#1f1535;--muted:#6b6080;--faint:#a098b8;
+  --ok:#16a34a;--err:#dc2626;--warn:#d97706;
+  --mono:'JetBrains Mono','Fira Code',Consolas,monospace;
+  --sans:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans)}
+.app{height:calc(100vh - 32px);display:flex;flex-direction:column;min-height:0}
+.head{display:flex;align-items:center;gap:14px;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
+.icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;flex:none}
+.icon svg{width:18px;height:18px;color:#fff}
+.head h1{margin:0;font-size:17px;font-weight:700}
+.head p{margin:0;color:var(--muted);font-size:12px}
+.spacer{flex:1}
+.tabs{display:flex;gap:6px;padding:10px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
+.tab{border:0;background:transparent;color:var(--muted);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;transition:.15s;display:flex;align-items:center;gap:7px}
+.tab svg{width:15px;height:15px}
+.tab:hover{background:var(--surface-2)}.tab.active{background:var(--accent);color:#fff}
+.content{flex:1;min-height:0;overflow:hidden;padding:16px 24px}
+.panel{height:100%;min-height:0;display:none;flex-direction:column;gap:14px}
+.panel.active{display:flex}
+.btn{border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--accent-line)}
+.btn svg{width:14px;height:14px}
+.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;border-color:transparent}
+.btn.primary:hover{filter:brightness(1.08)}
+.ctrl{display:flex;gap:10px;align-items:center;flex-wrap:wrap;flex:none}
+.inp{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font:14px var(--mono);color:var(--ink);outline:none}
+.inp:focus{border-color:var(--accent-line)}
+.sel{background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:7px;padding:8px 10px;font-size:13px;cursor:pointer;outline:none}
+/* palette */
+.palette-area{flex:1;min-height:0;display:grid;grid-template-columns:200px 1fr;gap:14px}
+.img-preview{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;min-height:0}
+.img-preview .drop{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--faint);overflow:hidden}
+.img-preview img{max-width:100%;max-height:100%;object-fit:contain}
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px;align-content:start;overflow:auto;padding:4px}
+.swatch{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;cursor:pointer;transition:.15s}
+.swatch:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.1)}
+.swatch .color-bar{height:80px}
+.swatch .info{padding:8px 12px}
+.swatch .hex{font:600 13px var(--mono);color:var(--ink)}
+.swatch .cnt{font:11px var(--mono);color:var(--faint)}
+/* color workbench */
+.cw-area{flex:1;min-height:0;display:grid;grid-template-columns:340px 1fr;gap:14px}
+.cw-input{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px}
+.cw-preview{flex:1;border-radius:12px;display:flex;align-items:center;justify-content:center;font:600 24px var(--mono);min-height:120px;transition:background .2s}
+.cw-results{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;align-content:start}
+.cw-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px}
+.cw-card .k{font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:6px}
+.cw-card .v{font:600 15px var(--mono);color:var(--ink);word-break:break-all}
+.cw-card .v.big{font-size:18px;color:var(--accent)}
+.contrast-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.contrast-demo{border-radius:8px;padding:16px;font-size:14px;text-align:center}
+/* svg */
+.svg-area{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.code-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.code-card h3{margin:0;padding:10px 14px;border-bottom:1px solid var(--border);font:600 11px var(--mono);color:var(--muted);text-transform:uppercase;flex:none}
+.code-card textarea{flex:1;border:0;outline:0;resize:none;padding:14px;font:13px/1.6 var(--mono);background:var(--surface);min-height:0}
+.code-card pre{flex:1;overflow:auto;margin:0;padding:14px;font:13px/1.6 var(--mono);white-space:pre-wrap;word-break:break-word}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1f1535;color:#fff;padding:10px 22px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:50}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#d6cce8;border-radius:4px}
+</style>
+</head>
+<body>
+<main class="app">
+  <div class="head">
+    <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 22a10 10 0 1 1 0-20"/></svg></div>
+    <div><h1>视觉设计实验室</h1><p>从图片与 SVG 中提取颜色，检查对比度并导出作品</p></div>
+    <div class="spacer"></div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" data-tool="palette-extractor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 22a10 10 0 1 1 0-20"/></svg>取色器</button>
+    <button class="tab" data-tool="color-workbench"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2v20M2 12h20"/></svg>调色台</button>
+    <button class="tab" data-tool="svg-workbench"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l4-4M3 12l4 4M21 12l-4-4M21 12l-4 4"/></svg>SVG 美化</button>
+  </div>
+  <div class="content">
+    <!-- Palette -->
+    <div class="panel active" data-panel="palette-extractor">
+      <div class="ctrl"><button class="btn primary" id="pePick">选择图片提取主色</button><span style="font:12px var(--mono);color:var(--muted)" id="peInfo"></span></div>
+      <div class="palette-area">
+        <div class="img-preview"><div class="drop" id="peDrop"><span style="text-align:center">选择图片<br>预览</span></div></div>
+        <div class="swatches" id="peSwatches"><div style="color:var(--faint);text-align:center;padding:40px">选择图片后自动提取主色调</div></div>
+      </div>
+    </div>
+    <!-- Color workbench -->
+    <div class="panel" data-panel="color-workbench">
+      <div class="cw-area">
+        <div class="cw-input">
+          <div><label style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase">HEX 颜色</label>
+            <div style="display:flex;gap:8px;margin-top:6px"><input class="inp" id="cwHex" value="#6750a4" style="flex:1"><input type="color" id="cwPicker" value="#6750a4" style="width:44px;height:38px;border:1px solid var(--border);border-radius:8px;cursor:pointer"></div>
+          </div>
+          <div class="cw-preview" id="cwPreview" style="background:#6750a4;color:#fff">#6750A4</div>
+          <button class="btn primary" id="cwRun">分析对比度</button>
+        </div>
+        <div class="cw-results" id="cwResults"></div>
+      </div>
+    </div>
+    <!-- SVG -->
+    <div class="panel" data-panel="svg-workbench">
+      <div class="ctrl"><label style="font-size:12px;color:var(--muted)">操作</label><select class="sel" id="svgAction"><option value="format">格式化</option><option value="minify">压缩</option></select><button class="btn primary" id="svgRun">执行</button><button class="btn" id="svgCopy">复制结果</button></div>
+      <div class="svg-area">
+        <div class="code-card"><h3>SVG 输入</h3><textarea id="svgInput" spellcheck="false" placeholder="<svg>...</svg>"></textarea></div>
+        <div class="code-card"><h3>输出</h3><pre id="svgOutput"></pre></div>
+      </div>
+    </div>
+  </div>
+</main>
+<div class="toast" id="toast"></div>
+<script>
+const api=window.pluginAPI;const $=s=>document.querySelector(s);const $$=s=>document.querySelectorAll(s);
+let current='palette-extractor';
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1800);}
+$$('.tab').forEach(t=>t.onclick=()=>{current=t.dataset.tool;$$('.tab').forEach(x=>x.classList.toggle('active',x===t));$$('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===current));});
+$('#pePick').onclick=$('#peDrop').onclick=()=>{const sel=api.selectFiles({multiple:false,filters:[{name:'图片',extensions:['png','jpg','jpeg','webp','bmp']}]});const f=Array.isArray(sel)?sel[0]:sel;if(f)extractPalette(f);};
+async function extractPalette(f){
+  $('#peDrop').innerHTML=`<img src="${api.readFileDataUrl(f)}">`;
+  $('#peInfo').textContent='提取中…';
+  const res=await api.runTask({toolId:'palette-extractor',input:'',options:{files:[f]},execute:false});
+  if(res.ok){const colors=res.result;$('#peInfo').textContent=`提取到 ${colors.length} 种主色`;
+    $('#peSwatches').innerHTML=colors.map(c=>`<div class="swatch" data-hex="${c.hex}"><div class="color-bar" style="background:${c.hex}"></div><div class="info"><div class="hex">${c.hex}</div><div class="cnt">${c.count} 像素 · 点击复制</div></div></div>`).join('');
+    $$('#peSwatches .swatch').forEach(s=>s.onclick=()=>{api.copyText(s.dataset.hex);toast('已复制 '+s.dataset.hex);});}
+  else toast(res.error);
+}
+// color workbench
+$('#cwHex').oninput=e=>{$('#cwPicker').value=e.target.value;};
+$('#cwPicker').oninput=e=>{$('#cwHex').value=e.target.value;};
+$('#cwRun').onclick=async()=>{
+  const input=$('#cwHex').value.trim();
+  const res=await api.runTask({toolId:'color-workbench',input,options:{},execute:false});
+  if(res.ok){const r=typeof res.result==='string'?JSON.parse(res.result):res.result;$('#cwPreview').style.background=r.hex;$('#cwPreview').textContent=r.hex;
+    $('#cwPreview').style.color=Number(r.contrastWithWhite)>=4.5?'#fff':'#000';
+    const cW=Number(r.contrastWithWhite),cB=Number(r.contrastWithBlack);
+    $('#cwResults').innerHTML=`
+      <div class="cw-card"><div class="k">HEX</div><div class="v big">${r.hex}</div></div>
+      <div class="cw-card"><div class="k">RGB</div><div class="v">${r.rgb}</div></div>
+      <div class="cw-card"><div class="k">对白色文字对比度</div><div class="v">${cW.toFixed(2)}${cW>=4.5?' ✓':' ✗'}</div><div class="contrast-grid" style="margin-top:8px"><div class="contrast-demo" style="background:${r.hex};color:#fff">Aa 文字</div></div></div>
+      <div class="cw-card"><div class="k">对黑色文字对比度</div><div class="v">${cB.toFixed(2)}${cB>=4.5?' ✓':' ✗'}</div><div class="contrast-grid" style="margin-top:8px"><div class="contrast-demo" style="background:${r.hex};color:#000">Aa 文字</div></div></div>`;}
+  else toast(res.error);
+};
+// svg
+$('#svgRun').onclick=async()=>{
+  const input=$('#svgInput').value;if(!input.trim()){toast('请输入 SVG');return;}
+  const res=await api.runTask({toolId:'svg-workbench',input,options:{action:$('#svgAction').value},execute:false});
+  if(res.ok){$('#svgOutput').textContent=res.result;}else toast(res.error);
+};
+$('#svgCopy').onclick=()=>{const t=$('#svgOutput').textContent;if(t){api.copyText(t);toast('已复制');}else toast('暂无结果');};
+window.addEventListener('plugin-enter',e=>{const id=e.detail?.toolId;if(id){$$('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tool===id));$$('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===id));current=id;}const text=e.detail?.action?.payload||e.detail?.action?.clipboardText||e.detail?.payload||e.detail?.clipboardText||'';if(text){if(current==='color-workbench')$('#cwHex').value=text;else if(current==='svg-workbench')$('#svgInput').value=text;}});
+</script>
+</body></html>

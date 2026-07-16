@@ -253,7 +253,8 @@ async function runTextTask(input, options) {
     case 'regex-lab': {
       const expression = new RegExp(options.pattern || '', options.flags || 'g');
       if (options.replacement !== undefined && options.replacement !== '') return input.replace(expression, options.replacement);
-      return JSON.stringify([...input.matchAll(expression)].map(match => ({ value: match[0], index: match.index, groups: match.slice(1), namedGroups: match.groups || {} })), null, 2);
+      const matcher = expression.global ? expression : new RegExp(expression.source, `${expression.flags}g`);
+      return JSON.stringify([...input.matchAll(matcher)].map(match => ({ value: match[0], index: match.index, groups: match.slice(1), namedGroups: match.groups || {} })), null, 2);
     }
     case 'jwt-inspector': {
       const parts = input.trim().split('.');
@@ -264,19 +265,20 @@ async function runTextTask(input, options) {
       if (options.secret) {
         const algorithm = { HS256: 'sha256', HS384: 'sha384', HS512: 'sha512' }[header.alg];
         if (!algorithm) throw new Error('当前仅支持 HS256、HS384、HS512 本地验证');
-        const signature = crypto.createHmac(algorithm, options.secret).update(`${parts[0]}.${parts[1]}`).digest('base64url');
-        verified = crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(parts[2]));
+        const signature = Buffer.from(crypto.createHmac(algorithm, options.secret).update(`${parts[0]}.${parts[1]}`).digest('base64url'));
+        const provided = Buffer.from(parts[2]);
+        verified = signature.length === provided.length && crypto.timingSafeEqual(signature, provided);
       }
       return JSON.stringify({ header, payload, expired: payload.exp ? Date.now() >= payload.exp * 1000 : null, verified }, null, 2);
     }
     case 'text-diff': return textDiff(input, options.rightText || '');
     case 'csv-table': {
       const rows = parseCsv(input, options.delimiter || ',');
+      const sorted = options.sortColumn === '' || options.sortColumn == null ? rows : [rows[0], ...rows.slice(1).sort((a, b) => String(a[Number(options.sortColumn)] || '').localeCompare(String(b[Number(options.sortColumn)] || ''), 'zh-CN'))];
       if (options.action === 'json') {
-        const [headers = [], ...data] = rows;
+        const [headers = [], ...data] = sorted;
         return JSON.stringify(data.map(row => Object.fromEntries(headers.map((header, index) => [header, row[index] || '']))), null, 2);
       }
-      const sorted = options.sortColumn === '' || options.sortColumn == null ? rows : [rows[0], ...rows.slice(1).sort((a, b) => String(a[Number(options.sortColumn)] || '').localeCompare(String(b[Number(options.sortColumn)] || ''), 'zh-CN'))];
       return sorted.map(row => row.map(field => /[",\r\n]/.test(field) ? `"${field.replace(/"/g, '""')}"` : field).join(options.delimiter || ',')).join('\n');
     }
     case 'line-processor': {
@@ -335,7 +337,11 @@ async function runFileTask(input, options, execute) {
       const start = Number(options.start || 1);
       const plan = entries.map((entry, index) => {
         const ext = path.extname(entry.name); const base = path.basename(entry.name, ext);
-        const replaced = options.find ? base.replace(new RegExp(options.find, options.regex ? 'g' : 'g'), options.replace || '') : base;
+        const replaced = options.find
+          ? options.regex
+            ? base.replace(new RegExp(options.find, 'g'), options.replace || '')
+            : base.split(options.find).join(options.replace || '')
+          : base;
         const next = `${options.prefix || ''}${options.number ? String(start + index).padStart(Number(options.padding || 2), '0') + '-' : ''}${replaced}${options.suffix || ''}${ext}`;
         return { from: path.join(options.directory, entry.name), to: path.join(options.directory, next), before: entry.name, after: next };
       }).filter(item => item.from !== item.to);
@@ -424,7 +430,10 @@ async function runFileTask(input, options, execute) {
       const fflate = require('fflate');
       if (options.action === 'create') {
         if (!files.length) throw new Error('请选择需要压缩的文件');
-        const data = Object.fromEntries(files.map(filePath => [path.basename(filePath), new Uint8Array(fs.readFileSync(filePath))]));
+        const names = files.map(filePath => path.basename(filePath));
+        const duplicate = names.find((name, index) => names.indexOf(name) !== index);
+        if (duplicate) throw new Error(`存在同名文件，无法安全创建压缩包：${duplicate}`);
+        const data = Object.fromEntries(files.map((filePath, index) => [names[index], new Uint8Array(fs.readFileSync(filePath))]));
         const zipped = fflate.zipSync(data, { level: Number(options.level || 6) });
         const target = options.output || path.join(path.dirname(files[0]), '三人聚智压缩包.zip');
         if (execute) fs.writeFileSync(target, zipped);
@@ -527,7 +536,7 @@ async function runSystemTask(input, options, execute) {
 }
 
 async function handleLanTransfer(options, execute) {
-  if (!execute) return lanServer ? { running: true, address: lanServer.address() } : { running: false };
+  if (!execute) return lanServer ? { running: true, address: lanServer.address(), received: lanServer.received || [] } : { running: false, received: [] };
   if (options.action === 'stop') {
     if (lanServer) lanServer.close();
     lanServer = null;

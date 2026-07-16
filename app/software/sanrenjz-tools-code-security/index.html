@@ -1,12 +1,183 @@
-<!doctype html><html lang="zh-CN" data-layout="vault-cards"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>编码与安全工具箱</title><style>
-:root{--accent:#e15b3d;--ink:#172033;--muted:#667085;--line:color-mix(in srgb,var(--accent) 18%,#dbe2ea);--paper:#f8fafc;--panel:#fff;--radius:18px}*{box-sizing:border-box}html,body{height:100%;overflow:hidden}body{margin:0;padding-top:32px;background:radial-gradient(circle at 21% 14%,color-mix(in srgb,var(--accent) 14%,transparent),transparent 34%),var(--paper);color:var(--ink);font:14px/1.5 "Segoe UI","Microsoft YaHei",sans-serif}.shell{height:calc(100vh - 32px);display:grid;grid-template-columns:280px minmax(0,1fr);min-height:0}.rail{min-height:0;overflow:hidden;padding:26px;background:color-mix(in srgb,var(--accent) 13%,white);border-right:1px solid var(--line);display:flex;flex-direction:column}.brand{padding:10px 8px 22px}.brand i{display:block;width:44px;height:5px;border-radius:9px;background:var(--accent);margin-bottom:14px}.brand h1{font-size:22px;margin:0 0 8px}.brand p{margin:0;color:var(--muted);font-size:12px}.tabs{display:flex;flex-direction:column;gap:8px;min-height:0;overflow:auto}.tool-tab{border:0;background:transparent;text-align:left;padding:11px 12px;border-radius:10px;color:var(--muted);cursor:pointer}.tool-tab span{font:11px ui-monospace;margin-right:10px;opacity:.55}.tool-tab.active{background:var(--panel);color:var(--accent);box-shadow:0 10px 28px color-mix(in srgb,var(--accent) 12%,transparent);font-weight:700}.workspace{min-width:0;min-height:0;overflow:hidden;padding:24px}.tool-panel{height:100%;min-height:0;display:none;flex-direction:column;gap:14px}.tool-panel.active{display:flex}.tool-panel>header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex:none}.tool-panel h2{margin:0;font-size:24px}.tool-panel header p{margin:4px 0 0;color:var(--muted)}button,input,textarea,select{font:inherit}.run,.pick-row button,.drop-zone button{border:0;border-radius:8px;padding:10px 18px;background:var(--accent);color:white;cursor:pointer}.editor-pair{display:grid;grid-template-columns:1.08fr 1fr;gap:14px;flex:1;min-height:0}.source,.result{width:100%;min-height:0;resize:none;border:1px solid var(--line);border-radius:var(--radius);padding:16px;background:var(--panel);color:var(--ink);outline:none}.source:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)}.pick-row{display:flex;gap:8px;flex:none}.pick-row input,.record-board input{flex:1;border:1px solid var(--line);border-radius:10px;padding:10px;background:white}.pick-row+.source{flex:1}.drop-zone{border:2px dashed var(--line);border-radius:var(--radius);padding:20px;display:flex;align-items:center;justify-content:center;gap:14px;color:var(--muted)}.image-preview,.qr-preview{flex:1;min-height:0;display:grid;place-items:center;overflow:hidden;background:repeating-conic-gradient(#eef2f6 0 25%,#fff 0 50%) 0/20px 20px;border-radius:var(--radius)}canvas{max-width:100%;max-height:100%}.record-board{display:grid;grid-template-columns:320px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:12px;flex:1;min-height:0}.record-board input{grid-column:1/-1}.record-list{border:1px solid var(--line);border-radius:var(--radius);background:white;padding:16px;overflow:auto;color:var(--muted)}.status{min-height:20px;color:var(--muted);flex:none}@media(max-width:960px){.shell{grid-template-columns:176px minmax(0,1fr)}.workspace{padding:14px}.editor-pair{grid-template-columns:1fr}.result{display:none}.brand p{display:none}}
-</style><style data-composition>.shell{grid-template-columns:minmax(0,1fr) 260px}.rail{grid-column:2;grid-row:1;background:#1d2430;color:#fff;border:0}.workspace{grid-column:1;grid-row:1}.brand p,.tool-tab{color:#aab3c2}.tool-tab.active{background:var(--accent);color:#fff}.editor-pair{grid-template-columns:1fr 1fr}.source,.result{border-radius:4px}</style></head><body><main class="shell"><aside class="rail"><div class="brand"><i></i><h1>编码与安全工具箱</h1><p>编码、摘要、令牌与安全随机 ID 的组合工作区。</p></div><nav class="tabs"><button class="tool-tab active" data-tool="codec-assistant"><span>01</span>编解码</button><button class="tool-tab" data-tool="hash-hmac"><span>02</span>哈希 / HMAC</button><button class="tool-tab" data-tool="jwt-inspector"><span>03</span>JWT</button><button class="tool-tab" data-tool="id-generator"><span>04</span>ID 生成</button></nav></aside><article class="workspace"><section class="tool-panel active" data-panel="codec-assistant"><header><div><h2>编解码</h2><p>处理 Base64、URL、Unicode、HTML 实体和 Hex。</p></div><button class="run">运行</button></header><div class="editor-pair"><textarea class="source" placeholder="在这里输入内容"></textarea><textarea class="result" readonly placeholder="结果会显示在这里"></textarea></div><div class="status" role="status"></div></section><section class="tool-panel" data-panel="hash-hmac"><header><div><h2>哈希 / HMAC</h2><p>生成 MD5、SHA 系列摘要和 HMAC，并进行摘要比对。</p></div><button class="run">运行</button></header><div class="editor-pair"><textarea class="source" placeholder="在这里输入内容"></textarea><textarea class="result" readonly placeholder="结果会显示在这里"></textarea></div><div class="status" role="status"></div></section><section class="tool-panel" data-panel="jwt-inspector"><header><div><h2>JWT</h2><p>本地解码 JWT、检查有效期并验证 HMAC 签名。</p></div><button class="run">运行</button></header><div class="editor-pair"><textarea class="source" placeholder="在这里输入内容"></textarea><textarea class="result" readonly placeholder="结果会显示在这里"></textarea></div><div class="status" role="status"></div></section><section class="tool-panel" data-panel="id-generator"><header><div><h2>ID 生成</h2><p>批量生成 UUID、NanoID 和安全随机字符串。</p></div><button class="run">运行</button></header><div class="editor-pair"><textarea class="source" placeholder="在这里输入内容"></textarea><textarea class="result" readonly placeholder="结果会显示在这里"></textarea></div><div class="status" role="status"></div></section></article></main><script>
-const api=window.pluginAPI;let current="codec-assistant";const $=(s,r=document)=>r.querySelector(s);
-document.querySelectorAll('.tool-tab').forEach(btn=>btn.onclick=()=>openTool(btn.dataset.tool));
-function openTool(id){current=id;document.querySelectorAll('.tool-tab').forEach(x=>x.classList.toggle('active',x.dataset.tool===id));document.querySelectorAll('.tool-panel').forEach(x=>x.classList.toggle('active',x.dataset.panel===id));}
-document.querySelectorAll('.run').forEach(btn=>btn.onclick=()=>run(btn.closest('.tool-panel')));
-document.querySelectorAll('[data-pick]').forEach(btn=>btn.onclick=()=>{const panel=btn.closest('.tool-panel');const value=btn.dataset.pick==='dir'?api.selectDirectory('选择目录'):api.selectFiles({multiple:true});const path=panel.querySelector('[data-field=path]');if(path)path.value=Array.isArray(value)?value.join(';'):value;});
-async function run(panel){const input=panel.querySelector('.source')?.value||'';const path=panel.querySelector('[data-field=path]')?.value||'';const status=panel.querySelector('.status');status.textContent='处理中…';const options=optionsFor(current,path,panel);if((current.startsWith('image-')||['palette-extractor','screenshot-beautifier'].includes(current))&&path){const canvas=panel.querySelector('canvas'),image=new Image();image.onload=()=>{const scale=Math.min(canvas.width/image.width,canvas.height/image.height);const w=image.width*scale,h=image.height*scale;const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,(canvas.width-w)/2,(canvas.height-h)/2,w,h)};image.src=api.readFileDataUrl(path.split(';')[0])}const response=await api.runTask({toolId:current,input,options,execute:false});if(current==='qr-barcode'&&response.ok&&response.result?.dataUrl){const canvas=panel.querySelector('canvas'),image=new Image();image.onload=()=>canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);image.src=response.result.dataUrl}status.textContent=response.ok?'已完成':'操作失败：'+response.error;const out=panel.querySelector('.result,[data-output]');if(out&&response.ok){const text=typeof response.result==='string'?response.result:JSON.stringify(response.result,null,2);if('value'in out)out.value=text;else out.textContent=text;}}
-function optionsFor(id,path,panel){const files=path?path.split(';').filter(Boolean):[];if(id==='json-workbench')return{action:'format',query:''};if(id==='config-converter')return{source:'json',target:'yaml'};if(id==='xml-workbench')return{action:'format'};if(id==='hash-hmac')return{algorithm:'sha256'};if(id==='id-generator')return{type:'uuid',count:8};if(id==='regex-lab')return{pattern:'\w+',flags:'g'};if(id==='csv-table')return{action:'json',delimiter:','};if(id==='line-processor')return{unique:true,sort:true};if(id==='batch-renamer')return{directory:path,find:'',replace:''};if(id==='file-content-search')return{directory:path,query:panel.querySelector('.source')?.value||'',extensions:'txt,md,js,json'};if(id==='folder-compare')return{directoryA:files[0]||path,directoryB:files[1]||'',hash:true};if(id==='directory-tree')return{directory:path,format:'markdown'};if(id==='file-checksum')return{files};if(id==='pdf-organizer')return{files,rotation:0};if(id==='archive-tool')return{action:'preview',file:files[0]||path};return{files,directory:path};}
-window.addEventListener('plugin-enter',e=>{const id=e.detail?.toolId;if(id)openTool(id);const text=e.detail?.action?.payload||e.detail?.action?.clipboardText||'';const input=document.querySelector('.tool-panel.active .source');if(input&&text)input.value=text;});api.migrateLegacy().catch(()=>{});
-</script></body></html>
+﻿<!DOCTYPE html>
+<html lang="zh-CN" data-layout="vault-cards">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>编码与安全工具箱</title>
+<style>
+:root{
+  --accent:#e15b3d;--accent-2:#f97316;--accent-soft:rgba(225,91,61,.12);--accent-line:rgba(225,91,61,.32);
+  --bg:#fbf7f5;--surface:#fff;--surface-2:#f5ede9;--border:#e8dcd5;
+  --ink:#2d1f1a;--muted:#7a6b62;--faint:#a89a90;
+  --ok:#16a34a;--err:#dc2626;
+  --mono:'JetBrains Mono','Fira Code',Consolas,monospace;
+  --sans:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans)}
+.app{height:calc(100vh - 32px);display:flex;flex-direction:column;min-height:0}
+.head{display:flex;align-items:center;gap:14px;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
+.shield{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;flex:none}
+.shield svg{width:18px;height:18px;color:#fff}
+.head h1{margin:0;font-size:17px;font-weight:700}
+.head p{margin:0;color:var(--muted);font-size:12px}
+.head .spacer{flex:1}
+.tabs{display:flex;gap:6px;padding:10px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex:none;overflow-x:auto}
+.tab{border:0;background:transparent;color:var(--muted);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;white-space:nowrap;transition:.15s;display:flex;align-items:center;gap:7px}
+.tab svg{width:15px;height:15px}
+.tab:hover{background:var(--surface-2)}
+.tab.active{background:var(--accent);color:#fff}
+.content{flex:1;min-height:0;overflow:hidden;padding:18px 24px}
+.panel{height:100%;min-height:0;display:none;flex-direction:column;gap:14px}
+.panel.active{display:flex}
+.action-row{display:flex;gap:8px;flex-wrap:wrap;flex:none}
+.act{border:1px solid var(--border);background:var(--surface);color:var(--ink);padding:7px 14px;border-radius:8px;font-size:12px;cursor:pointer;transition:.15s;font-weight:500}
+.act:hover{border-color:var(--accent-line);color:var(--accent)}
+.act.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:700}
+.io{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.card-h{padding:9px 14px;border-bottom:1px solid var(--border);font:600 11px var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.05em;display:flex;justify-content:space-between;align-items:center;flex:none}
+.card-h .cnt{font-size:10px;color:var(--faint)}
+.card textarea{flex:1;border:0;outline:0;resize:none;padding:14px;font:13px/1.6 var(--mono);background:var(--surface);color:var(--ink);min-height:0}
+.card textarea::placeholder{color:var(--faint)}
+.card pre{flex:1;overflow:auto;margin:0;padding:14px;font:13px/1.6 var(--mono);color:var(--ink);white-space:pre-wrap;word-break:break-all}
+.opts{display:flex;gap:14px;align-items:center;flex-wrap:wrap;flex:none}
+.opt{display:flex;align-items:center;gap:6px}
+.opt label{font-size:12px;color:var(--muted);font-weight:500}
+.sel{background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:7px;padding:6px 10px;font-size:12px;cursor:pointer;outline:none}
+.sel:focus{border-color:var(--accent-line)}
+.txt{background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:6px 10px;font-size:12px;font-family:var(--mono);outline:none;min-width:90px}
+.txt:focus{border-color:var(--accent-line)}
+.run{border:0;border-radius:8px;padding:8px 22px;font-weight:600;font-size:13px;cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;transition:.15s}
+.run:hover{filter:brightness(1.08)}
+.run:disabled{opacity:.5}
+.bar{flex:none;padding:6px 0;font:12px var(--mono);color:var(--muted);display:flex;align-items:center;gap:8px}
+.bar .d{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+.bar.ok .d{background:var(--ok)}.bar.err .d{background:var(--err)}
+.bar.err{color:var(--err)}
+.id-grid{flex:1;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;align-content:start;padding:4px}
+.id-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:.15s;position:relative}
+.id-card:hover{border-color:var(--accent);box-shadow:0 4px 12px rgba(225,91,61,.1)}
+.id-card .id-val{font:12px/1.5 var(--mono);word-break:break-all;color:var(--ink)}
+.id-card .id-copy{position:absolute;top:8px;right:8px;opacity:0;transition:.15s;font-size:11px;color:var(--accent)}
+.id-card:hover .id-copy{opacity:1}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#2d1f1a;color:#fff;padding:10px 22px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:50}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#d4c4b8;border-radius:4px}
+</style>
+</head>
+<body>
+<main class="app">
+  <div class="head">
+    <div class="shield"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z"/></svg></div>
+    <div><h1>编码与安全工具箱</h1><p>编码、摘要、令牌与安全随机 ID 的组合工作区</p></div>
+    <div class="spacer"></div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" data-tool="codec-assistant"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h10M4 7l3-3M4 7l3 3M20 17H10M20 17l-3-3M20 17l-3 3"/></svg>编解码</button>
+    <button class="tab" data-tool="hash-hmac"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>哈希/HMAC</button>
+    <button class="tab" data-tool="jwt-inspector"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6M12 17v6M4.2 4.2l4.3 4.3M15.5 15.5l4.3 4.3M1 12h6M17 12h6M4.2 19.8l4.3-4.3M15.5 8.5l4.3-4.3"/></svg>JWT 解析</button>
+    <button class="tab" data-tool="id-generator"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg>ID 生成</button>
+  </div>
+  <div class="content">
+    <!-- Codec -->
+    <div class="panel active" data-panel="codec-assistant">
+      <div class="action-row" id="codecActions"></div>
+      <div class="io">
+        <div class="card"><div class="card-h">输入 <span class="cnt" id="codecCnt">0</span></div><textarea id="codecInput" spellcheck="false" placeholder="输入需要编码或解码的文本"></textarea></div>
+        <div class="card"><div class="card-h">结果 <span class="cnt" id="codecCopy">复制</span></div><pre id="codecOutput"></pre></div>
+      </div>
+      <button class="run" data-run style="align-self:flex-start">执行编解码</button>
+      <div class="bar" id="codecBar"><span class="d"></span><span>等待输入</span></div>
+    </div>
+    <!-- Hash -->
+    <div class="panel" data-panel="hash-hmac">
+      <div class="opts">
+        <div class="opt"><label>算法</label><select class="sel" id="hashAlgo"><option>md5</option><option>sha1</option><option selected>sha256</option><option>sha384</option><option>sha512</option></select></div>
+        <div class="opt"><label>输出</label><select class="sel" id="hashEnc"><option value="hex">hex</option><option value="base64">base64</option><option value="latin1">latin1</option></select></div>
+        <div class="opt"><label>HMAC 密钥（可选）</label><input class="txt" id="hashKey" placeholder="留空则纯哈希" style="min-width:160px"></div>
+      </div>
+      <div class="io">
+        <div class="card"><div class="card-h">待哈希内容</div><textarea id="hashInput" spellcheck="false" placeholder="输入需要计算摘要的文本"></textarea></div>
+        <div class="card"><div class="card-h">摘要结果 <span class="cnt" id="hashCopy">复制</span></div><pre id="hashOutput"></pre></div>
+      </div>
+      <button class="run" data-run style="align-self:flex-start">计算摘要</button>
+      <div class="bar" id="hashBar"><span class="d"></span><span>等待输入</span></div>
+    </div>
+    <!-- JWT -->
+    <div class="panel" data-panel="jwt-inspector">
+      <div class="opts">
+        <div class="opt"><label>验证密钥（可选，HS256/384/512）</label><input class="txt" id="jwtSecret" placeholder="留空则仅解析不验证" style="min-width:200px"></div>
+      </div>
+      <div class="io" style="grid-template-columns:1fr">
+        <div class="card"><div class="card-h">JWT 令牌</div><textarea id="jwtInput" spellcheck="false" placeholder="粘贴 eyJhbGciOi... 格式的 JWT" style="height:90px"></textarea></div>
+      </div>
+      <button class="run" data-run style="align-self:flex-start">解析令牌</button>
+      <div class="card" style="flex:1;min-height:0"><div class="card-h">解析结果</div><pre id="jwtOutput" style="flex:1;overflow:auto"></pre></div>
+      <div class="bar" id="jwtBar"><span class="d"></span><span>等待输入</span></div>
+    </div>
+    <!-- ID -->
+    <div class="panel" data-panel="id-generator">
+      <div class="opts">
+        <div class="opt"><label>类型</label><select class="sel" id="idType"><option value="uuid">UUID v4</option><option value="nanoid">NanoID</option></select></div>
+        <div class="opt" id="lenWrap"><label>长度</label><input class="txt" id="idLen" type="number" value="21" min="4" max="128" style="width:70px"></div>
+        <div class="opt"><label>数量</label><input class="txt" id="idCount" type="number" value="8" min="1" max="200" style="width:70px"></div>
+        <button class="run" data-run>生成</button>
+      </div>
+      <div class="id-grid" id="idGrid">
+        <div style="grid-column:1/-1;color:var(--faint);text-align:center;padding:40px">点击「生成」创建安全随机 ID</div>
+      </div>
+    </div>
+  </div>
+</main>
+<div class="toast" id="toast"></div>
+<script>
+const api=window.pluginAPI;const $=s=>document.querySelector(s);const $$=(s,r=document)=>r.querySelectorAll(s);
+let current='codec-assistant';
+const codecActs=[['base64-encode','Base64 编码'],['base64-decode','Base64 解码'],['url-encode','URL 编码'],['url-decode','URL 解码'],['hex-encode','HEX 编码'],['hex-decode','HEX 解码'],['unicode-encode','Unicode 编码'],['unicode-decode','Unicode 解码'],['html-encode','HTML 编码'],['html-decode','HTML 解码']];
+let codecAction='base64-encode';
+(function buildCodecActions(){const c=$('#codecActions');codecActs.forEach(([v,l])=>{const b=document.createElement('button');b.className='act'+(v===codecAction?' active':'');b.textContent=l;b.dataset.v=v;b.onclick=()=>{codecAction=v;$$('#codecActions .act').forEach(x=>x.classList.toggle('active',x.dataset.v===v));};c.appendChild(b);});})();
+$$('.tab').forEach(t=>t.onclick=()=>{current=t.dataset.tool;$$('.tab').forEach(x=>x.classList.toggle('active',x===t));$$('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===current));});
+$('#codecInput').addEventListener('input',()=>$('#codecCnt').textContent=$('#codecInput').value.length);
+['#codecCopy','#hashCopy'].forEach(s=>{$(s).style.cursor='pointer';$(s).onclick=()=>{const el=$(s);const out=el.id==='codecCopy'?$('#codecOutput'):$('#hashOutput');if(out.textContent){api.copyText(out.textContent);toast('已复制');}}});
+$('#idType').onchange=()=>{$('#lenWrap').style.display=$('#idType').value==='uuid'?'none':'flex';};
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1600);}
+function setBar(sel,msg,st){const b=$(sel);b.className='bar'+(st==='ok'?' ok':st==='err'?' err':'');b.querySelector('span:last-child').textContent=msg;}
+function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+$$('[data-run]').forEach(b=>b.onclick=run);
+async function run(){
+  if(current==='codec-assistant'){
+    const input=$('#codecInput').value;if(!input){setBar('#codecBar','请输入内容','err');return;}
+    const res=await api.runTask({toolId:'codec-assistant',input,options:{action:codecAction},execute:false});
+    if(res.ok){$('#codecOutput').textContent=res.result;setBar('#codecBar','已完成','ok');}else setBar('#codecBar',res.error,'err');
+  }else if(current==='hash-hmac'){
+    const input=$('#hashInput').value;if(!input){setBar('#hashBar','请输入内容','err');return;}
+    const res=await api.runTask({toolId:'hash-hmac',input,options:{algorithm:$('#hashAlgo').value,encoding:$('#hashEnc').value,key:$('#hashKey').value},execute:false});
+    if(res.ok){$('#hashOutput').textContent=res.result;setBar('#hashBar','已完成','ok');}else setBar('#hashBar',res.error,'err');
+  }else if(current==='jwt-inspector'){
+    const input=$('#jwtInput').value.trim();if(!input){setBar('#jwtBar','请输入 JWT','err');return;}
+    const res=await api.runTask({toolId:'jwt-inspector',input,options:{secret:$('#jwtSecret').value},execute:false});
+    if(res.ok){const r=typeof res.result==='string'?JSON.parse(res.result):res.result;let html='';const cv=r.verified===true?'<span style="color:var(--ok)">签名验证通过</span>':r.verified===false?'<span style="color:var(--err)">签名验证失败</span>':'<span style="color:var(--faint)">未提供密钥，跳过验证</span>';
+      html+=`<div style="margin-bottom:10px"><strong>Header</strong><pre>${escapeHtml(JSON.stringify(r.header,null,2))}</pre></div>`;
+      html+=`<div style="margin-bottom:10px"><strong>Payload</strong><pre>${escapeHtml(JSON.stringify(r.payload,null,2))}</pre></div>`;
+      html+=`<div><strong>过期</strong>: ${r.expired===null?'无 exp 字段':r.expired?'<span style="color:var(--err)">已过期</span>':'<span style="color:var(--ok)">未过期</span>'}</div>`;
+      html+=`<div><strong>签名</strong>: ${cv}</div>`;
+      $('#jwtOutput').innerHTML=html;setBar('#jwtBar','解析完成','ok');}else setBar('#jwtBar',res.error,'err');
+  }else if(current==='id-generator'){
+    const type=$('#idType').value,count=Math.min(200,Math.max(1,+$('#idCount').value||1)),length=Math.min(128,Math.max(4,+$('#idLen').value||21));
+    const res=await api.runTask({toolId:'id-generator',input:'',options:{type,count,length},execute:false});
+    if(res.ok){const ids=String(res.result).split('\n');const g=$('#idGrid');g.innerHTML='';
+      ids.forEach(id=>{const c=document.createElement('div');c.className='id-card';c.innerHTML=`<div class="id-val">${escapeHtml(id)}</div><div class="id-copy">复制</div>`;c.onclick=()=>{api.copyText(id);toast('已复制');};g.appendChild(c);});
+    }
+  }
+}
+window.addEventListener('plugin-enter',e=>{
+  const id=e.detail?.toolId;if(id){$$('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tool===id));$$('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===id));current=id;}
+  const text=e.detail?.action?.payload||e.detail?.action?.clipboardText||e.detail?.payload||e.detail?.clipboardText||'';
+  if(text){const map={'codec-assistant':'#codecInput','hash-hmac':'#hashInput','jwt-inspector':'#jwtInput'};const el=$(map[current]);if(el)el.value=text;}
+});
+</script>
+</body></html>

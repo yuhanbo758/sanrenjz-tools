@@ -1,12 +1,151 @@
-<!doctype html><html lang="zh-CN" data-layout="launch-radar"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>启动中心</title><style>
-:root{--accent:#364fc7;--ink:#172033;--muted:#667085;--line:color-mix(in srgb,var(--accent) 18%,#dbe2ea);--paper:#f8fafc;--panel:#fff;--radius:8px}*{box-sizing:border-box}html,body{height:100%;overflow:hidden}body{margin:0;padding-top:32px;background:radial-gradient(circle at 63% 42%,color-mix(in srgb,var(--accent) 14%,transparent),transparent 34%),var(--paper);color:var(--ink);font:14px/1.5 "Segoe UI","Microsoft YaHei",sans-serif}.shell{height:calc(100vh - 32px);display:grid;grid-template-columns:190px minmax(0,1fr);min-height:0}.rail{min-height:0;overflow:hidden;padding:22px;background:color-mix(in srgb,var(--accent) 13%,white);border-right:1px solid var(--line);display:flex;flex-direction:column}.brand{padding:10px 8px 22px}.brand i{display:block;width:34px;height:5px;border-radius:9px;background:var(--accent);margin-bottom:14px}.brand h1{font-size:21px;margin:0 0 8px}.brand p{margin:0;color:var(--muted);font-size:12px}.tabs{display:flex;flex-direction:column;gap:6px;min-height:0;overflow:auto}.tool-tab{border:0;background:transparent;text-align:left;padding:11px 12px;border-radius:4px;color:var(--muted);cursor:pointer}.tool-tab span{font:11px ui-monospace;margin-right:10px;opacity:.55}.tool-tab.active{background:var(--panel);color:var(--accent);box-shadow:0 10px 28px color-mix(in srgb,var(--accent) 12%,transparent);font-weight:700}.workspace{min-width:0;min-height:0;overflow:hidden;padding:18px}.tool-panel{height:100%;min-height:0;display:none;flex-direction:column;gap:14px}.tool-panel.active{display:flex}.tool-panel>header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex:none}.tool-panel h2{margin:0;font-size:22px}.tool-panel header p{margin:4px 0 0;color:var(--muted)}button,input,textarea,select{font:inherit}.run,.pick-row button,.drop-zone button{border:0;border-radius:6px;padding:10px 18px;background:var(--accent);color:white;cursor:pointer}.editor-pair{display:grid;grid-template-columns:1.08fr 1fr;gap:14px;flex:1;min-height:0}.source,.result{width:100%;min-height:0;resize:none;border:1px solid var(--line);border-radius:var(--radius);padding:16px;background:var(--panel);color:var(--ink);outline:none}.source:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)}.pick-row{display:flex;gap:8px;flex:none}.pick-row input,.record-board input{flex:1;border:1px solid var(--line);border-radius:10px;padding:10px;background:white}.pick-row+.source{flex:1}.drop-zone{border:2px dashed var(--line);border-radius:var(--radius);padding:20px;display:flex;align-items:center;justify-content:center;gap:14px;color:var(--muted)}.image-preview,.qr-preview{flex:1;min-height:0;display:grid;place-items:center;overflow:hidden;background:repeating-conic-gradient(#eef2f6 0 25%,#fff 0 50%) 0/20px 20px;border-radius:var(--radius)}canvas{max-width:100%;max-height:100%}.record-board{display:grid;grid-template-columns:320px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:12px;flex:1;min-height:0}.record-board input{grid-column:1/-1}.record-list{border:1px solid var(--line);border-radius:var(--radius);background:white;padding:16px;overflow:auto;color:var(--muted)}.status{min-height:20px;color:var(--muted);flex:none}@media(max-width:960px){.shell{grid-template-columns:176px minmax(0,1fr)}.workspace{padding:14px}.editor-pair{grid-template-columns:1fr}.result{display:none}.brand p{display:none}}
-</style><style data-composition>.shell{grid-template-columns:minmax(0,1fr) 250px;background:#111827;color:#e5e7eb}.rail{grid-column:2;grid-row:1;background:radial-gradient(circle at 50% 25%,#334155,#111827 65%);border:0}.workspace{grid-column:1;grid-row:1}.brand p,.tool-tab,.status{color:#94a3b8}.tool-tab.active{background:#4f46e5;color:#fff}.record-board input,.source,.record-list{background:#1f2937;color:#e5e7eb;border-color:#374151}</style></head><body><main class="shell"><aside class="rail"><div class="brand"><i></i><h1>启动中心</h1><p>网址、项目目录、启动命令和运行日志统一启动。</p></div><nav class="tabs"><button class="tool-tab active" data-tool="bookmark-launcher"><span>01</span>书签</button><button class="tool-tab" data-tool="project-launcher"><span>02</span>项目命令</button></nav></aside><article class="workspace"><section class="tool-panel active" data-panel="bookmark-launcher"><header><div><h2>书签</h2><p>分类管理网址，通过别名搜索并快速打开。</p></div><button class="run">运行</button></header><div class="record-board"><input data-field="title" placeholder="标题 / 项目"><textarea class="source" placeholder="记录内容或配置"></textarea><div class="record-list" data-output>尚无记录</div></div><div class="status" role="status"></div></section><section class="tool-panel" data-panel="project-launcher"><header><div><h2>项目命令</h2><p>管理项目目录、启动命令、运行日志和停止操作。</p></div><button class="run">运行</button></header><div class="record-board"><input data-field="title" placeholder="标题 / 项目"><textarea class="source" placeholder="记录内容或配置"></textarea><div class="record-list" data-output>尚无记录</div></div><div class="status" role="status"></div></section></article></main><script>
-const api=window.pluginAPI;let current="bookmark-launcher";const $=(s,r=document)=>r.querySelector(s);
-document.querySelectorAll('.tool-tab').forEach(btn=>btn.onclick=()=>openTool(btn.dataset.tool));
-function openTool(id){current=id;document.querySelectorAll('.tool-tab').forEach(x=>x.classList.toggle('active',x.dataset.tool===id));document.querySelectorAll('.tool-panel').forEach(x=>x.classList.toggle('active',x.dataset.panel===id));}
-document.querySelectorAll('.run').forEach(btn=>btn.onclick=()=>run(btn.closest('.tool-panel')));
-document.querySelectorAll('[data-pick]').forEach(btn=>btn.onclick=()=>{const panel=btn.closest('.tool-panel');const value=btn.dataset.pick==='dir'?api.selectDirectory('选择目录'):api.selectFiles({multiple:true});const path=panel.querySelector('[data-field=path]');if(path)path.value=Array.isArray(value)?value.join(';'):value;});
-async function run(panel){const input=panel.querySelector('.source')?.value||'';const path=panel.querySelector('[data-field=path]')?.value||'';const status=panel.querySelector('.status');status.textContent='处理中…';const options=optionsFor(current,path,panel);if((current.startsWith('image-')||['palette-extractor','screenshot-beautifier'].includes(current))&&path){const canvas=panel.querySelector('canvas'),image=new Image();image.onload=()=>{const scale=Math.min(canvas.width/image.width,canvas.height/image.height);const w=image.width*scale,h=image.height*scale;const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,(canvas.width-w)/2,(canvas.height-h)/2,w,h)};image.src=api.readFileDataUrl(path.split(';')[0])}const response=await api.runTask({toolId:current,input,options,execute:false});if(current==='qr-barcode'&&response.ok&&response.result?.dataUrl){const canvas=panel.querySelector('canvas'),image=new Image();image.onload=()=>canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);image.src=response.result.dataUrl}status.textContent=response.ok?'已完成':'操作失败：'+response.error;const out=panel.querySelector('.result,[data-output]');if(out&&response.ok){const text=typeof response.result==='string'?response.result:JSON.stringify(response.result,null,2);if('value'in out)out.value=text;else out.textContent=text;}}
-function optionsFor(id,path,panel){const files=path?path.split(';').filter(Boolean):[];if(id==='json-workbench')return{action:'format',query:''};if(id==='config-converter')return{source:'json',target:'yaml'};if(id==='xml-workbench')return{action:'format'};if(id==='hash-hmac')return{algorithm:'sha256'};if(id==='id-generator')return{type:'uuid',count:8};if(id==='regex-lab')return{pattern:'\w+',flags:'g'};if(id==='csv-table')return{action:'json',delimiter:','};if(id==='line-processor')return{unique:true,sort:true};if(id==='batch-renamer')return{directory:path,find:'',replace:''};if(id==='file-content-search')return{directory:path,query:panel.querySelector('.source')?.value||'',extensions:'txt,md,js,json'};if(id==='folder-compare')return{directoryA:files[0]||path,directoryB:files[1]||'',hash:true};if(id==='directory-tree')return{directory:path,format:'markdown'};if(id==='file-checksum')return{files};if(id==='pdf-organizer')return{files,rotation:0};if(id==='archive-tool')return{action:'preview',file:files[0]||path};return{files,directory:path};}
-window.addEventListener('plugin-enter',e=>{const id=e.detail?.toolId;if(id)openTool(id);const text=e.detail?.action?.payload||e.detail?.action?.clipboardText||'';const input=document.querySelector('.tool-panel.active .source');if(input&&text)input.value=text;});api.migrateLegacy().catch(()=>{});
-</script></body></html>
+﻿<!DOCTYPE html>
+<html lang="zh-CN" data-layout="launch-radar">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>启动中心</title>
+<style>
+:root{
+  --accent:#364fc7;--accent-2:#4263eb;--accent-soft:rgba(54,79,199,.1);--accent-line:rgba(54,79,199,.3);
+  --bg:#f5f7fe;--surface:#fff;--surface-2:#eef2fc;--border:#dbe3f5;
+  --ink:#1a2340;--muted:#5a6b8a;--faint:#9aa8c0;
+  --ok:#16a34a;--err:#dc2626;--warn:#d97706;
+  --mono:'JetBrains Mono',Consolas,monospace;
+  --sans:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans)}
+.app{height:calc(100vh - 32px);display:flex;flex-direction:column;min-height:0}
+.head{display:flex;align-items:center;gap:14px;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
+.icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;flex:none}
+.icon svg{width:18px;height:18px;color:#fff}
+.head h1{margin:0;font-size:17px;font-weight:700}
+.head p{margin:0;color:var(--muted);font-size:12px}
+.spacer{flex:1}
+.tabs{display:flex;gap:6px;padding:10px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
+.tab{border:0;background:transparent;color:var(--muted);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;transition:.15s;display:flex;align-items:center;gap:7px}
+.tab svg{width:15px;height:15px}
+.tab:hover{background:var(--surface-2)}.tab.active{background:var(--accent);color:#fff}
+.content{flex:1;min-height:0;overflow:hidden;padding:16px 24px}
+.panel{height:100%;min-height:0;display:none;flex-direction:column;gap:14px}
+.panel.active{display:flex}
+.add-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:none}
+.inp{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font:14px var(--sans);color:var(--ink);outline:none}
+.inp:focus{border-color:var(--accent-line);box-shadow:0 0 0 3px var(--accent-soft)}
+.btn{border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:8px;padding:9px 16px;font-size:13px;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--accent-line)}
+.btn svg{width:14px;height:14px}
+.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;border-color:transparent}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{color:var(--err);border-color:var(--err)}
+/* bookmark grid */
+.bm-grid{flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;align-content:start}
+.bm-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:.15s;position:relative;overflow:hidden}
+.bm-card:hover{border-color:var(--accent);box-shadow:0 6px 18px rgba(54,79,199,.12);transform:translateY(-2px)}
+.bm-card .bm-icon{width:40px;height:40px;border-radius:10px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;font:700 18px var(--sans);color:var(--accent);margin-bottom:12px}
+.bm-card .bm-title{font-weight:700;font-size:14px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bm-card .bm-url{font:11px var(--mono);color:var(--faint);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bm-del{position:absolute;top:8px;right:8px;border:0;background:transparent;color:var(--faint);cursor:pointer;font-size:14px;opacity:0;transition:.15s}
+.bm-card:hover .bm-del{opacity:1}
+.bm-del:hover{color:var(--err)}
+.bm-empty{grid-column:1/-1;color:var(--faint);text-align:center;padding:40px}
+/* project launcher */
+.proj-list{flex:none;max-height:200px;overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:10px}
+.proj-item{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--surface-2);cursor:pointer;transition:.12s}
+.proj-item:hover{background:var(--surface-2)}
+.proj-item.active{background:var(--accent-soft);border-left:3px solid var(--accent)}
+.proj-item .pn{font-weight:600;flex:1}
+.proj-item .pc{font:11px var(--mono);color:var(--faint)}
+.proj-item .pd{font:11px var(--mono);color:var(--faint)}
+.terminal{flex:1;min-height:0;background:#1a2340;border-radius:10px;padding:14px;overflow:auto;font:13px/1.6 var(--mono);color:#a8b4d8}
+.terminal .log-line{white-space:pre-wrap;word-break:break-word}
+.terminal .log-ok{color:var(--ok)}.terminal .log-err{color:var(--err)}.terminal .log-info{color:#748ffc}
+.status-bar{flex:none;display:flex;gap:14px;align-items:center;font:12px var(--mono);color:var(--muted)}
+.status-bar .dot{width:8px;height:8px;border-radius:50%;background:var(--faint)}
+.status-bar.running .dot{background:var(--ok);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a2340;color:#fff;padding:10px 22px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:50}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#c8d4f0;border-radius:4px}
+</style>
+</head>
+<body>
+<main class="app">
+  <div class="head">
+    <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg></div>
+    <div><h1>启动中心</h1><p>网址、项目目录、启动命令和运行日志统一启动</p></div>
+    <div class="spacer"></div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" data-tool="bookmark-launcher"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>书签启动</button>
+    <button class="tab" data-tool="project-launcher"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 4h6l2 3h10v11a2 2 0 0 1-2 2H3z"/><path d="M5 9h14M7 13l2 2 3-3"/></svg>项目启动</button>
+  </div>
+  <div class="content">
+    <div class="panel active" data-panel="bookmark-launcher">
+      <div class="add-row">
+        <input class="inp" id="bmTitle" placeholder="书签名称" style="width:200px">
+        <input class="inp" id="bmUrl" placeholder="https://..." style="flex:1;min-width:200px">
+        <button class="btn primary" id="bmAdd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>添加</button>
+      </div>
+      <div class="bm-grid" id="bmGrid"></div>
+    </div>
+    <div class="panel" data-panel="project-launcher">
+      <div class="add-row">
+        <input class="inp" id="pjName" placeholder="项目名称" style="width:160px">
+        <button class="btn" id="pjPickDir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V5"/></svg>目录</button>
+        <span style="font:12px var(--mono);color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="pjDir">未选择</span>
+        <input class="inp" id="pjCmd" placeholder="启动命令 如 npm run dev" style="flex:1;min-width:200px">
+        <button class="btn primary" id="pjAdd">保存项目</button>
+      </div>
+      <div class="proj-list" id="projList"><div style="padding:20px;text-align:center;color:var(--faint)">添加项目后显示在这里</div></div>
+      <div class="add-row">
+        <button class="btn primary" id="pjRun"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>启动</button>
+        <button class="btn danger" id="pjStop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>停止</button>
+        <div class="status-bar" id="pjStatus"><span class="dot"></span><span>未运行</span></div>
+      </div>
+      <div class="terminal" id="pjTerminal"><div class="log-line log-info">选择项目并点击启动，运行日志将显示在这里</div></div>
+    </div>
+  </div>
+</main>
+<div class="toast" id="toast"></div>
+<script>
+const api=window.pluginAPI;const $=s=>document.querySelector(s);const $$=s=>document.querySelectorAll(s);
+let current='bookmark-launcher';
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1800);}
+$$('.tab').forEach(t=>t.onclick=()=>{current=t.dataset.tool;$$('.tab').forEach(x=>x.classList.toggle('active',x===t));$$('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===current));if(current==='project-launcher')renderProjects();});
+// Bookmarks
+let bookmarks=[];
+async function loadBookmarks(){bookmarks=await api.storage.get('bookmarks')||[];renderBookmarks();}
+function renderBookmarks(){
+  if(!bookmarks.length){$('#bmGrid').innerHTML='<div class="bm-empty">添加你的第一个书签</div>';return;}
+  $('#bmGrid').innerHTML=bookmarks.map((b,i)=>`<div class="bm-card" data-open="${i}"><div class="bm-icon">${esc(b.title.charAt(0).toUpperCase())}</div><div class="bm-title">${esc(b.title)}</div><div class="bm-url">${esc(b.url)}</div><button class="bm-del" data-del="${i}">×</button></div>`).join('');
+  $$('#bmGrid [data-open]').forEach(el=>el.onclick=e=>{if(e.target.classList.contains('bm-del'))return;const b=bookmarks[+el.dataset.open];api.openExternal(b.url);});
+  $$('#bmGrid [data-del]').forEach(el=>el.onclick=async e=>{e.stopPropagation();bookmarks.splice(+el.dataset.del,1);await api.storage.set('bookmarks',bookmarks);renderBookmarks();});
+}
+$('#bmAdd').onclick=async()=>{const title=$('#bmTitle').value.trim(),url=$('#bmUrl').value.trim();if(!title||!url){toast('请填写名称和网址');return;}let u=url;if(!/^https?:\/\//.test(u))u='https://'+u;bookmarks.unshift({title,url:u});await api.storage.set('bookmarks',bookmarks);$('#bmTitle').value='';$('#bmUrl').value='';renderBookmarks();};
+loadBookmarks();
+// Projects
+let projects=[];let activeProj=null;
+async function loadProjects(){projects=await api.storage.get('projects')||[];renderProjects();}
+function renderProjects(){
+  if(!projects.length){$('#projList').innerHTML='<div style="padding:20px;text-align:center;color:var(--faint)">添加项目后显示在这里</div>';return;}
+  $('#projList').innerHTML=projects.map((p,i)=>`<div class="proj-item${p===activeProj?' active':''}" data-pi="${i}"><span class="pn">${esc(p.name)}</span><span class="pc">${esc(p.command)}</span><span class="pd">${esc(p.directory?.split(/[\\\/]/).pop()||'')}</span></div>`).join('');
+  $$('#projList .proj-item').forEach(el=>el.onclick=()=>{activeProj=projects[+el.dataset.pi];renderProjects();});
+}
+let pjDir='';
+$('#pjPickDir').onclick=()=>{pjDir=api.selectDirectory('选择项目目录');if(pjDir)$('#pjDir').textContent=pjDir;};
+$('#pjAdd').onclick=async()=>{const name=$('#pjName').value.trim(),cmd=$('#pjCmd').value.trim();if(!name||!cmd||!pjDir){toast('请填写完整');return;}projects.unshift({name,command:cmd,directory:pjDir});await api.storage.set('projects',projects);$('#pjName').value='';$('#pjCmd').value='';pjDir='';$('#pjDir').textContent='未选择';renderProjects();};
+async function checkStatus(){if(!activeProj)return;const res=await api.runTask({toolId:'project-launcher',input:'',options:{action:'check',directory:activeProj.directory,command:activeProj.command},execute:false});if(res.ok){const r=res.result;const bar=$('#pjStatus');bar.className='status-bar'+(r.running?' running':'');bar.querySelector('span:last-child').textContent=r.running?'运行中 (PID: '+(r.pid||'')+')':'未运行';}}
+$('#pjRun').onclick=async()=>{if(!activeProj){toast('请先选择项目');return;}const res=await api.runTask({toolId:'project-launcher',input:'',options:{directory:activeProj.directory,command:activeProj.command},execute:true});
+  if(res.ok){const r=res.result;const bar=$('#pjStatus');bar.className='status-bar running';bar.querySelector('span:last-child').textContent='运行中 (PID: '+r.pid+')';
+    let html='';(r.logs||[]).forEach(l=>{const cls=/error|err/i.test(l)?'log-err':/warn/i.test(l)?'log-info':'';html+=`<div class="log-line ${cls}">${esc(l)}</div>`;});
+    $('#pjTerminal').innerHTML=html||'<div class="log-line log-info">进程已启动</div>';toast('项目已启动');}else toast(res.error);};
+$('#pjStop').onclick=async()=>{if(!activeProj){toast('请先选择项目');return;}const res=await api.runTask({toolId:'project-launcher',input:'',options:{action:'stop'},execute:true});if(res.ok){$('#pjStatus').className='status-bar';$('#pjStatus').querySelector('span:last-child').textContent='已停止';toast('已停止');}};
+loadProjects();
+window.addEventListener('plugin-enter',e=>{const text=e.detail?.action?.payload||e.detail?.action?.clipboardText||e.detail?.payload||e.detail?.clipboardText||'';if(text){if(/^https?:\/\//.test(text)){$('#bmUrl').value=text;$$('.tab')[0].click();}else{$('#pjCmd').value=text;$$('.tab')[1].click();}}});
+</script>
+</body></html>

@@ -1,12 +1,144 @@
-<!doctype html><html lang="zh-CN" data-layout="floating-frame"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>图片悬浮板</title><style>
-:root{--accent:#ad1457;--ink:#172033;--muted:#667085;--line:color-mix(in srgb,var(--accent) 18%,#dbe2ea);--paper:#f8fafc;--panel:#fff;--radius:4px}*{box-sizing:border-box}html,body{height:100%;overflow:hidden}body{margin:0;padding-top:32px;background:radial-gradient(circle at 69% 46%,color-mix(in srgb,var(--accent) 14%,transparent),transparent 34%),var(--paper);color:var(--ink);font:14px/1.5 "Segoe UI","Microsoft YaHei",sans-serif}.shell{height:calc(100vh - 32px);display:grid;grid-template-columns:220px minmax(0,1fr);min-height:0}.rail{min-height:0;overflow:hidden;padding:18px;background:color-mix(in srgb,var(--accent) 13%,white);border-right:1px solid var(--line);display:flex;flex-direction:column}.brand{padding:10px 8px 22px}.brand i{display:block;width:44px;height:5px;border-radius:9px;background:var(--accent);margin-bottom:14px}.brand h1{font-size:20px;margin:0 0 8px}.brand p{margin:0;color:var(--muted);font-size:12px}.tabs{display:flex;flex-direction:column;gap:8px;min-height:0;overflow:auto}.tool-tab{border:0;background:transparent;text-align:left;padding:11px 12px;border-radius:4px;color:var(--muted);cursor:pointer}.tool-tab span{font:11px ui-monospace;margin-right:10px;opacity:.55}.tool-tab.active{background:var(--panel);color:var(--accent);box-shadow:0 10px 28px color-mix(in srgb,var(--accent) 12%,transparent);font-weight:700}.workspace{min-width:0;min-height:0;overflow:hidden;padding:24px}.tool-panel{height:100%;min-height:0;display:none;flex-direction:column;gap:14px}.tool-panel.active{display:flex}.tool-panel>header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex:none}.tool-panel h2{margin:0;font-size:24px}.tool-panel header p{margin:4px 0 0;color:var(--muted)}button,input,textarea,select{font:inherit}.run,.pick-row button,.drop-zone button{border:0;border-radius:6px;padding:10px 18px;background:var(--accent);color:white;cursor:pointer}.editor-pair{display:grid;grid-template-columns:1.08fr 1fr;gap:14px;flex:1;min-height:0}.source,.result{width:100%;min-height:0;resize:none;border:1px solid var(--line);border-radius:var(--radius);padding:16px;background:var(--panel);color:var(--ink);outline:none}.source:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)}.pick-row{display:flex;gap:8px;flex:none}.pick-row input,.record-board input{flex:1;border:1px solid var(--line);border-radius:10px;padding:10px;background:white}.pick-row+.source{flex:1}.drop-zone{border:2px dashed var(--line);border-radius:var(--radius);padding:20px;display:flex;align-items:center;justify-content:center;gap:14px;color:var(--muted)}.image-preview,.qr-preview{flex:1;min-height:0;display:grid;place-items:center;overflow:hidden;background:repeating-conic-gradient(#eef2f6 0 25%,#fff 0 50%) 0/20px 20px;border-radius:var(--radius)}canvas{max-width:100%;max-height:100%}.record-board{display:grid;grid-template-columns:320px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:12px;flex:1;min-height:0}.record-board input{grid-column:1/-1}.record-list{border:1px solid var(--line);border-radius:var(--radius);background:white;padding:16px;overflow:auto;color:var(--muted)}.status{min-height:20px;color:var(--muted);flex:none}@media(max-width:960px){.shell{grid-template-columns:176px minmax(0,1fr)}.workspace{padding:14px}.editor-pair{grid-template-columns:1fr}.result{display:none}.brand p{display:none}}
-</style><style data-composition>.shell{grid-template:1fr 110px/1fr;background:#2b1727;color:#fff}.rail{grid-row:2;flex-direction:row;align-items:center;padding:14px 28px;background:#4a203e;border:0}.brand{padding:0}.brand p{display:none}.tabs{flex-direction:row;margin-left:auto}.workspace{grid-row:1;padding:20px}.image-preview{border:8px solid white;box-shadow:0 16px 40px #0006}.tool-panel header p,.status{color:#d7b5ca}</style></head><body><main class="shell"><aside class="rail"><div class="brand"><i></i><h1>图片悬浮板</h1><p>从剪贴板取图，置顶查看并控制缩放、旋转与透明度。</p></div><nav class="tabs"><button class="tool-tab active" data-tool="image-pinboard"><span>01</span>图片悬浮</button></nav></aside><article class="workspace"><section class="tool-panel active" data-panel="image-pinboard"><header><div><h2>图片悬浮</h2><p>将剪贴板图片置顶悬浮并支持缩放和透明度。</p></div><button class="run">运行</button></header><div class="drop-zone"><input data-field="path" type="hidden"><button data-pick="files">选择图片</button><span>也可以把图片拖到画布</span></div><div class="image-preview"><canvas width="760" height="420"></canvas></div><div class="status" role="status"></div></section></article></main><script>
-const api=window.pluginAPI;let current="image-pinboard";const $=(s,r=document)=>r.querySelector(s);
-document.querySelectorAll('.tool-tab').forEach(btn=>btn.onclick=()=>openTool(btn.dataset.tool));
-function openTool(id){current=id;document.querySelectorAll('.tool-tab').forEach(x=>x.classList.toggle('active',x.dataset.tool===id));document.querySelectorAll('.tool-panel').forEach(x=>x.classList.toggle('active',x.dataset.panel===id));}
-document.querySelectorAll('.run').forEach(btn=>btn.onclick=()=>run(btn.closest('.tool-panel')));
-document.querySelectorAll('[data-pick]').forEach(btn=>btn.onclick=()=>{const panel=btn.closest('.tool-panel');const value=btn.dataset.pick==='dir'?api.selectDirectory('选择目录'):api.selectFiles({multiple:true});const path=panel.querySelector('[data-field=path]');if(path)path.value=Array.isArray(value)?value.join(';'):value;});
-async function run(panel){const input=panel.querySelector('.source')?.value||'';const path=panel.querySelector('[data-field=path]')?.value||'';const status=panel.querySelector('.status');status.textContent='处理中…';const options=optionsFor(current,path,panel);if((current.startsWith('image-')||['palette-extractor','screenshot-beautifier'].includes(current))&&path){const canvas=panel.querySelector('canvas'),image=new Image();image.onload=()=>{const scale=Math.min(canvas.width/image.width,canvas.height/image.height);const w=image.width*scale,h=image.height*scale;const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,(canvas.width-w)/2,(canvas.height-h)/2,w,h)};image.src=api.readFileDataUrl(path.split(';')[0])}const response=await api.runTask({toolId:current,input,options,execute:false});if(current==='qr-barcode'&&response.ok&&response.result?.dataUrl){const canvas=panel.querySelector('canvas'),image=new Image();image.onload=()=>canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);image.src=response.result.dataUrl}status.textContent=response.ok?'已完成':'操作失败：'+response.error;const out=panel.querySelector('.result,[data-output]');if(out&&response.ok){const text=typeof response.result==='string'?response.result:JSON.stringify(response.result,null,2);if('value'in out)out.value=text;else out.textContent=text;}}
-function optionsFor(id,path,panel){const files=path?path.split(';').filter(Boolean):[];if(id==='json-workbench')return{action:'format',query:''};if(id==='config-converter')return{source:'json',target:'yaml'};if(id==='xml-workbench')return{action:'format'};if(id==='hash-hmac')return{algorithm:'sha256'};if(id==='id-generator')return{type:'uuid',count:8};if(id==='regex-lab')return{pattern:'\w+',flags:'g'};if(id==='csv-table')return{action:'json',delimiter:','};if(id==='line-processor')return{unique:true,sort:true};if(id==='batch-renamer')return{directory:path,find:'',replace:''};if(id==='file-content-search')return{directory:path,query:panel.querySelector('.source')?.value||'',extensions:'txt,md,js,json'};if(id==='folder-compare')return{directoryA:files[0]||path,directoryB:files[1]||'',hash:true};if(id==='directory-tree')return{directory:path,format:'markdown'};if(id==='file-checksum')return{files};if(id==='pdf-organizer')return{files,rotation:0};if(id==='archive-tool')return{action:'preview',file:files[0]||path};return{files,directory:path};}
-window.addEventListener('plugin-enter',e=>{const id=e.detail?.toolId;if(id)openTool(id);const text=e.detail?.action?.payload||e.detail?.action?.clipboardText||'';const input=document.querySelector('.tool-panel.active .source');if(input&&text)input.value=text;});api.migrateLegacy().catch(()=>{});
-</script></body></html>
+﻿<!DOCTYPE html>
+<html lang="zh-CN" data-layout="floating-frame">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>图片悬浮板</title>
+<style>
+:root{
+  --accent:#ad1457;--accent-2:#d81b60;--accent-soft:rgba(173,20,87,.1);--accent-line:rgba(173,20,87,.3);
+  --bg:#f9f4f7;--surface:#fff;--surface-2:#f3e8ee;--border:#e6d0dc;
+  --ink:#2d0f1f;--muted:#7a526a;--faint:#a88098;
+  --ok:#16a34a;--err:#dc2626;
+  --mono:'JetBrains Mono',Consolas,monospace;
+  --sans:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans)}
+/* indicator view - floating */
+body.indicator{padding:0;background:transparent;overflow:hidden}
+body.indicator .float-img{max-width:100vw;max-height:100vh;object-fit:contain;-webkit-app-region:drag}
+body.indicator .float-controls{position:fixed;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:4px;background:rgba(45,15,31,.85);padding:6px;border-radius:999px;opacity:0;transition:.2s;-webkit-app-region:no-drag}
+body.indicator:hover .float-controls{opacity:1}
+body.indicator .fc-btn{border:0;background:transparent;color:#fff;border-radius:50%;width:28px;height:28px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+body.indicator .fc-btn:hover{background:rgba(255,255,255,.15)}
+body.indicator .fc-btn svg{width:14px;height:14px}
+/* main view */
+.app{height:calc(100vh - 32px);display:flex;flex-direction:column;min-height:0}
+.head{display:flex;align-items:center;gap:14px;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
+.icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;flex:none}
+.icon svg{width:18px;height:18px;color:#fff}
+.head h1{margin:0;font-size:17px;font-weight:700}
+.head p{margin:0;color:var(--muted);font-size:12px}
+.spacer{flex:1}
+.head-btn{border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:6px}
+.head-btn:hover{border-color:var(--accent-line)}
+.head-btn svg{width:14px;height:14px}
+.head-btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;border-color:transparent}
+.body{flex:1;min-height:0;display:grid;grid-template-columns:1fr 280px;gap:0;overflow:hidden}
+.stage{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.stage-area{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:auto;padding:20px;background:repeating-conic-gradient(#f5edf2 0% 25%,#faf5f8 0% 50%) 50%/16px 16px}
+.pin-img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15);transition:transform .15s,opacity .15s}
+.stage-empty{display:flex;flex-direction:column;align-items:center;gap:12px;color:var(--faint);cursor:pointer}
+.stage-empty svg{width:56px;height:56px;opacity:.3}
+.toolbar{display:flex;gap:8px;align-items:center;padding:12px 20px;border-top:1px solid var(--border);background:var(--surface);flex:none;flex-wrap:wrap}
+.slider-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.slider{width:120px;accent-color:var(--accent)}
+.slider-val{font:600 12px var(--mono);color:var(--accent);min-width:40px}
+.ctrl-btn{border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:6px;width:32px;height:32px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.12s}
+.ctrl-btn:hover{border-color:var(--accent-line);color:var(--accent)}
+.ctrl-btn svg{width:16px;height:16px}
+.side{background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;min-height:0;overflow:auto}
+.side-h{padding:16px 20px;border-bottom:1px solid var(--border);flex:none}
+.side-h h2{margin:0 0 4px;font-size:15px;font-weight:700}
+.side-h p{margin:0;font-size:12px;color:var(--muted)}
+.side-body{padding:16px 20px;flex:1;display:flex;flex-direction:column;gap:16px}
+.action-btn{border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:8px;padding:12px;font-size:13px;cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;gap:8px;width:100%}
+.action-btn:hover{border-color:var(--accent-line);background:var(--accent-soft)}
+.action-btn svg{width:16px;height:16px}
+.action-btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;border-color:transparent}
+.pinned-list{display:flex;flex-direction:column;gap:8px}
+.pinned-item{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--surface-2);border-radius:8px;cursor:pointer;transition:.12s}
+.pinned-item:hover{border:1px solid var(--accent-line)}
+.pinned-item .pi-thumb{width:36px;height:36px;border-radius:6px;object-fit:cover;background:var(--border)}
+.pinned-item .pi-name{font:12px var(--mono);color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#2d0f1f;color:#fff;padding:10px 22px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:50}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#e0bcd0;border-radius:4px}
+</style>
+</head>
+<body>
+<script>if(new URLSearchParams(location.search).get('view')==='indicator')document.body.className='indicator';</script>
+<div id="floatView" style="display:none"><img class="float-img" id="floatImg"><div class="float-controls"><button class="fc-btn" id="fcClose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button><button class="fc-btn" id="fcZoomIn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M11 8v6M8 11h6M21 21l-4-4"/></svg></button><button class="fc-btn" id="fcZoomOut"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M8 11h6M21 21l-4-4"/></svg></button></div></div>
+<main class="app" id="mainView">
+  <div class="head">
+    <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg></div>
+    <div><h1>图片悬浮板</h1><p>从剪贴板取图，置顶查看并控制缩放、旋转与透明度</p></div>
+    <div class="spacer"></div>
+    <button class="head-btn" id="pasteBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M5 5h14a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg>从剪贴板取图</button>
+    <button class="head-btn" id="pickBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V5"/></svg>选择图片</button>
+  </div>
+  <div class="body">
+    <div class="stage">
+      <div class="stage-area" id="stageArea">
+        <div class="stage-empty" id="stageEmpty" onclick="$('#pasteBtn').click()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg>
+          <span>点击从剪贴板取图或选择图片文件</span>
+        </div>
+      </div>
+      <div class="toolbar">
+        <button class="ctrl-btn" id="zoomOut"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg></button>
+        <div class="slider-row"><span>缩放</span><input type="range" class="slider" id="scaleSlider" min="10" max="300" value="100"><span class="slider-val" id="scaleVal">100%</span></div>
+        <button class="ctrl-btn" id="zoomIn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
+        <div class="slider-row"><span>旋转</span><input type="range" class="slider" id="rotateSlider" min="0" max="360" value="0"><span class="slider-val" id="rotateVal">0°</span></div>
+        <div class="slider-row"><span>透明度</span><input type="range" class="slider" id="opacitySlider" min="20" max="100" value="100"><span class="slider-val" id="opacityVal">100%</span></div>
+        <button class="ctrl-btn" id="resetBtn" title="重置"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v5h5"/></svg></button>
+      </div>
+    </div>
+    <aside class="side">
+      <div class="side-h"><h2>悬浮操作</h2><p>将图片置顶到所有窗口之上</p></div>
+      <div class="side-body">
+        <button class="action-btn primary" id="floatBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/><circle cx="12" cy="12" r="5"/></svg>悬浮置顶</button>
+        <button class="action-btn" id="saveBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>保存图片</button>
+        <div>
+          <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;margin-bottom:10px">已收藏图片</div>
+          <div class="pinned-list" id="pinnedList"><div style="color:var(--faint);font-size:13px">暂无收藏</div></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</main>
+<div class="toast" id="toast"></div>
+<script>
+const api=window.pluginAPI;const $=s=>document.querySelector(s);const $$=s=>document.querySelectorAll(s);
+const isIndicator=new URLSearchParams(location.search).get('view')==='indicator';
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1600);}
+if(isIndicator){
+  $('#mainView').style.display='none';$('#floatView').style.display='block';
+  (async()=>{const img=await api.storage.get('pinboard-current');if(img){$('#floatImg').src=img;}})();
+  $('#fcClose').onclick=async()=>{await api.window.closeIndicator();};
+  $('#fcZoomIn').onclick=()=>{const i=$('#floatImg');const s=parseFloat(i.style.transform.match(/scale\(([\d.]+)\)/)?.[1]||1);i.style.transform=`scale(${Math.min(3,s+0.2)})`;};
+  $('#fcZoomOut').onclick=()=>{const i=$('#floatImg');const s=parseFloat(i.style.transform.match(/scale\(([\d.]+)\)/)?.[1]||1);i.style.transform=`scale(${Math.max(0.2,s-0.2)})`;};
+}else{
+  let currentImg='';
+  async function loadFromClipboard(){const d=api.readClipboardImage();if(d){setImage(d);}else toast('剪贴板无图片');}
+  async function loadFromFile(){const sel=api.selectFiles({multiple:false,filters:[{name:'图片',extensions:['png','jpg','jpeg','webp','bmp']}]});const f=Array.isArray(sel)?sel[0]:sel;if(f)setImage(api.readFileDataUrl(f));}
+  function setImage(dataUrl,save=true){currentImg=dataUrl;const img=new Image();img.className='pin-img';img.onload=()=>{$('#stageArea').innerHTML='';img.id='pinImg';$('#stageArea').appendChild(img);applyTransform();};img.src=dataUrl;const empty=$('#stageEmpty');if(empty)empty.style.display='none';if(save)saveToPinned(dataUrl);}
+  function applyTransform(){const img=$('#pinImg');if(!img)return;const s=+$('#scaleSlider').value/100,r=+$('#rotateSlider').value,o=+$('#opacitySlider').value/100;img.style.transform=`scale(${s}) rotate(${r}deg)`;img.style.opacity=o;}
+  ['scaleSlider','rotateSlider','opacitySlider'].forEach(id=>$('#'+id).oninput=e=>{const k=id.replace('Slider','Val');$('#'+k).textContent=(id==='rotateSlider'?e.target.value+'°':e.target.value+'%');applyTransform();});
+  $('#zoomIn').onclick=()=>{$('#scaleSlider').value=Math.min(300,+$('#scaleSlider').value+10);$('#scaleVal').textContent=$('#scaleSlider').value+'%';applyTransform();};
+  $('#zoomOut').onclick=()=>{$('#scaleSlider').value=Math.max(10,+$('#scaleSlider').value-10);$('#scaleVal').textContent=$('#scaleSlider').value+'%';applyTransform();};
+  $('#resetBtn').onclick=()=>{$('#scaleSlider').value=100;$('#rotateSlider').value=0;$('#opacitySlider').value=100;$('#scaleVal').textContent='100%';$('#rotateVal').textContent='0°';$('#opacityVal').textContent='100%';applyTransform();};
+  $('#pasteBtn').onclick=loadFromClipboard;$('#pickBtn').onclick=loadFromFile;
+  $('#floatBtn').onclick=async()=>{if(!currentImg){toast('请先加载图片');return;}await api.storage.set('pinboard-current',currentImg);await api.window.keepAlive();await api.window.showIndicator();toast('已悬浮置顶');};
+  $('#saveBtn').onclick=()=>{if(!currentImg){toast('请先加载图片');return;}const saved=api.saveResult({title:'保存图片',defaultPath:'pinboard.png',filters:[{name:'PNG',extensions:['png']}],dataUrl:currentImg});if(!saved.cancelled)toast('已保存');};
+  async function saveToPinned(dataUrl){let pinned=await api.storage.get('pinboard-list')||[];pinned=[{dataUrl,time:Date.now()},...pinned].slice(0,20);await api.storage.set('pinboard-list',pinned);renderPinned(pinned);}
+  async function renderPinned(p){p=p||await api.storage.get('pinboard-list')||[];if(!p.length){$('#pinnedList').innerHTML='<div style="color:var(--faint);font-size:13px">暂无收藏</div>';return;}$('#pinnedList').innerHTML=p.map((it,i)=>`<div class="pinned-item" data-i="${i}"><img class="pi-thumb" src="${it.dataUrl}"><span class="pi-name">图片 ${i+1}</span></div>`).join('');$$('#pinnedList [data-i]').forEach(el=>el.onclick=()=>setImage(p[+el.dataset.i].dataUrl,false));}
+  renderPinned();
+  window.addEventListener('plugin-enter',e=>{loadFromClipboard();});
+}
+</script>
+</body></html>

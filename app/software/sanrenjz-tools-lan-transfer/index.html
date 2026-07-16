@@ -1,12 +1,146 @@
-<!doctype html><html lang="zh-CN" data-layout="network-nodes"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>局域网快传</title><style>
-:root{--accent:#00838f;--ink:#172033;--muted:#667085;--line:color-mix(in srgb,var(--accent) 18%,#dbe2ea);--paper:#f8fafc;--panel:#fff;--radius:18px}*{box-sizing:border-box}html,body{height:100%;overflow:hidden}body{margin:0;padding-top:32px;background:radial-gradient(circle at 66% 44%,color-mix(in srgb,var(--accent) 14%,transparent),transparent 34%),var(--paper);color:var(--ink);font:14px/1.5 "Segoe UI","Microsoft YaHei",sans-serif}.shell{height:calc(100vh - 32px);display:grid;grid-template-columns:280px minmax(0,1fr);min-height:0}.rail{min-height:0;overflow:hidden;padding:26px;background:color-mix(in srgb,var(--accent) 9%,white);border-right:1px solid var(--line);display:flex;flex-direction:column}.brand{padding:10px 8px 22px}.brand i{display:block;width:39px;height:5px;border-radius:9px;background:var(--accent);margin-bottom:14px}.brand h1{font-size:22px;margin:0 0 8px}.brand p{margin:0;color:var(--muted);font-size:12px}.tabs{display:flex;flex-direction:column;gap:7px;min-height:0;overflow:auto}.tool-tab{border:0;background:transparent;text-align:left;padding:11px 12px;border-radius:10px;color:var(--muted);cursor:pointer}.tool-tab span{font:11px ui-monospace;margin-right:10px;opacity:.55}.tool-tab.active{background:var(--panel);color:var(--accent);box-shadow:0 10px 28px color-mix(in srgb,var(--accent) 12%,transparent);font-weight:700}.workspace{min-width:0;min-height:0;overflow:hidden;padding:21px}.tool-panel{height:100%;min-height:0;display:none;flex-direction:column;gap:14px}.tool-panel.active{display:flex}.tool-panel>header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex:none}.tool-panel h2{margin:0;font-size:23px}.tool-panel header p{margin:4px 0 0;color:var(--muted)}button,input,textarea,select{font:inherit}.run,.pick-row button,.drop-zone button{border:0;border-radius:8px;padding:10px 18px;background:var(--accent);color:white;cursor:pointer}.editor-pair{display:grid;grid-template-columns:1fr 1.08fr;gap:14px;flex:1;min-height:0}.source,.result{width:100%;min-height:0;resize:none;border:1px solid var(--line);border-radius:var(--radius);padding:16px;background:var(--panel);color:var(--ink);outline:none}.source:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)}.pick-row{display:flex;gap:8px;flex:none}.pick-row input,.record-board input{flex:1;border:1px solid var(--line);border-radius:10px;padding:10px;background:white}.pick-row+.source{flex:1}.drop-zone{border:2px dashed var(--line);border-radius:var(--radius);padding:20px;display:flex;align-items:center;justify-content:center;gap:14px;color:var(--muted)}.image-preview,.qr-preview{flex:1;min-height:0;display:grid;place-items:center;overflow:hidden;background:repeating-conic-gradient(#eef2f6 0 25%,#fff 0 50%) 0/20px 20px;border-radius:var(--radius)}canvas{max-width:100%;max-height:100%}.record-board{display:grid;grid-template-columns:minmax(0,1fr) 320px;grid-template-rows:auto minmax(0,1fr);gap:12px;flex:1;min-height:0}.record-board input{grid-column:1/-1}.record-list{border:1px solid var(--line);border-radius:var(--radius);background:white;padding:16px;overflow:auto;color:var(--muted)}.status{min-height:20px;color:var(--muted);flex:none}@media(max-width:960px){.shell{grid-template-columns:176px minmax(0,1fr)}.workspace{padding:14px}.editor-pair{grid-template-columns:1fr}.result{display:none}.brand p{display:none}}
-</style><style data-composition>.shell{grid-template:132px minmax(0,1fr)/1fr}.rail{display:grid;grid-template-columns:310px 1fr;background:linear-gradient(90deg,#dff7f8,#f8ffff);padding:24px 34px;border:0}.brand{padding:0}.tabs{flex-direction:row;align-items:center;justify-content:flex-end}.workspace{padding:24px 48px}.record-board{grid-template-columns:1fr 1fr}.record-list{background-image:radial-gradient(#0e7490 1px,transparent 1px);background-size:18px 18px}</style></head><body><main class="shell"><aside class="rail"><div class="brand"><i></i><h1>局域网快传</h1><p>创建临时局域网接收站，传输文字与文件。</p></div><nav class="tabs"><button class="tool-tab active" data-tool="lan-transfer"><span>01</span>局域网快传</button></nav></aside><article class="workspace"><section class="tool-panel active" data-panel="lan-transfer"><header><div><h2>局域网快传</h2><p>通过局域网浏览器传输文字和文件，不经过云端。</p></div><button class="run">运行</button></header><div class="record-board"><input data-field="title" placeholder="标题 / 项目"><textarea class="source" placeholder="记录内容或配置"></textarea><div class="record-list" data-output>尚无记录</div></div><div class="status" role="status"></div></section></article></main><script>
-const api=window.pluginAPI;let current="lan-transfer";const $=(s,r=document)=>r.querySelector(s);
-document.querySelectorAll('.tool-tab').forEach(btn=>btn.onclick=()=>openTool(btn.dataset.tool));
-function openTool(id){current=id;document.querySelectorAll('.tool-tab').forEach(x=>x.classList.toggle('active',x.dataset.tool===id));document.querySelectorAll('.tool-panel').forEach(x=>x.classList.toggle('active',x.dataset.panel===id));}
-document.querySelectorAll('.run').forEach(btn=>btn.onclick=()=>run(btn.closest('.tool-panel')));
-document.querySelectorAll('[data-pick]').forEach(btn=>btn.onclick=()=>{const panel=btn.closest('.tool-panel');const value=btn.dataset.pick==='dir'?api.selectDirectory('选择目录'):api.selectFiles({multiple:true});const path=panel.querySelector('[data-field=path]');if(path)path.value=Array.isArray(value)?value.join(';'):value;});
-async function run(panel){const input=panel.querySelector('.source')?.value||'';const path=panel.querySelector('[data-field=path]')?.value||'';const status=panel.querySelector('.status');status.textContent='处理中…';const options=optionsFor(current,path,panel);if((current.startsWith('image-')||['palette-extractor','screenshot-beautifier'].includes(current))&&path){const canvas=panel.querySelector('canvas'),image=new Image();image.onload=()=>{const scale=Math.min(canvas.width/image.width,canvas.height/image.height);const w=image.width*scale,h=image.height*scale;const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,(canvas.width-w)/2,(canvas.height-h)/2,w,h)};image.src=api.readFileDataUrl(path.split(';')[0])}const response=await api.runTask({toolId:current,input,options,execute:false});if(current==='qr-barcode'&&response.ok&&response.result?.dataUrl){const canvas=panel.querySelector('canvas'),image=new Image();image.onload=()=>canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);image.src=response.result.dataUrl}status.textContent=response.ok?'已完成':'操作失败：'+response.error;const out=panel.querySelector('.result,[data-output]');if(out&&response.ok){const text=typeof response.result==='string'?response.result:JSON.stringify(response.result,null,2);if('value'in out)out.value=text;else out.textContent=text;}}
-function optionsFor(id,path,panel){const files=path?path.split(';').filter(Boolean):[];if(id==='json-workbench')return{action:'format',query:''};if(id==='config-converter')return{source:'json',target:'yaml'};if(id==='xml-workbench')return{action:'format'};if(id==='hash-hmac')return{algorithm:'sha256'};if(id==='id-generator')return{type:'uuid',count:8};if(id==='regex-lab')return{pattern:'\w+',flags:'g'};if(id==='csv-table')return{action:'json',delimiter:','};if(id==='line-processor')return{unique:true,sort:true};if(id==='batch-renamer')return{directory:path,find:'',replace:''};if(id==='file-content-search')return{directory:path,query:panel.querySelector('.source')?.value||'',extensions:'txt,md,js,json'};if(id==='folder-compare')return{directoryA:files[0]||path,directoryB:files[1]||'',hash:true};if(id==='directory-tree')return{directory:path,format:'markdown'};if(id==='file-checksum')return{files};if(id==='pdf-organizer')return{files,rotation:0};if(id==='archive-tool')return{action:'preview',file:files[0]||path};return{files,directory:path};}
-window.addEventListener('plugin-enter',e=>{const id=e.detail?.toolId;if(id)openTool(id);const text=e.detail?.action?.payload||e.detail?.action?.clipboardText||'';const input=document.querySelector('.tool-panel.active .source');if(input&&text)input.value=text;});api.migrateLegacy().catch(()=>{});
-</script></body></html>
+﻿<!DOCTYPE html>
+<html lang="zh-CN" data-layout="network-nodes">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>局域网快传</title>
+<style>
+:root{
+  --accent:#00838f;--accent-2:#00acc1;--accent-soft:rgba(0,131,143,.1);--accent-line:rgba(0,131,143,.3);
+  --bg:#f0fafc;--surface:#fff;--surface-2:#e0f4f7;--border:#c0e3ea;
+  --ink:#0a2e33;--muted:#4a757a;--faint:#8aaab0;
+  --ok:#16a34a;--err:#dc2626;--info:#0ea5e9;
+  --mono:'JetBrains Mono',Consolas,monospace;
+  --sans:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans)}
+.app{height:calc(100vh - 32px);display:flex;flex-direction:column;min-height:0}
+.head{display:flex;align-items:center;gap:14px;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
+.icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;flex:none}
+.icon svg{width:18px;height:18px;color:#fff}
+.head h1{margin:0;font-size:17px;font-weight:700}
+.head p{margin:0;color:var(--muted);font-size:12px}
+.spacer{flex:1}
+.status-badge{display:flex;align-items:center;gap:6px;font:600 13px var(--mono);padding:6px 14px;border-radius:999px}
+.status-badge.offline{background:var(--surface-2);color:var(--faint)}
+.status-badge.online{background:var(--accent-soft);color:var(--accent)}
+.status-badge .dot{width:8px;height:8px;border-radius:50%}
+.status-badge.offline .dot{background:var(--faint)}
+.status-badge.online .dot{background:var(--ok);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.body{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px 24px;overflow:hidden}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.card-h{padding:14px 18px;border-bottom:1px solid var(--border);font:700 14px var(--sans);flex:none;display:flex;align-items:center;gap:8px}
+.card-h svg{width:18px;height:18px;color:var(--accent)}
+.card-body{padding:18px;flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:14px}
+.btn{border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:8px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn:hover{border-color:var(--accent-line)}
+.btn svg{width:14px;height:14px}
+.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;border-color:transparent}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{color:var(--err);border-color:var(--err)}
+.inp{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font:14px var(--sans);color:var(--ink);outline:none}
+.inp:focus{border-color:var(--accent-line)}
+.url-card{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.url-card:hover{border-color:var(--accent);background:var(--accent-soft)}
+.url-card .url{font:600 15px var(--mono);color:var(--accent);word-break:break-all}
+.url-card .hint{font-size:11px;color:var(--faint)}
+.url-card .copy{flex:none}
+.recv-item{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border)}
+.recv-item .ri-icon{width:36px;height:36px;border-radius:8px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;flex:none}
+.recv-item .ri-icon svg{width:18px;height:18px;color:var(--accent)}
+.recv-item .ri-info{flex:1;min-width:0}
+.recv-item .ri-name{font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.recv-item .ri-meta{font:11px var(--mono);color:var(--faint)}
+.recv-item .ri-open{border:0;background:transparent;color:var(--accent);cursor:pointer;font-size:12px;text-decoration:underline}
+.qr-box{display:flex;align-items:center;justify-content:center;padding:20px;background:var(--surface-2);border-radius:10px}
+.qr-box canvas{border-radius:8px}
+.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--faint);gap:10px}
+.empty svg{width:48px;height:48px;opacity:.3}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#0a2e33;color:#fff;padding:10px 22px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:50}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#b0d8de;border-radius:4px}
+</style>
+</head>
+<body>
+<main class="app">
+  <div class="head">
+    <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></div>
+    <div><h1>局域网快传</h1><p>创建临时局域网接收站，传输文字与文件</p></div>
+    <div class="spacer"></div>
+    <div class="status-badge offline" id="statusBadge"><span class="dot"></span><span id="statusText">未启动</span></div>
+  </div>
+  <div class="body">
+    <div class="card">
+      <div class="card-h"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>接收站</div>
+      <div class="card-body">
+        <div style="display:flex;gap:8px;align-items:center">
+          <label style="font-size:13px;color:var(--muted)">保存目录</label>
+          <input class="inp" id="saveDir" placeholder="默认下载目录" style="flex:1">
+          <button class="btn" id="pickDir">选择</button>
+        </div>
+        <button class="btn primary" id="startBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 5l12 7-12 7z"/></svg>启动接收站</button>
+        <button class="btn danger" id="stopBtn" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>停止接收站</button>
+        <div id="urlArea" style="display:none">
+          <div style="font-size:13px;color:var(--muted);margin-bottom:8px">在手机浏览器打开以下地址：</div>
+          <div id="urlList"></div>
+        </div>
+        <div id="qrArea" style="display:none">
+          <div style="font-size:13px;color:var(--muted);margin-bottom:8px">扫描二维码直达：</div>
+          <div class="qr-box" id="qrBox"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v12H4zM2 20h20M8 8h8M8 12h5"/></svg>接收记录</div>
+      <div class="card-body" id="recvList">
+        <div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h16v12H4zM2 20h20"/></svg><span>启动接收站后，收到的文件会显示在这里</span></div>
+      </div>
+    </div>
+  </div>
+</main>
+<div class="toast" id="toast"></div>
+<script>
+const api=window.pluginAPI;const $=s=>document.querySelector(s);const $$=s=>document.querySelectorAll(s);
+let running=false;let saveDir='';
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1800);}
+function fmtSize(b){if(b==null)return'-';if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(2)+' MB';}
+$('#pickDir').onclick=()=>{saveDir=api.selectDirectory('选择接收文件保存目录');if(saveDir)$('#saveDir').value=saveDir;};
+$('#startBtn').onclick=async()=>{
+  const dir=$('#saveDir').value.trim()||saveDir;if(!dir){toast('请先选择保存目录');return;}
+  setBar(true,'启动中…');
+  const res=await api.runTask({toolId:'lan-transfer',input:'',options:{outputDirectory:dir,port:0},execute:true});
+  if(res.ok){const r=res.result;running=true;setBar(true,'运行中');showUrls(r.urls||[]);$('#startBtn').style.display='none';$('#stopBtn').style.display='flex';toast('接收站已启动');pollReceived();}
+  else{setBar(false,'未启动');toast(res.error);}
+};
+$('#stopBtn').onclick=async()=>{
+  const res=await api.runTask({toolId:'lan-transfer',input:'',options:{action:'stop'},execute:true});
+  running=false;setBar(false,'已停止');$('#urlArea').style.display='none';$('#qrArea').style.display='none';$('#startBtn').style.display='flex';$('#stopBtn').style.display='none';toast('已停止');
+};
+function setBar(on,msg){const b=$('#statusBadge');b.className='status-badge '+(on?'online':'offline');$('#statusText').textContent=msg;}
+function showUrls(urls){
+  if(!urls.length){$('#urlArea').style.display='none';return;}
+  $('#urlArea').style.display='block';
+  $('#urlList').innerHTML=urls.map(u=>`<div class="url-card" data-url="${esc(u)}"><div><div class="url">${esc(u)}</div><div class="hint">点击复制地址</div></div><button class="btn copy" style="padding:6px 12px;font-size:12px">复制</button></div>`).join('');
+  $$('#urlList .url-card').forEach(el=>el.onclick=()=>{api.copyText(el.dataset.url);toast('已复制');});
+  if(urls[0]){$('#qrArea').style.display='block';generateQr(urls[0]);}
+}
+async function generateQr(text){const res=await api.generateQr(text,240);if(res.ok){const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=200;c.height=200;const ctx=c.getContext('2d');ctx.drawImage(img,0,0,200,200);$('#qrBox').innerHTML='';$('#qrBox').appendChild(c);};img.src=res.dataUrl;}}
+let pollTimer=null;
+async function pollReceived(){if(!running)return;clearTimeout(pollTimer);
+  const res=await api.runTask({toolId:'lan-transfer',input:'',options:{},execute:false});
+  if(res.ok&&res.result?.received){renderReceived(res.result.received);}
+  pollTimer=setTimeout(pollReceived,2000);}
+function renderReceived(items){
+  if(!items.length){$('#recvList').innerHTML='<div class="empty"><span>暂无接收记录</span></div>';return;}
+  $('#recvList').innerHTML=items.map(i=>{const isFile=!!i.file;return `<div class="recv-item"><div class="ri-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${isFile?'<path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/>':'<path d="M4 6h16v12H4z"/>'}</svg></div><div class="ri-info"><div class="ri-name">${esc(isFile?i.file.split(/[\\\/]/).pop():i.text)}</div><div class="ri-meta">${new Date(i.time).toLocaleTimeString('zh-CN')}${isFile?' · '+fmtSize(i.bytes):''}</div></div>${isFile?`<button class="ri-open" data-path="${esc(i.file)}">打开</button>`:''}</div>`;}).join('');
+  $$('#recvList [data-path]').forEach(el=>el.onclick=()=>api.showPath(el.dataset.path));
+}
+window.addEventListener('plugin-enter',e=>{});
+</script>
+</body></html>
