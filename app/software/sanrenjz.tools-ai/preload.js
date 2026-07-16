@@ -1,6 +1,8 @@
 const fs = require('fs')
 const path = require('path')
 const { contextBridge, ipcRenderer, clipboard } = require('electron');
+const { createAiRuntime } = require('../../plugin_runtime/ai-runtime');
+const AI_SHARED_NAME = 'AI 共享配置中心';
 
 // 插件配置
 const PLUGIN_NAME = '余汉波AI助手';
@@ -31,6 +33,15 @@ const BUILT_IN_MODELS = [
     {value: 'deepseek/deepseek-r1:free', label: 'DeepSeek R1 Free', provider: 'openrouter'},
     {value: 'deepseek/deepseek-chat-v3-0324:free', label: 'DeepSeek Chat V3 Free', provider: 'openrouter'},
 ];
+
+function getSharedModels() {
+    try {
+        const config = ipcRenderer.sendSync('plugin-storage-get', AI_SHARED_NAME, 'runtime-config');
+        return (config?.providers || []).flatMap(provider => (provider.models || []).filter(model => model.capabilities?.includes('text')).map(model => ({
+            value: model.id, label: `${model.label || model.id} · 共享`, provider: `shared:${provider.id}`
+        })));
+    } catch (_) { return []; }
+}
 
 window.exports = {
     "ai": {
@@ -142,7 +153,7 @@ window.exports = {
 
 window.services = {
     // 获取内置模型列表
-    getBuiltInModels: () => BUILT_IN_MODELS,
+    getBuiltInModels: () => [...getSharedModels(), ...BUILT_IN_MODELS],
 
     // 获取设置
     getSettings: () => {
@@ -360,6 +371,17 @@ window.services = {
             value: modelConfig.value,
             provider: modelConfig.provider
         };
+
+        if (modelInfo.provider.startsWith('shared:')) {
+            const providerId = modelInfo.provider.slice('shared:'.length);
+            return new ReadableStream({
+                start(controller) {
+                    const shared = createAiRuntime(PLUGIN_NAME, chunk => chunk.token && controller.enqueue(chunk.token));
+                    shared.complete({ requestId: `legacy-chat-${Date.now()}`, selection: { providerId, modelId: modelInfo.value }, capability: fileAttachment?.type === 'image' ? 'vision' : 'text', stream: true, messages: [...conversationHistory.map(item => ({ role: item.role === 'user' ? 'user' : 'assistant', content: item.content })), { role: 'user', content: message }] })
+                        .then(() => controller.close()).catch(error => controller.error(error));
+                }
+            });
+        }
 
         // 准备消息列表
         let messages = [

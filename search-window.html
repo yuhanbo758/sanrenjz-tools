@@ -313,6 +313,8 @@
         const { ipcRenderer } = require('electron');
         const fs = require('fs');
         const path = require('path');
+        const packagedSearchUtils = path.join(process.resourcesPath || '', 'app', 'search_utils.js');
+        const { searchCatalog } = require(fs.existsSync(packagedSearchUtils) ? packagedSearchUtils : './app/search_utils');
 
         let plugins = [];
         let pluginContents = []; // 存储插件的内容（如文本片段）
@@ -320,6 +322,10 @@
         let selectedIndex = 0;
         let pluginSearchSettings = {}; // 用户自定义的搜索设置
         let isPinned = false; // 钉住状态
+        let catalogVersion = -1;
+        let catalogLoading = null;
+        let searchFrame = 0;
+        let isComposing = false;
 
         const searchInput = document.getElementById('search-input');
         const resultsContainer = document.getElementById('results-container');
@@ -332,59 +338,21 @@
             CONTENT: 'content'
         };
 
-        // 初始化
-        async function init() {
+        // 初始化并读取主进程统一搜索目录。目录在内存中缓存，不再逐插件同步扫描磁盘。
+        async function init(force = false) {
+            if (catalogLoading) return catalogLoading;
+            catalogLoading = (async () => {
             try {
-                // 加载插件列表
-                plugins = await ipcRenderer.invoke('get-plugin-list');
-                
-                // 加载插件内容
-                await loadPluginContents();
-                
-                // 加载用户设置
-                const settings = await ipcRenderer.invoke('get-settings');
-                pluginSearchSettings = settings.pluginSearchSettings || {};
-                
-                console.log('初始化完成:', { 
-                    plugins: plugins.length, 
-                    contents: pluginContents.length 
-                });
-                
+                const catalog = await ipcRenderer.invoke('search-catalog-get', { force });
+                plugins = Array.isArray(catalog?.plugins) ? catalog.plugins : [];
+                pluginContents = Array.isArray(catalog?.contents) ? catalog.contents : [];
+                catalogVersion = Number(catalog?.version ?? catalogVersion);
                 updateSearchPlaceholder();
             } catch (error) {
                 console.error('初始化失败:', error);
             }
-        }
-
-        // 加载插件内容
-        async function loadPluginContents() {
-            try {
-                pluginContents = [];
-                
-                // 为每个插件加载其内容
-                for (const plugin of plugins) {
-                    try {
-                        const contents = await ipcRenderer.invoke('get-plugin-contents', plugin.path);
-                        
-                        // 为每个内容项添加插件信息
-                        contents.forEach(content => {
-                            pluginContents.push({
-                                ...content,
-                                pluginName: plugin.name,
-                                pluginPath: plugin.path,
-                                type: RESULT_TYPES.CONTENT,
-                                contentType: content.type || 'unknown' // 保存原始的type作为contentType
-                            });
-                        });
-                    } catch (error) {
-                        console.error(`加载插件 ${plugin.name} 的内容失败:`, error);
-                    }
-                }
-                
-                console.log(`共加载 ${pluginContents.length} 个内容项`);
-            } catch (error) {
-                console.error('加载插件内容失败:', error);
-            }
+            })().finally(() => { catalogLoading = null; });
+            return catalogLoading;
         }
 
         // 更新搜索提示
@@ -408,36 +376,19 @@
             // 搜索插件
             plugins.forEach(plugin => {
                 let score = 0;
-                const searchTerms = [plugin.name];
-                
-                // 添加用户自定义关键词
-                const customSettings = pluginSearchSettings[plugin.name];
-                if (customSettings && customSettings.enabled && customSettings.keywords.length > 0) {
-                    searchTerms.push(...customSettings.keywords);
-                }
+                const searchTerms = [plugin.searchText || `${plugin.name || ''}\n${plugin.description || ''}`.toLowerCase()];
 
                 // 统计匹配的关键词数量
                 const matchedKeywords = new Set();
                 
                 // 计算匹配分数
                 for (const term of searchTerms) {
-                    const termLower = term.toLowerCase();
+                    const termLower = term;
                     
                     // 检查每个关键词
                     for (const keyword of keywords) {
                         if (termLower.includes(keyword)) {
                             score += termLower === keyword ? 100 : 50;
-                            matchedKeywords.add(keyword);
-                        }
-                    }
-                }
-
-                // 检查描述中的关键词匹配
-                if (plugin.description) {
-                    const descLower = plugin.description.toLowerCase();
-                    for (const keyword of keywords) {
-                        if (descLower.includes(keyword)) {
-                            score += 20;
                             matchedKeywords.add(keyword);
                         }
                     }
@@ -462,7 +413,7 @@
                         matchedKeywordsCount: matchedKeywords.size,
                         totalKeywords: keywords.length,
                         matchedTerm: searchTerms.find(term => 
-                            keywords.some(kw => term.toLowerCase().includes(kw))
+                            keywords.some(kw => term.includes(kw))
                         ) || plugin.name
                     });
                 }
@@ -476,7 +427,7 @@
 
                 // 标题匹配
                 if (content.title) {
-                    const titleLower = content.title.toLowerCase();
+                    const titleLower = content.searchTitle || content.title.toLowerCase();
                     for (const keyword of keywords) {
                         if (titleLower.includes(keyword)) {
                             score += titleLower === keyword ? 100 : 80;
@@ -487,7 +438,7 @@
 
                 // 内容匹配
                 if (content.content) {
-                    const contentLower = content.content.toLowerCase();
+                    const contentLower = content.searchBody || content.content.toLowerCase();
                     for (const keyword of keywords) {
                         if (contentLower.includes(keyword)) {
                             score += 30;
@@ -498,7 +449,7 @@
 
                 // 预览匹配
                 if (content.preview) {
-                    const previewLower = content.preview.toLowerCase();
+                    const previewLower = content.searchBody || content.preview.toLowerCase();
                     for (const keyword of keywords) {
                         if (previewLower.includes(keyword)) {
                             score += 20;
@@ -545,10 +496,19 @@
                 }
                 // 分数相同时，按匹配的关键词数量排序
                 return b.matchedKeywordsCount - a.matchedKeywordsCount;
-            });
+            }).slice(0, 50);
             
             selectedIndex = 0;
             renderResults();
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
         }
 
         // 渲染搜索结果
@@ -573,31 +533,18 @@
                 const selectedClass = isSelected ? 'selected' : '';
                 
                 if (result.type === RESULT_TYPES.PLUGIN) {
-                    // 插件结果 - 优先使用 logo.ico，否则使用 logo.png
-                    const logoIcoPath = path.join(result.path, 'logo.ico');
-                    const logoPngPath = path.join(result.path, 'logo.png');
-                    let logoPath = null;
-                    let hasLogo = false;
-                    
-                    if (fs.existsSync(logoIcoPath)) {
-                        logoPath = logoIcoPath;
-                        hasLogo = true;
-                    } else if (fs.existsSync(logoPngPath)) {
-                        logoPath = logoPngPath;
-                        hasLogo = true;
-                    }
-                    
+                    const safeName = escapeHtml(result.name);
                     return `
                         <div class="result-item ${selectedClass}" data-index="${index}" data-type="plugin">
                             <div class="result-logo">
-                                ${hasLogo ? 
-                                    `<img src="file://${logoPath.replace(/\\/g, '/')}" alt="${result.name}">` :
-                                    `<span>${result.name.charAt(0).toUpperCase()}</span>`
+                                ${result.logoUrl ?
+                                    `<img src="${escapeHtml(result.logoUrl)}" alt="${safeName}">` :
+                                    `<span>${safeName.charAt(0).toUpperCase()}</span>`
                                 }
                             </div>
                             <div class="result-content">
-                                <div class="result-title">${result.name}</div>
-                                <div class="result-description">${result.description}</div>
+                                <div class="result-title">${safeName}</div>
+                                <div class="result-description">${escapeHtml(result.description)}</div>
                             </div>
                             <div class="result-category">插件</div>
                             ${result.totalKeywords > 1 ? 
@@ -619,10 +566,10 @@
                                   '<span>📋</span>'}
                             </div>
                             <div class="result-content">
-                                <div class="result-title">${result.title}</div>
-                                <div class="result-description">${result.preview}</div>
+                                <div class="result-title">${escapeHtml(result.title)}</div>
+                                <div class="result-description">${escapeHtml(result.preview)}</div>
                             </div>
-                            <div class="result-category">${result.pluginName}</div>
+                            <div class="result-category">${escapeHtml(result.pluginName)}</div>
                             ${result.totalKeywords > 1 ? 
                             `<div class="match-indicator" title="匹配 ${result.matchedKeywordsCount}/${result.totalKeywords} 个关键词">
                                 ${result.matchedKeywordsCount}/${result.totalKeywords}
@@ -634,14 +581,15 @@
 
             resultsContainer.innerHTML = html;
 
-            // 绑定点击事件
-            document.querySelectorAll('.result-item').forEach((item, index) => {
-                item.addEventListener('click', () => {
-                    selectedIndex = index;
-                    selectResult();
-                });
-            });
         }
+
+        // 使用事件委托，结果刷新时不再为每一项重复创建监听器。
+        resultsContainer.addEventListener('click', event => {
+            const item = event.target.closest('.result-item');
+            if (!item) return;
+            selectedIndex = Number(item.dataset.index) || 0;
+            selectResult();
+        });
 
         // 键盘导航
         function handleKeyNavigation(direction) {
@@ -728,10 +676,21 @@
             }
         }
 
-        // 搜索输入事件
-        searchInput.addEventListener('input', (e) => {
-            search(e.target.value);
-        });
+        // 合并同一帧内的连续输入，避免中文输入法组合输入期间反复全量计算。
+        function scheduleSearch() {
+            if (isComposing) return;
+            if (searchFrame) cancelAnimationFrame(searchFrame);
+            searchFrame = requestAnimationFrame(() => {
+                searchFrame = 0;
+                const query = searchInput.value;
+                filteredResults = searchCatalog(query, plugins, pluginContents, 50);
+                selectedIndex = 0;
+                renderResults();
+            });
+        }
+        searchInput.addEventListener('compositionstart', () => { isComposing = true; });
+        searchInput.addEventListener('compositionend', () => { isComposing = false; scheduleSearch(); });
+        searchInput.addEventListener('input', scheduleSearch);
 
         // 键盘事件
         document.addEventListener('keydown', (e) => {
@@ -774,7 +733,12 @@
             selectedIndex = 0;
             renderResults();
             await updatePinStatus(); // 更新钉住状态
-            init(); // 重新加载插件列表和内容
+        });
+
+        ipcRenderer.on('search-catalog-invalidated', async (event, payload) => {
+            if (Number(payload?.version) <= catalogVersion) return;
+            await init();
+            if (searchInput.value.trim()) scheduleSearch();
         });
 
         // 窗口失去焦点时隐藏（除非被钉住）

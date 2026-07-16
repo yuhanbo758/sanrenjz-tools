@@ -1,0 +1,49 @@
+{
+  "pluginName": "AI Git 助手",
+  "description": "读取本地 Diff/Log，生成提交说明、变更日志和 Release Notes。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "AI 工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-ai-git",
+      "explain": "AI Git 助手",
+      "description": "读取本地 Diff/Log，生成提交说明、变更日志和 Release Notes。",
+      "cmds": [
+        "AI Git 助手",
+        "提交说明",
+        "变更日志",
+        "Release Notes",
+        {
+          "type": "over",
+          "label": "用AI Git 助手处理",
+          "minLength": 1,
+          "maxLength": 200000
+        }
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": true,
+      "category": "AI 工具",
+      "priority": 22,
+      "useClipboardText": true
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "minWidth": 900,
+    "minHeight": 650,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

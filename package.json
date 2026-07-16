@@ -16,6 +16,13 @@
     "clean": "rimraf dist build-output *.log *.tmp *.temp settings.json plugin-data user-data",
     "rebuild": "npm run clean && npm install && npm start",
     "test": "echo \"启动应用进行测试...\" && npm start",
+    "test:logic": "node tests/logic.test.js && node tests/plugin-market.test.js && node tests/ai-runtime.test.js && node tests/ai-provider-manager.test.js",
+    "generate:plugins": "electron scripts/render-plugin-icons.js",
+    "generate:icons": "electron scripts/render-plugin-icons.js",
+    "test:plugins": "node scripts/validate-plugins.js && node tests/plugin-market.test.js && node tests/ai-runtime.test.js && node tests/ai-provider-manager.test.js",
+    "test:plugins:electron": "electron tests/electron-plugin-smoke.js",
+    "test:plugins:gallery": "electron tests/electron-plugin-gallery.js",
+    "test:plugins:icons": "electron tests/electron-icon-gallery.js",
     "preinstall": "echo \"检查Node.js环境...\"",
     "postinstall": "echo \"依赖安装完成，可以运行 npm start 启动应用\""
   },
@@ -38,7 +45,13 @@
   "dependencies": {
     "@electron/remote": "^2.1.2",
     "axios": "^1.6.5",
-    "electron-updater": "^6.8.3"
+    "electron-updater": "^6.8.3",
+    "fflate": "^0.8.3",
+    "iconv-lite": "^0.7.3",
+    "jsqr": "^1.4.0",
+    "pdf-lib": "^1.17.1",
+    "pdf-parse": "^1.1.1",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "electron": "^25.9.8",
@@ -70,6 +83,8 @@
       "node_modules/tiny-typed-emitter/**/*",
       "node_modules/debug/**/*",
       "node_modules/ms/**/*",
+      "node_modules/pdf-parse/**/*",
+      "node_modules/node-ensure/**/*",
       "node_modules/sax/**/*",
       "node_modules/semver/**/*",
       "!dist",
@@ -96,6 +111,8 @@
       "node_modules/tiny-typed-emitter/**/*",
       "node_modules/debug/**/*",
       "node_modules/ms/**/*",
+      "node_modules/pdf-parse/**/*",
+      "node_modules/node-ensure/**/*",
       "node_modules/sax/**/*",
       "node_modules/semver/**/*"
     ],

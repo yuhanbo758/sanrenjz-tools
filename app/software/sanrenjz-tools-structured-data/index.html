@@ -1,0 +1,195 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN" data-layout="split-orbit">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>结构化数据工作台</title>
+<style>
+:root{
+  --accent:#6d5dfc;--accent-soft:rgba(109,93,252,.14);--accent-line:rgba(109,93,252,.32);
+  --bg:#0f1226;--surface:#171b36;--surface-2:#1e2347;--surface-3:#262c54;
+  --ink:#e8eaf6;--muted:#8b91b8;--faint:#5b6189;
+  --ok:#34d399;--warn:#fbbf24;--err:#f87171;
+  --mono:'JetBrains Mono','Fira Code',Consolas,'Courier New',monospace;
+  --sans:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;
+  --radius:14px;
+}
+*{box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1.6 var(--sans)}
+.app{height:calc(100vh - 32px);display:grid;grid-template-columns:72px 1fr;min-height:0}
+/* tool rail */
+.rail{background:var(--surface);border-right:1px solid var(--surface-2);display:flex;flex-direction:column;align-items:center;padding:16px 0;gap:10px}
+.rail .glyph{width:34px;height:4px;border-radius:4px;background:linear-gradient(90deg,var(--accent),#a78bfa);margin-bottom:6px}
+.tool-btn{width:48px;height:48px;border:0;border-radius:12px;background:transparent;color:var(--faint);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;transition:.18s;font:600 9px var(--sans);position:relative}
+.tool-btn svg{width:20px;height:20px}
+.tool-btn:hover{background:var(--surface-2);color:var(--muted)}
+.tool-btn.active{background:var(--accent-soft);color:#a78bfa}
+.tool-btn.active::before{content:'';position:absolute;left:-16px;top:10px;bottom:10px;width:3px;border-radius:3px;background:var(--accent)}
+/* workspace */
+.ws{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.ws-head{display:flex;align-items:center;gap:16px;padding:14px 22px;border-bottom:1px solid var(--surface-2);flex:none}
+.ws-head h1{margin:0;font-size:17px;font-weight:700}
+.ws-head .sub{color:var(--muted);font-size:12px;margin-left:4px}
+.ws-head .spacer{flex:1}
+.chip{font:600 11px var(--mono);padding:5px 12px;border-radius:999px;background:var(--accent-soft);color:#c4b5fd;border:1px solid var(--accent-line)}
+.icon-btn{border:1px solid var(--surface-3);background:var(--surface-2);color:var(--muted);border-radius:9px;padding:7px 13px;font-size:12px;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:6px}
+.icon-btn:hover{border-color:var(--accent-line);color:var(--ink)}
+.icon-btn svg{width:14px;height:14px}
+/* panels */
+.panel{flex:1;min-height:0;display:none;flex-direction:column;padding:16px 22px;gap:12px}
+.panel.active{display:flex}
+.toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:none}
+.toolbar label{font-size:12px;color:var(--muted)}
+.sel{background:var(--surface-2);color:var(--ink);border:1px solid var(--surface-3);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;outline:none}
+.sel:focus{border-color:var(--accent-line)}
+.txt-in{background:var(--surface-2);color:var(--ink);border:1px solid var(--surface-3);border-radius:8px;padding:6px 10px;font-size:12px;font-family:var(--mono);outline:none;min-width:140px}
+.txt-in:focus{border-color:var(--accent-line)}
+.txt-in::placeholder{color:var(--faint)}
+.run-btn{border:0;border-radius:8px;padding:7px 18px;font-weight:600;font-size:13px;cursor:pointer;background:linear-gradient(135deg,var(--accent),#8b5cf6);color:#fff;transition:.15s}
+.run-btn:hover{filter:brightness(1.12)}
+.run-btn:disabled{opacity:.5;cursor:not-allowed}
+.pair{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.pane{background:var(--surface);border:1px solid var(--surface-2);border-radius:var(--radius);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.pane-head{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid var(--surface-2);font:600 11px var(--mono);color:var(--muted);letter-spacing:.04em;text-transform:uppercase;flex:none}
+.pane-head .badge{font-size:10px;color:var(--faint)}
+.pane textarea{flex:1;border:0;outline:0;resize:none;background:transparent;color:var(--ink);padding:14px 16px;font:13px/1.7 var(--mono);min-height:0}
+.pane textarea::placeholder{color:var(--faint)}
+.pane pre{flex:1;overflow:auto;margin:0;padding:14px 16px;font:13px/1.7 var(--mono);color:var(--ink);white-space:pre-wrap;word-break:break-word}
+.statusbar{flex:none;display:flex;align-items:center;gap:14px;padding:8px 4px;font:12px var(--mono);color:var(--muted);min-height:32px}
+.statusbar .dot{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+.statusbar.ok .dot{background:var(--ok)}
+.statusbar.err .dot{background:var(--err)}
+.statusbar.err{color:var(--err)}
+/* scrollbars */
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:#3a4170}
+/* toast */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface-3);color:var(--ink);padding:10px 22px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:50;border:1px solid var(--accent-line)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<main class="app">
+  <aside class="rail">
+    <div class="glyph"></div>
+    <button class="tool-btn active" data-tool="json-workbench" title="JSON">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H7a4 4 0 0 0-4 4v2a2 2 0 0 1-2 2 2 2 0 0 1 2 2v2a4 4 0 0 0 4 4h1M16 3h1a4 4 0 0 1 4 4v2a2 2 0 0 0 2 2 2 2 0 0 0-2 2v2a4 4 0 0 1-4 4h-1"/></svg>
+      <span>JSON</span>
+    </button>
+    <button class="tool-btn" data-tool="config-converter" title="格式转换">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h10M4 7l3-3M4 7l3 3M20 17H10M20 17l-3-3M20 17l-3 3"/></svg>
+      <span>转换</span>
+    </button>
+    <button class="tool-btn" data-tool="xml-workbench" title="XML">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 4l-6 8 6 8M10 4l-6 8 6 8"/></svg>
+      <span>XML</span>
+    </button>
+  </aside>
+  <section class="ws">
+    <div class="ws-head">
+      <h1>结构化数据工作台</h1><span class="sub" id="toolDesc">格式化、压缩、校验、路径查询和树形查看 JSON。</span>
+      <div class="spacer"></div>
+      <span class="chip" id="modeChip">JSON</span>
+      <button class="icon-btn" id="copyBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>复制结果</button>
+      <button class="icon-btn" id="clearBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>清空</button>
+    </div>
+
+    <!-- JSON -->
+    <div class="panel active" data-panel="json-workbench">
+      <div class="toolbar">
+        <label>操作</label>
+        <select class="sel" id="jsonAction"><option value="format">格式化</option><option value="minify">压缩</option></select>
+        <label>JSON Path</label>
+        <input class="txt-in" id="jsonQuery" placeholder="如 data.items[0].name（可空）">
+        <div class="spacer" style="flex:1"></div>
+        <button class="run-btn" data-run>执行</button>
+      </div>
+      <div class="pair">
+        <div class="pane"><div class="pane-head">输入 <span class="badge" id="jsonInSize">0 字符</span></div><textarea id="jsonInput" spellcheck="false" placeholder='粘贴 JSON，例如：&#10;{"name":"三人聚智","tools":["JSON","XML"]}'></textarea></div>
+        <div class="pane"><div class="pane-head">输出</div><pre id="jsonOutput"></pre></div>
+      </div>
+      <div class="statusbar" id="jsonStatus"><span class="dot"></span><span>等待输入</span></div>
+    </div>
+
+    <!-- Config converter -->
+    <div class="panel" data-panel="config-converter">
+      <div class="toolbar">
+        <label>源格式</label>
+        <select class="sel" id="cfgSrc"><option value="json">JSON</option><option value="yaml">YAML</option><option value="toml">TOML</option><option value="properties">Properties</option></select>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        <label>目标格式</label>
+        <select class="sel" id="cfgDst"><option value="yaml">YAML</option><option value="json">JSON</option><option value="toml">TOML</option><option value="properties">Properties</option></select>
+        <div class="spacer" style="flex:1"></div>
+        <button class="run-btn" data-run>转换</button>
+      </div>
+      <div class="pair">
+        <div class="pane"><div class="pane-head">源数据</div><textarea id="cfgInput" spellcheck="false" placeholder="粘贴需要转换的配置内容"></textarea></div>
+        <div class="pane"><div class="pane-head">转换结果</div><pre id="cfgOutput"></pre></div>
+      </div>
+      <div class="statusbar" id="cfgStatus"><span class="dot"></span><span>等待输入</span></div>
+    </div>
+
+    <!-- XML -->
+    <div class="panel" data-panel="xml-workbench">
+      <div class="toolbar">
+        <label>操作</label>
+        <select class="sel" id="xmlAction"><option value="format">格式化</option><option value="minify">压缩</option></select>
+        <div class="spacer" style="flex:1"></div>
+        <button class="run-btn" data-run>执行</button>
+      </div>
+      <div class="pair">
+        <div class="pane"><div class="pane-head">XML 输入</div><textarea id="xmlInput" spellcheck="false" placeholder="<root><item>内容</item></root>"></textarea></div>
+        <div class="pane"><div class="pane-head">输出</div><pre id="xmlOutput"></pre></div>
+      </div>
+      <div class="statusbar" id="xmlStatus"><span class="dot"></span><span>等待输入</span></div>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast"></div>
+<script>
+const api=window.pluginAPI;const $=s=>document.querySelector(s);const $$=s=>document.querySelectorAll(s);
+let current='json-workbench';
+const desc={json:'格式化、压缩、校验、路径查询和树形查看 JSON。',config:'在 JSON、YAML、TOML 和 Properties 之间进行本地转换。',xml:'格式化、压缩、校验和查询 XML 节点。'};
+$$('.tool-btn').forEach(b=>b.onclick=()=>openTool(b.dataset.tool));
+function openTool(id){
+  current=id;const key=id==='config-converter'?'config':id.split('-')[0];
+  $$('.tool-btn').forEach(x=>x.classList.toggle('active',x.dataset.tool===id));
+  $$('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===id));
+  $('#toolDesc').textContent=desc[key]||'';$('#modeChip').textContent={json:'JSON',config:'转换',xml:'XML'}[key]||'';
+}
+$$('[data-run]').forEach(b=>b.onclick=()=>run());
+$('#copyBtn').onclick=()=>{const out=current==='json-workbench'?$('#jsonOutput'):current==='config-converter'?$('#cfgOutput'):$('#xmlOutput');const t=out.textContent;if(t){api.copyText(t);toast('已复制到剪贴板');}else toast('暂无结果可复制');};
+$('#clearBtn').onclick=()=>{['#jsonInput','#jsonOutput','#cfgInput','#cfgOutput','#xmlInput','#xmlOutput'].forEach(s=>{const e=$(s);if('value'in e)e.value='';else e.textContent='';});updateSize();setStatus('#jsonStatus','已清空','idle');setStatus('#cfgStatus','已清空','idle');setStatus('#xmlStatus','已清空','idle');};
+$('#jsonInput').addEventListener('input',updateSize);
+function updateSize(){$('#jsonInSize').textContent=($('#jsonInput').value.length)+' 字符';}
+function setStatus(sel,msg,state){const bar=$(sel);bar.className='statusbar'+(state==='ok'?' ok':state==='err'?' err':'');bar.querySelector('span:last-child').textContent=msg;}
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1800);}
+function showOut(el,text){if('value'in el)el.value=text;else el.textContent=text;}
+async function run(){
+  const panel=$('.panel.active');const statusSel='.panel.active .statusbar';
+  const statusEl=$(statusSel);
+  let input='',options={};
+  if(current==='json-workbench'){input=$('#jsonInput').value;options={action:$('#jsonAction').value,query:$('#jsonQuery').value};}
+  else if(current==='config-converter'){input=$('#cfgInput').value;options={source:$('#cfgSrc').value,target:$('#cfgDst').value};}
+  else if(current==='xml-workbench'){input=$('#xmlInput').value;options={action:$('#xmlAction').value};}
+  if(!input.trim()){setStatus(statusSel,'请先输入内容','err');return;}
+  const btn=panel.querySelector('[data-run]');btn.disabled=true;
+  const st=setStatus;statusEl.querySelector('span:last-child').textContent='处理中…';
+  try{
+    const res=await api.runTask({toolId:current,input,options,execute:false});
+    const out=panel.querySelector('.pane:last-child pre, .pane:last-child textarea');
+    if(res.ok){showOut(out,typeof res.result==='string'?res.result:JSON.stringify(res.result,null,2));setStatus(statusSel,'已完成','ok');}
+    else{setStatus(statusSel,'失败：'+res.error,'err');}
+  }catch(e){setStatus(statusSel,'错误：'+e.message,'err');}
+  finally{btn.disabled=false;}
+}
+window.addEventListener('plugin-enter',e=>{
+  const id=e.detail?.toolId;if(id)openTool(id);
+  const text=e.detail?.action?.payload||e.detail?.action?.clipboardText||e.detail?.payload||e.detail?.clipboardText||'';
+  if(text){const map={'json-workbench':'#jsonInput','config-converter':'#cfgInput','xml-workbench':'#xmlInput'};const el=$(map[current]);if(el){el.value=text;updateSize();}}});
+api.migrateLegacy().catch(()=>{});
+</script>
+</body></html>

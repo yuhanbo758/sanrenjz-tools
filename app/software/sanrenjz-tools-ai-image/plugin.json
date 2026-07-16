@@ -1,0 +1,50 @@
+{
+  "pluginName": "AI 图片理解",
+  "description": "生成图片描述、标签、无障碍文本、分析和反向提示词。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "AI 工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-ai-image",
+      "explain": "AI 图片理解",
+      "description": "生成图片描述、标签、无障碍文本、分析和反向提示词。",
+      "cmds": [
+        "AI 图片理解",
+        "图片描述",
+        "标签",
+        "无障碍文本",
+        "反向提示词",
+        {
+          "type": "over",
+          "label": "用AI 图片理解处理",
+          "minLength": 1,
+          "maxLength": 200000
+        }
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": true,
+      "category": "AI 工具",
+      "priority": 22,
+      "useClipboardText": true
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "minWidth": 900,
+    "minHeight": 650,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

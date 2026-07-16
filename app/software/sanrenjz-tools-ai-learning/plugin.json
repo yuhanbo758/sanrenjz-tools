@@ -1,0 +1,50 @@
+{
+  "pluginName": "AI 学习卡片",
+  "description": "从文本或文档生成知识点、问答、术语表、测试题和 Anki CSV。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "AI 工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-ai-learning",
+      "explain": "AI 学习卡片",
+      "description": "从文本或文档生成知识点、问答、术语表、测试题和 Anki CSV。",
+      "cmds": [
+        "AI 学习卡片",
+        "知识卡片",
+        "测试题",
+        "术语表",
+        "Anki CSV",
+        {
+          "type": "over",
+          "label": "用AI 学习卡片处理",
+          "minLength": 1,
+          "maxLength": 200000
+        }
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": true,
+      "category": "AI 工具",
+      "priority": 22,
+      "useClipboardText": true
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "minWidth": 900,
+    "minHeight": 650,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

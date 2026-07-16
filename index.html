@@ -1367,34 +1367,13 @@
                             <div class="setting-label">右键长按延迟：</div>
                             <div class="setting-control">
                                 <div class="setting-control-row">
-                                        <input type="range" id="right-click-delay-slider" min="10" max="1000" step="10">
+                                        <input type="range" id="right-click-delay-slider" min="100" max="1000" step="10">
                                         <span id="delay-value-label" class="delay-value-display">500ms</span>
                                     </div>
                                     <div class="setting-description">调整需要长按多久才触发超级面板</div>
                                 </div>
                             </div>
                         
-                        <div class="setting-item">
-                            <div class="setting-label">中键长按超级面板：</div>
-                            <div class="setting-control">
-                                <div class="setting-control-row">
-                                    <input type="checkbox" id="middle-click-panel-checkbox">
-                                    <span>启用中键长按功能</span>
-                                </div>
-                                <div class="setting-description">启用后可长按鼠标中键打开超级面板（仅Windows）</div>
-                            </div>
-                        </div>
-                        
-                        <div class="setting-item">
-                            <div class="setting-label">中键长按延迟：</div>
-                            <div class="setting-control">
-                                <div class="setting-control-row">
-                                        <input type="range" id="middle-click-delay-slider" min="10" max="1000" step="10">
-                                        <span id="middle-delay-value-label" class="delay-value-display">100ms</span>
-                                    </div>
-                                    <div class="setting-description">调整中键长按触发超级面板的延迟</div>
-                                </div>
-                            </div>
                     </div>
 
                     <!-- 插件管理 -->
@@ -2272,7 +2251,7 @@
                 
                 // 加载右键长按设置
                 document.getElementById('right-click-panel-checkbox').checked = settings.enableRightClickPanel !== false;
-                const initialDelay = typeof settings.rightClickDelay === 'number' ? settings.rightClickDelay : 100;
+                const initialDelay = typeof settings.rightClickDelay === 'number' ? settings.rightClickDelay : 350;
                 document.getElementById('right-click-delay-slider').value = initialDelay;
                 document.getElementById('delay-value-label').textContent = initialDelay + 'ms';
                 
@@ -2283,17 +2262,6 @@
                     delayLabel.textContent = e.target.value + 'ms';
                 });
 
-                // 加载中键长按设置
-                document.getElementById('middle-click-panel-checkbox').checked = settings.enableMiddleClickPanel || false;
-                const middleDelay = typeof settings.middleClickDelay === 'number' ? settings.middleClickDelay : 100;
-                document.getElementById('middle-click-delay-slider').value = middleDelay;
-                document.getElementById('middle-delay-value-label').textContent = middleDelay + 'ms';
-                const middleDelaySlider = document.getElementById('middle-click-delay-slider');
-                const middleDelayLabel = document.getElementById('middle-delay-value-label');
-                middleDelaySlider.addEventListener('input', (e) => {
-                    middleDelayLabel.textContent = e.target.value + 'ms';
-                });
-                
                 // 加载插件数据存储位置
                 try {
                     const pluginDataDir = await ipcRenderer.invoke('get-plugin-data-directory');
@@ -2540,8 +2508,6 @@
                     superPanelHotkey: document.getElementById('super-panel-hotkey-input').value,
                     enableRightClickPanel: document.getElementById('right-click-panel-checkbox').checked,
                     rightClickDelay: parseInt(document.getElementById('right-click-delay-slider').value),
-                    enableMiddleClickPanel: document.getElementById('middle-click-panel-checkbox').checked,
-                    middleClickDelay: parseInt(document.getElementById('middle-click-delay-slider').value),
                     pluginSearchSettings: pluginSearchSettings
                 };
                 

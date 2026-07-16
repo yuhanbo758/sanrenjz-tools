@@ -1,0 +1,31 @@
+{
+  "pluginName": "AI语音输入法",
+  "description": "多供应商 AI 语音输入，统一可扩展文本处理模型与场景快捷键，并支持 PC/手机双向剪贴板、文件、随记和配置同步",
+  "version": "1.3.5",
+  "author": "余汉波",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "speech-config",
+      "explain": "语音输入法设置",
+      "description": "配置模型API Key和提示词",
+      "cmds": ["语音输入", "Voice Input", "Speech", "AI语音"],
+      "icon": "logo.ico",
+      "platform": ["win32", "darwin", "linux"],
+      "mode": "none",
+      "superPanel": true,
+      "priority": 10
+    }
+  ],
+  "pluginSetting": {
+    "width": 800,
+    "height": 720,
+    "single": true,
+    "autoHideMenuBar": true,
+    "keepAlive": true,
+    "background": true,
+    "autoClose": false
+  }
+}

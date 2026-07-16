@@ -413,8 +413,9 @@ class PluginManager {
     }
     
     // 创建插件窗口（适用于HTML插件）
-    async createPluginWindow(pluginPath, pluginConfig) {
+    async createPluginWindow(pluginPath, pluginConfig, options = {}) {
         const pluginName = pluginConfig.pluginName || path.basename(pluginPath);
+        const startHidden = options.startHidden === true;
         
         // 检查插件是否已经在运行
         if (this.pluginWindows.has(pluginName)) {
@@ -424,11 +425,13 @@ class PluginManager {
             if (existingWindow && !existingWindow.isDestroyed()) {
                 console.log(`插件 ${pluginName} 已经在运行，聚焦到现有窗口`);
                 
-                // 显示并聚焦到现有窗口
-                if (!existingWindow.isVisible()) {
-                    existingWindow.show();
+                // 截图优先入口必须保持隐藏，避免完整翻译界面先于截图遮罩闪现。
+                if (startHidden) {
+                    existingWindow.hide();
+                } else {
+                    if (!existingWindow.isVisible()) existingWindow.show();
+                    existingWindow.focus();
                 }
-                existingWindow.focus();
                 this.clearPluginCleanupTimer(pluginName);
                 
                 // 返回现有窗口，不创建新窗口
@@ -1161,13 +1164,13 @@ class PluginManager {
                 console.error('设置插件窗口位置失败，使用默认位置:', error);
             }
             
-            pluginWindow.show();
-            // 延迟获取焦点，避免与搜索窗口的焦点恢复冲突
-            setTimeout(() => {
-                if (pluginWindow && !pluginWindow.isDestroyed()) {
-                    pluginWindow.focus();
-                }
-            }, 800); // 增加延迟到800ms，确保搜索窗口焦点恢复完成
+            if (!startHidden) {
+                pluginWindow.show();
+                // 延迟获取焦点，避免与搜索窗口的焦点恢复冲突
+                setTimeout(() => {
+                    if (pluginWindow && !pluginWindow.isDestroyed()) pluginWindow.focus();
+                }, 800);
+            }
             this.clearPluginCleanupTimer(pluginName);
         });
 
@@ -1769,6 +1772,10 @@ class PluginManager {
 
             const pluginConfig = JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8'));
             const pluginName = pluginConfig.pluginName || path.basename(pluginPath);
+            const configuredFeature = Array.isArray(pluginConfig.features)
+                ? pluginConfig.features.find(item => item.code === feature.code)
+                : null;
+            const startHidden = configuredFeature?.startHidden === true;
 
             // 检查插件是否已经运行，如果没有，先创建插件窗口
             let pluginWindow;
@@ -1783,7 +1790,7 @@ class PluginManager {
             // 如果插件窗口不存在，创建一个
             if (!pluginWindow) {
                 console.log(`插件 ${pluginName} 未运行，创建插件窗口`);
-                pluginWindow = await this.createPluginWindow(pluginPath, pluginConfig);
+                pluginWindow = await this.createPluginWindow(pluginPath, pluginConfig, { startHidden });
                 
                 // 等待窗口内容加载完成
                 await new Promise((resolve) => {
@@ -1794,17 +1801,14 @@ class PluginManager {
                 await new Promise(resolve => setTimeout(resolve, 500));
             }
 
-            // 确保窗口可见
-            if (!pluginWindow.isVisible()) {
-                pluginWindow.show();
+            if (startHidden) {
+                pluginWindow.hide();
+            } else {
+                if (!pluginWindow.isVisible()) pluginWindow.show();
+                setTimeout(() => {
+                    if (pluginWindow && !pluginWindow.isDestroyed()) pluginWindow.focus();
+                }, 800);
             }
-            
-            // 延迟聚焦窗口，避免焦点冲突
-            setTimeout(() => {
-                if (pluginWindow && !pluginWindow.isDestroyed()) {
-                    pluginWindow.focus();
-                }
-            }, 800); // 增加延迟到800ms，确保搜索窗口焦点恢复完成
 
             // 发送功能执行请求到插件
             try {

@@ -1,0 +1,113 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN" data-layout="draft-quill">
+<head data-business>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI 写作工作室</title>
+<style>
+:root{--a:#c026d3;--a2:#e879f9;--as:rgba(192,38,211,.1);--al:rgba(192,38,211,.3);--bg:#fdf6fc;--sf:#fff;--s2:#fbe8f8;--bd:#f0d4ec;--ink:#2d0a24;--mt:#7a5670;--ft:#a880a0;--ok:#16a34a;--err:#dc2626;--mono:'JetBrains Mono',Consolas,monospace;--sans:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif}
+*{box-sizing:border-box}html,body{height:100%;overflow:hidden}body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans)}
+.app{height:calc(100vh - 32px);display:flex;flex-direction:column;min-height:0}
+.head{display:flex;align-items:center;gap:14px;padding:14px 24px;background:var(--sf);border-bottom:1px solid var(--bd);flex:none}
+.icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--a),var(--a2));display:flex;align-items:center;justify-content:center;flex:none}.icon svg{width:18px;height:18px;color:#fff}
+.head h1{margin:0;font-size:17px;font-weight:700}.head p{margin:0;color:var(--mt);font-size:12px}
+.spacer{flex:1}
+.gear{border:1px solid var(--bd);background:var(--sf);color:var(--a);border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px}.gear svg{width:14px;height:14px}
+.modes{display:flex;gap:6px;padding:10px 24px;background:var(--sf);border-bottom:1px solid var(--bd);flex:none;overflow-x:auto}
+.mode{border:1px solid var(--bd);background:var(--sf);color:var(--mt);padding:8px 16px;border-radius:999px;cursor:pointer;font-size:13px;font-weight:600;white-space:nowrap;transition:.15s}
+.mode:hover{border-color:var(--al);color:var(--a)}
+.mode.active{background:var(--a);color:#fff;border-color:transparent}
+.desk{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:14px 24px;overflow:hidden}
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:12px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.card-h{padding:10px 16px;border-bottom:1px solid var(--bd);font:600 12px var(--sans);color:var(--mt);display:flex;justify-content:space-between;align-items:center;flex:none}
+.card-h .cnt{font:11px var(--mono);color:var(--ft)}
+.src{flex:1;border:0;outline:0;resize:none;padding:16px;font:15px/1.8 var(--sans);background:var(--sf);min-height:0}
+.src::placeholder{color:var(--ft)}
+.res{flex:1;overflow:auto;padding:16px;font:15px/1.8 var(--sans);white-space:pre-wrap;word-break:break-word}
+.res.empty{display:flex;align-items:center;justify-content:center;color:var(--ft);font-size:13px}
+.act-bar{padding:12px 24px;border-top:1px solid var(--bd);background:var(--sf);display:flex;gap:10px;align-items:center;flex:none}
+.btn{border:1px solid var(--bd);background:var(--sf);color:var(--ink);border-radius:8px;padding:9px 18px;font-size:13px;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--al)}
+.btn svg{width:14px;height:14px}
+.btn.primary{background:linear-gradient(135deg,var(--a),var(--a2));color:#fff;border-color:transparent}.btn.primary:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.5}
+.stat{font:12px var(--mono);color:var(--mt)}
+/* settings drawer */
+.drawer{position:fixed;top:32px;right:0;bottom:0;width:min(420px,92vw);background:var(--sf);box-shadow:-12px 0 40px rgba(0,0,0,.1);z-index:50;transform:translateX(100%);transition:.25s;overflow:auto;padding:24px}
+.drawer.open{transform:translateX(0)}
+.drawer h2{margin:0 0 16px;font-size:16px}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:12px;color:var(--mt);font-weight:600;margin-bottom:6px}
+.field input,.field select{width:100%;border:1px solid var(--bd);border-radius:8px;padding:9px 12px;font:14px var(--sans);outline:none;background:var(--s2);color:var(--ink)}
+.field input:focus{border-color:var(--al)}
+.drawer .close{position:absolute;top:16px;right:16px;border:0;background:transparent;font-size:20px;color:var(--ft);cursor:pointer}
+.overlay{position:fixed;inset:32px 0 0 0;background:rgba(0,0,0,.3);z-index:40;display:none}.overlay.show{display:block}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#2d0a24;color:#fff;padding:10px 22px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:60}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#e0b8d8;border-radius:4px}
+</style>
+</head>
+<body>
+<main class="app">
+  <div class="head">
+    <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3zM18 13l-1.5-7.5L2 2l3.5 14.5L13 18z"/></svg></div>
+    <div><h1>AI 写作工作室</h1><p>润色、改写、扩写、缩写、语气和标题生成</p></div>
+    <div class="spacer"></div>
+    <button class="gear" onclick="toggleDrawer()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>供应商设置</button>
+  </div>
+  <div class="modes" id="modes">
+    <button class="mode active" data-mode="润色">润色</button>
+    <button class="mode" data-mode="改写">改写</button>
+    <button class="mode" data-mode="扩写">扩写</button>
+    <button class="mode" data-mode="缩写">缩写</button>
+    <button class="mode" data-mode="标题">标题生成</button>
+  </div>
+  <div class="desk">
+    <div class="card"><div class="card-h">素材与要求 <span class="cnt" id="srcCnt">0 字</span></div><textarea class="src" id="source" placeholder="粘贴需要处理的文本，或描述你希望 AI 完成的写作任务"></textarea></div>
+    <div class="card"><div class="card-h">生成结果 <span class="cnt" id="resStat">等待</span></div><div class="res empty" id="result">结果将显示在这里</div></div>
+  </div>
+  <div class="act-bar">
+    <button class="btn primary" id="genBtn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span id="genLabel">开始润色</span></button>
+    <button class="btn" id="stopBtn" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>取消</button>
+    <div class="spacer"></div>
+    <button class="btn" id="copyBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>复制结果</button>
+    <button class="btn" id="clearBtn">清空</button>
+  </div>
+</main>
+<div class="overlay" id="overlay" onclick="toggleDrawer()"></div>
+<aside class="drawer" id="drawer">
+  <button class="close" onclick="toggleDrawer()">×</button>
+  <h2>统一供应商配置</h2>
+  <div class="field"><label>服务名称</label><input id="pName" value="OpenAI 兼容服务"></div>
+  <div class="field"><label>Base URL</label><input id="pUrl" value="https://api.openai.com/v1"></div>
+  <div class="field"><label>模型 ID</label><input id="pModel" value="gpt-4o-mini"></div>
+  <div class="field"><label>API Key</label><input id="pKey" type="password" placeholder="仅保存到系统安全存储"></div>
+  <button class="btn primary" onclick="saveProvider()" style="width:100%;justify-content:center">保存并共享</button>
+</aside>
+<div class="toast" id="toast"></div>
+<script src="../../plugin_runtime/ai-provider-manager.js"></script>
+<script>
+const api=window.aiAPI;const $=s=>document.querySelector(s);const $$=s=>document.querySelectorAll(s);
+let mode='润色';let requestId='';let streaming=false;
+const providerManager=AIProviderManager.create(api,{capability:'text',notify:toast});
+const prompts={'润色':'请对以下文本进行润色，使其更加流畅、专业，保持原意不变：','改写':'请用不同的表达方式改写以下文本，保持原意：','扩写':'请将以下文本扩写，补充细节和论据，使内容更丰富：','缩写':'请将以下文本缩写，保留核心信息，精简表达：','标题':'请为以下内容生成 3 个吸引人的标题：'};
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1600);}
+function toggleDrawer(){$('#drawer').classList.toggle('open');$('#overlay').classList.toggle('show');}
+$$('#modes .mode').forEach(b=>b.onclick=()=>{$$('#modes .mode').forEach(x=>x.classList.remove('active'));b.classList.add('active');mode=b.textContent;$('#genLabel').textContent='开始'+mode;});
+$('#source').addEventListener('input',()=>{$('#srcCnt').textContent=$('#source').value.length+' 字';});
+api.onChunk(chunk=>{if(chunk.requestId===requestId){const r=$('#result');r.classList.remove('empty');r.textContent=chunk.text;}});
+$('#genBtn').onclick=async()=>{
+  const text=$('#source').value.trim();if(!text){toast('请输入内容');return;}
+  requestId=crypto.randomUUID();streaming=true;$('#genBtn').disabled=true;$('#stopBtn').disabled=false;
+  $('#result').classList.remove('empty');$('#result').textContent='';$('#resStat').textContent='生成中…';
+  const prompt=prompts[mode]+'\n\n'+text;
+  try{const r=await api.complete({requestId,capability:'text',selection:await providerManager.getSelection(),stream:true,messages:[{role:'user',content:prompt}]});$('#result').textContent=r.text;$('#resStat').textContent='已完成';}
+  catch(e){$('#result').textContent=e.message;$('#resStat').textContent=e.message==='请求已取消'?'已取消':'失败';}
+  finally{streaming=false;$('#genBtn').disabled=false;$('#stopBtn').disabled=true;}
+};
+$('#stopBtn').onclick=()=>{if(requestId){api.cancel(requestId);streaming=false;$('#genBtn').disabled=false;$('#stopBtn').disabled=true;$('#resStat').textContent='已取消';}};
+$('#copyBtn').onclick=()=>{const t=$('#result').textContent;if(t&&t!=='结果将显示在这里'){const cb=navigator.clipboard||{writeText:x=>{const ta=document.createElement('textarea');ta.value=x;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();}};cb.writeText(t);toast('已复制');}else toast('暂无结果');};
+$('#clearBtn').onclick=()=>{$('#source').value='';$('#result').textContent='结果将显示在这里';$('#result').classList.add('empty');$('#srcCnt').textContent='0 字';$('#resStat').textContent='等待';};
+window.addEventListener('plugin-enter',e=>{const text=e.detail?.payload||e.detail?.clipboardText||'';if(text){$('#source').value=text;$('#srcCnt').textContent=text.length+' 字';}});
+</script>
+</body></html>

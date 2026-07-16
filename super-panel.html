@@ -425,72 +425,11 @@
 
     <script>
         const { ipcRenderer } = require('electron');
-        const fs = require('fs');
-        const path = require('path');
 
         let selectedIndex = 0;
         let actions = [];
         let currentClipboardText = '';
-        let contextType = 'text'; // 'text', 'file', 'image', 'url'
-
-        // 检测上下文类型
-        function detectContextType(text) {
-            if (!text) return 'text';
-            const trimmed = text.trim();
-
-            // URL 检测
-            if (/^https?:\/\//i.test(trimmed)) return 'url';
-
-            // 文件路径检测
-            // 简单判断：如果是绝对路径且存在
-            try {
-                // 移除可能的引号
-                const cleanPath = trimmed.replace(/^"|"$/g, '');
-                if (path.isAbsolute(cleanPath) && fs.existsSync(cleanPath)) {
-                    const stat = fs.statSync(cleanPath);
-                    return stat.isDirectory() ? 'directory' : 'file';
-                }
-            } catch (e) { }
-
-            return 'text';
-        }
-
-        // 根据上下文排序功能
-        function sortActionsByContext(actions, type) {
-            return actions.sort((a, b) => {
-                let scoreA = 0;
-                let scoreB = 0;
-
-                // 根据上下文类型给予加分
-                const getScore = (action) => {
-                    let score = 0;
-                    const keywords = (action.title + ' ' + (action.description || '') + ' ' + (action.category || '')).toLowerCase();
-
-                    if (type === 'file' || type === 'directory') {
-                        if (keywords.includes('文件') || keywords.includes('file')) score += 10;
-                        if (keywords.includes('图片') && type === 'file') score += 5; // 图片文件
-                        if (keywords.includes('终端') || keywords.includes('powershell') || keywords.includes('cmd')) score += 8;
-                    } else if (type === 'url') {
-                        if (keywords.includes('链接') || keywords.includes('url') || keywords.includes('网页')) score += 10;
-                    } else if (type === 'text') {
-                        if (keywords.includes('文本') || keywords.includes('翻译') || keywords.includes('text') || keywords.includes('搜索')) score += 5;
-                        // 翻译插件优先级更高
-                        if (keywords.includes('翻译') && /[\u4e00-\u9fa5]/.test(currentClipboardText) === false) score += 5; // 非中文优先翻译
-                    }
-
-                    // 保持原有的优先级 (priority 越小越前)
-                    // 这里我们将 priority 转换为分数，priority 1 = 100分, 10 = 10分
-                    score += (20 - (action.priority || 10)) * 2;
-
-                    return score;
-                };
-
-                scoreA = getScore(a);
-                scoreB = getScore(b);
-
-                return scoreB - scoreA; // 降序排列
-            });
-        }
+        let currentContext = { text: '', hasImage: false, source: 'clipboard' };
 
         // 打开添加插件功能对话框
         async function openAddPluginDialog() {
@@ -513,27 +452,17 @@
         }
 
         // 初始化超级面板 - 纯框架版本
-        async function initSuperPanel() {
+        async function initSuperPanel(explicitContext = null) {
             try {
                 console.log('🚀 超级面板框架初始化开始');
-
-                // 获取剪贴板文本
-                currentClipboardText = await ipcRenderer.invoke('get-clipboard-text') || '';
-                console.log('📝 剪贴板文本:', currentClipboardText);
-
-                // 检测上下文类型
-                contextType = detectContextType(currentClipboardText);
-                console.log('🔍 上下文类型:', contextType);
-
-                // 显示剪贴板信息
-                updateClipboardInfo(currentClipboardText, contextType);
+                if (explicitContext) currentContext = explicitContext;
+                else currentContext = await ipcRenderer.invoke('get-clipboard-context');
+                currentClipboardText = currentContext.text || '';
 
                 // 从插件API加载所有注册的功能
-                let newActions = await ipcRenderer.invoke('get-super-panel-actions', currentClipboardText);
+                const newActions = await ipcRenderer.invoke('get-super-panel-actions', currentContext);
                 console.log('🔧 重新加载到的功能:', newActions.length, '个');
-
-                // 根据上下文排序
-                newActions = sortActionsByContext(newActions, contextType);
+                updateClipboardInfo(currentClipboardText, newActions[0]?.contextTypes || []);
 
                 // 更新功能列表
                 actions = newActions;
@@ -547,16 +476,13 @@
         }
 
         // 更新剪贴板信息显示
-        function updateClipboardInfo(text, type) {
+        function updateClipboardInfo(text, types) {
             const infoElement = document.getElementById('selected-text-info');
-            if (text && text.trim()) {
+            if ((text && text.trim()) || currentContext.hasImage) {
                 const displayText = text.length > 50 ? text.substring(0, 50) + '...' : text;
-                let typeText = '文本';
-                if (type === 'file') typeText = '文件';
-                if (type === 'directory') typeText = '文件夹';
-                if (type === 'url') typeText = '链接';
-
-                infoElement.textContent = `[剪贴板:${typeText}] ${displayText}`;
+                const typeText = currentContext.hasImage ? '图片' : (Array.isArray(types) && types.length ? types.join('/') : '文本');
+                const sourceText = currentContext.source === 'selection' ? '选区' : '剪贴板';
+                infoElement.textContent = `[${sourceText}:${typeText}] ${displayText}`;
                 infoElement.style.display = 'block';
             } else {
                 infoElement.style.display = 'none';
@@ -844,6 +770,12 @@
             // 确保完全重新初始化面板
             actions = []; // 清空现有功能列表
             initSuperPanel();
+        });
+
+        // 右键长按由主进程直接传入选区，避免再次读取已被恢复的剪贴板。
+        ipcRenderer.on('super-panel-context', (event, context) => {
+            actions = [];
+            initSuperPanel(context || { text: '', hasImage: false, source: 'selection' });
         });
 
         // 监听功能列表直接更新

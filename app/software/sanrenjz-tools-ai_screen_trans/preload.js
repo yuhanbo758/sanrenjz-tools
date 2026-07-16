@@ -1,325 +1,167 @@
-const { contextBridge, ipcRenderer, clipboard, desktopCapturer, nativeImage } = require('electron');
+const { contextBridge, ipcRenderer, clipboard, nativeImage } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
 const PLUGIN_NAME = 'AI 屏幕翻译';
+const AI_SHARED_NAME = 'AI 共享配置中心';
 
 /**
- * 默认配置
- * Default settings for the plugin
+ * 配置版本 2 使用统一供应商目录。
+ * 模型 capability 为 text 或 vision，两个处理阶段复用同一份目录，避免出现互相冲突的设置入口。
  */
 const DEFAULT_SETTINGS = {
-    apiKey: '',
-    baseUrl: 'https://api.siliconflow.cn/v1',
-    textModel: 'deepseek-ai/DeepSeek-V3.2',
-    ocrModel: 'deepseek-ai/DeepSeek-OCR'
+    settingsVersion: 2,
+    providers: [
+        {
+            id: 'deepseek-official',
+            name: 'DeepSeek 官方',
+            baseUrl: 'https://api.deepseek.com',
+            models: [
+                { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro', capabilities: ['text'] },
+                { id: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash', capabilities: ['text'] }
+            ]
+        },
+        {
+            id: 'siliconflow',
+            name: '硅基流动',
+            baseUrl: 'https://api.siliconflow.cn/v1',
+            models: [
+                { id: 'deepseek-ai/DeepSeek-OCR', label: 'DeepSeek OCR', capabilities: ['vision'] }
+            ]
+        }
+    ],
+    textSelection: { providerId: 'deepseek-official', modelId: 'deepseek-v4-pro' },
+    ocrSelection: { providerId: 'siliconflow', modelId: 'deepseek-ai/DeepSeek-OCR' }
 };
 
-/**
- * 获取插件配置 (内部函数)
- * Retrieve plugin configuration from storage
- * @returns {Object} Current settings merged with defaults
- */
-function getSettingsInternal() {
+function cloneDefaults() {
+    return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+}
+
+function readStoredSettings() {
     try {
-        const stored = ipcRenderer.sendSync('plugin-storage-get', PLUGIN_NAME, 'settings');
-        if (!stored || typeof stored !== 'object') {
-            return { ...DEFAULT_SETTINGS };
-        }
-        return { ...DEFAULT_SETTINGS, ...stored };
+        return ipcRenderer.sendSync('plugin-storage-get', PLUGIN_NAME, 'settings') || null;
     } catch (error) {
-        console.error('获取配置失败:', error);
-        return { ...DEFAULT_SETTINGS };
+        console.error('读取翻译配置失败:', error);
+        return null;
     }
 }
 
-/**
- * 保存插件配置 (内部函数)
- * Save plugin configuration to storage
- * @param {Object} settings - The settings object to save
- * @returns {boolean} Success status
- */
-function saveSettingsInternal(settings) {
-    try {
-        const merged = { ...DEFAULT_SETTINGS, ...(settings || {}) };
-        ipcRenderer.sendSync('plugin-storage-set', PLUGIN_NAME, 'settings', merged);
-        return true;
-    } catch (error) {
-        console.error('保存配置失败:', error);
-        return false;
-    }
+function writeStoredSettings(settings) {
+    return ipcRenderer.sendSync('plugin-storage-set', PLUGIN_NAME, 'settings', settings);
 }
 
-// 缓存最后一次进入的数据，防止渲染进程未准备好
-// Cache the last entry context in case the renderer is not ready
+/**
+ * 自动迁移 1.x 的单 URL/Key 配置。旧用户继续使用原供应商，新安装则默认 DeepSeek V4 Pro。
+ */
+async function ensureSettings() {
+    const shared = ipcRenderer.sendSync('plugin-storage-get', AI_SHARED_NAME, 'runtime-config');
+    if (shared?.schemaVersion === 1 && Array.isArray(shared.providers) && shared.providers.length) {
+        return { settingsVersion: 2, providers: shared.providers, textSelection: shared.selections?.text, ocrSelection: shared.selections?.vision || shared.selections?.text };
+    }
+    const stored = readStoredSettings();
+    if (stored?.settingsVersion === 2 && Array.isArray(stored.providers)) {
+        return { ...cloneDefaults(), ...stored };
+    }
+    if (!stored) return cloneDefaults();
+
+    const migrated = cloneDefaults();
+    const legacyId = 'migrated-provider';
+    const legacyModels = [];
+    if (stored.textModel) legacyModels.push({ id: stored.textModel, label: stored.textModel, capabilities: ['text'] });
+    if (stored.ocrModel && stored.ocrModel !== stored.textModel) legacyModels.push({ id: stored.ocrModel, label: stored.ocrModel, capabilities: ['vision'] });
+    migrated.providers.push({
+        id: legacyId,
+        name: '原有供应商',
+        baseUrl: stored.baseUrl || 'https://api.siliconflow.cn/v1',
+        models: legacyModels.length ? legacyModels : [{ id: 'deepseek-ai/DeepSeek-V3.2', label: 'DeepSeek V3.2', capabilities: ['text'] }]
+    });
+    migrated.textSelection = { providerId: legacyId, modelId: stored.textModel || legacyModels[0].id };
+    migrated.ocrSelection = { providerId: legacyId, modelId: stored.ocrModel || 'deepseek-ai/DeepSeek-OCR' };
+    if (stored.apiKey) await ipcRenderer.invoke('plugin-secret-set', PLUGIN_NAME, `provider:${legacyId}`, stored.apiKey);
+    writeStoredSettings(migrated);
+    return migrated;
+}
+
+async function saveSettings(settings, providerSecrets = {}) {
+    const clean = { ...settings, settingsVersion: 2 };
+    clean.providers = (Array.isArray(settings.providers) ? settings.providers : []).map(provider => ({
+        id: String(provider.id),
+        name: String(provider.name || provider.id),
+        baseUrl: String(provider.baseUrl || '').trim(),
+        models: (Array.isArray(provider.models) ? provider.models : []).map(model => ({
+            id: String(model.id),
+            label: String(model.label || model.id),
+            capabilities: Array.isArray(model.capabilities) ? model.capabilities.filter(item => item === 'text' || item === 'vision') : ['text']
+        }))
+    }));
+    let encryptionAvailable = true;
+    for (const [providerId, secret] of Object.entries(providerSecrets)) {
+        const result = await ipcRenderer.invoke('plugin-secret-set', AI_SHARED_NAME, `provider:${providerId}`, secret);
+        if (result?.encryptionAvailable === false) encryptionAvailable = false;
+    }
+    writeStoredSettings(clean);
+    ipcRenderer.sendSync('plugin-storage-set', AI_SHARED_NAME, 'runtime-config', { schemaVersion: 1, providers: clean.providers, selections: { text: clean.textSelection, vision: clean.ocrSelection }, timeoutMs: 60000 });
+    return { settings: clean, encryptionAvailable };
+}
+
 let lastEnterContext = null;
-
-/**
- * 处理进入事件
- * Handle plugin entry event
- * @param {string} mode - Entry mode ('text' or 'ocr')
- * @param {Object} action - Action object from the host
- */
 function handleEnter(mode, action) {
-    try {
-        console.log(`Plugin Enter: mode=${mode}`, action);
-        let payload = '';
-        if (action && typeof action === 'object' && action.payload) {
-            payload = action.payload;
-        }
-        
-        const context = { mode, payload, action };
-        lastEnterContext = context;
-
-        // 发送消息给渲染进程
-        // Send message to renderer process
-        window.postMessage({
-            type: 'AI_SCREEN_TRANS_ENTER',
-            data: context
-        }, '*');
-    } catch (error) {
-        console.error('处理进入事件失败:', error);
-    }
+    const payload = action && typeof action === 'object' ? String(action.payload || action.clipboardText || '') : '';
+    lastEnterContext = { mode, payload, action };
+    window.postMessage({ type: 'AI_SCREEN_TRANS_ENTER', data: lastEnterContext }, '*');
 }
 
-/**
- * 暴露给渲染进程的服务 API
- * Service APIs exposed to the renderer process
- */
 const services = {
-    /**
-     * 获取配置
-     * Get current settings
-     */
-    getSettings: () => getSettingsInternal(),
-
-    /**
-     * 保存配置
-     * Save settings
-     */
-    saveSettings: (settings) => saveSettingsInternal(settings),
-
-    /**
-     * 复制文本到剪贴板
-     * Copy text to clipboard
-     */
-    copyText: (text) => {
-        try {
-            clipboard.writeText(String(text || ''));
-            return { success: true };
-        } catch (error) {
-            return { success: false, error: error.message };
-        }
+    getSettings: ensureSettings,
+    saveSettings,
+    getProviderSecret: async providerId => (await ipcRenderer.invoke('plugin-secret-get', AI_SHARED_NAME, `provider:${providerId}`)) || ipcRenderer.invoke('plugin-secret-get', PLUGIN_NAME, `provider:${providerId}`),
+    removeProviderSecret: async providerId => ipcRenderer.invoke('plugin-secret-remove', AI_SHARED_NAME, `provider:${providerId}`),
+    captureRegion: options => ipcRenderer.invoke('capture-screen-region', options || {}),
+    setPromptMode: enabled => ipcRenderer.invoke('set-plugin-window-prompt-mode', enabled === true),
+    copyText: text => {
+        try { clipboard.writeText(String(text || '')); return { success: true }; }
+        catch (error) { return { success: false, error: error.message }; }
     },
-
-    /**
-     * 关闭窗口
-     * Close plugin window
-     */
-    closeWindow: async () => {
-        return await ipcRenderer.invoke('close-plugin-window', PLUGIN_NAME);
-    },
-
-    /**
-     * 最小化窗口
-     * Minimize plugin window
-     */
-    minimizeWindow: async () => {
-        return await ipcRenderer.invoke('minimize-plugin-window', PLUGIN_NAME);
-    },
-
-    /**
-     * 切换窗口置顶状态
-     * Toggle window pin status
-     */
-    togglePin: async () => {
-        return await ipcRenderer.invoke('toggle-plugin-pin-window', PLUGIN_NAME);
-    },
-
-    /**
-     * 获取初始上下文（用于渲染进程初始化时主动获取）
-     * Get initial context (called by renderer on init)
-     */
+    closeWindow: () => ipcRenderer.invoke('close-plugin-window', PLUGIN_NAME),
+    minimizeWindow: () => ipcRenderer.invoke('minimize-plugin-window', PLUGIN_NAME),
+    togglePin: () => ipcRenderer.invoke('toggle-plugin-pin-window', PLUGIN_NAME),
     getInitialContext: () => {
-        const ctx = lastEnterContext;
-        lastEnterContext = null; // 获取后清除，避免重复
-        return ctx;
+        const context = lastEnterContext;
+        lastEnterContext = null;
+        return context;
     },
-
-    /**
-     * 获取剪贴板文本
-     * Get text from clipboard
-     */
-    getClipboardText: () => {
-        return clipboard.readText();
-    },
-
-    /**
-     * 从路径读取图片
-     * Read image from path
-     */
-    readImageFromPath: (filePath) => {
+    getClipboardText: () => clipboard.readText(),
+    readImageFromPath: filePath => {
         try {
-            if (fs.existsSync(filePath)) {
-                const img = nativeImage.createFromPath(filePath);
-                if (!img.isEmpty()) {
-                    return img.toPNG().toString('base64');
-                }
-            }
-            return null;
-        } catch (error) {
-            console.error('读取图片路径失败:', error);
-            return null;
-        }
+            if (!fs.existsSync(filePath)) return null;
+            const image = nativeImage.createFromPath(filePath);
+            return image.isEmpty() ? null : image.toPNG().toString('base64');
+        } catch (_) { return null; }
     },
-
-    /**
-     * 获取剪贴板图片（返回 Base64）
-     * Get image from clipboard as Base64 string
-     * Supports: Image data, Data URI text, File path to image
-     */
     getClipboardImage: () => {
         try {
-            // 调试日志：查看当前剪贴板支持的格式
-            const formats = clipboard.availableFormats();
-            console.log('Clipboard formats:', formats);
-
-            // 1. 优先尝试直接读取 Image 对象 (适用于截图)
             const image = clipboard.readImage();
-            if (image && !image.isEmpty()) {
-                return image.toPNG().toString('base64');
-            }
-
-            // 2. 尝试读取文本（可能是 Data URI 或文件路径）
-            // 注意：某些系统复制文件时，readText 可能为空，需要更底层的处理，
-            // 但 Electron 对文件复制的支持主要通过 readBuffer('FileNameW') 等，这里暂且尝试 readText
+            if (image && !image.isEmpty()) return image.toPNG().toString('base64');
             const text = (clipboard.readText() || '').trim();
-            if (text) {
-                // Case A: Data URI
-                if (text.startsWith('data:image')) {
-                    const base64 = text.split(',')[1] || '';
-                    if (base64) {
-                        const img = nativeImage.createFromBuffer(Buffer.from(base64, 'base64'));
-                        if (!img.isEmpty()) {
-                            return img.toPNG().toString('base64');
-                        }
-                    }
-                } 
-                // Case B: File Path
-                else {
-                    const possiblePath = text.replace(/^"|"$/g, '');
-                    if (fs.existsSync(possiblePath)) {
-                        const ext = path.extname(possiblePath).toLowerCase();
-                        if ([".png", ".jpg", ".jpeg", ".webp", ".bmp"].includes(ext)) {
-                            const img = nativeImage.createFromPath(possiblePath);
-                            if (!img.isEmpty()) {
-                                return img.toPNG().toString('base64');
-                            }
-                        }
-                    }
-                }
+            if (text.startsWith('data:image')) return text.split(',')[1] || null;
+            const possiblePath = text.replace(/^"|"$/g, '');
+            if (possiblePath && fs.existsSync(possiblePath) && ['.png', '.jpg', '.jpeg', '.webp', '.bmp'].includes(path.extname(possiblePath).toLowerCase())) {
+                const fileImage = nativeImage.createFromPath(possiblePath);
+                return fileImage.isEmpty() ? null : fileImage.toPNG().toString('base64');
             }
-
-            // 3. (高级) 尝试从 HTML 格式中提取 img src (适用于从浏览器复制图片)
-            // 有些浏览器复制图片时不提供 image/png，只提供 text/html
-            if (formats.includes('text/html')) {
-                const html = clipboard.readHTML();
-                const srcMatch = html.match(/<img[^>]+src="([^">]+)"/);
-                if (srcMatch && srcMatch[1]) {
-                    const src = srcMatch[1];
-                    if (src.startsWith('file://')) {
-                         const p = decodeURI(src.replace('file://', ''));
-                         // Windows 路径修正 /C:/... -> C:/...
-                         const winPath = p.replace(/^\/([a-zA-Z]:)/, '$1');
-                         if (fs.existsSync(winPath)) {
-                             const img = nativeImage.createFromPath(winPath);
-                             if (!img.isEmpty()) return img.toPNG().toString('base64');
-                         }
-                    }
-                }
-            }
-
             return null;
         } catch (error) {
             console.error('读取剪贴板图片失败:', error);
             return null;
         }
-    },
-
-    /**
-     * 屏幕截图 (备用)
-     * Capture screen (Fallback)
-     */
-    captureScreen: async () => {
-        try {
-            // 获取屏幕模块
-            let screen;
-            try {
-                screen = require('@electron/remote').screen;
-            } catch (e) {
-                console.warn('Failed to load screen from @electron/remote, trying electron...', e);
-                screen = require('electron').screen;
-            }
-
-            if (!screen) {
-                 console.warn('Screen module not found, using default resolution 1920x1080');
-                 const sources = await desktopCapturer.getSources({ 
-                    types: ['screen'], 
-                    thumbnailSize: { width: 1920, height: 1080 }
-                });
-                if (sources.length > 0) {
-                    return sources[0].thumbnail.toPNG().toString('base64');
-                }
-                 throw new Error('No screen source found (fallback)');
-            }
-
-            const primaryDisplay = screen.getPrimaryDisplay();
-            const { width, height } = primaryDisplay.size;
-            const scaleFactor = primaryDisplay.scaleFactor || 1;
-            const thumbWidth = Math.ceil(width * scaleFactor);
-            const thumbHeight = Math.ceil(height * scaleFactor);
-
-            const sources = await desktopCapturer.getSources({ 
-                types: ['screen'], 
-                thumbnailSize: { width: thumbWidth, height: thumbHeight }
-            });
-            
-            if (sources.length > 0) {
-                const source = sources.find(s => s.display_id === primaryDisplay.id.toString()) || sources[0];
-                return source.thumbnail.toPNG().toString('base64');
-            }
-            throw new Error('No screen source found');
-        } catch (e) {
-            console.error('Capture failed', e);
-            throw e;
-        }
     }
 };
 
-// 暴露 API
-try {
-    contextBridge.exposeInMainWorld('services', services);
-} catch (error) {
-    console.warn('contextBridge expose failed, fallback to window.services');
-    window.services = services;
-}
+try { contextBridge.exposeInMainWorld('services', services); }
+catch (_) { window.services = services; }
 
-// 注册插件功能
 window.exports = {
-    "ai-screen-text-translate": {
-        mode: "none",
-        args: {
-            enter: (action) => {
-                handleEnter('text', action);
-            }
-        }
-    },
-    "ai-screen-ocr-translate": {
-        mode: "none",
-        args: {
-            enter: (action) => {
-                handleEnter('ocr', action);
-            }
-        }
-    }
+    'ai-screen-text-translate': { mode: 'none', args: { enter: action => handleEnter('text', action) } },
+    'ai-screen-ocr-translate': { mode: 'none', args: { enter: action => handleEnter('ocr', action) } }
 };

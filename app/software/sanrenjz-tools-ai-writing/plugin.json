@@ -1,0 +1,51 @@
+{
+  "pluginName": "AI 写作工作室",
+  "description": "润色、改写、扩写、缩写、语气和标题生成。",
+  "version": "1.0.0",
+  "author": "三人聚智",
+  "category": "AI 工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-ai-writing",
+      "explain": "AI 写作工作室",
+      "description": "润色、改写、扩写、缩写、语气和标题生成。",
+      "cmds": [
+        "AI 写作工作室",
+        "润色",
+        "改写",
+        "扩写",
+        "缩写",
+        "标题",
+        {
+          "type": "over",
+          "label": "用AI 写作工作室处理",
+          "minLength": 1,
+          "maxLength": 200000
+        }
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": true,
+      "category": "AI 工具",
+      "priority": 22,
+      "useClipboardText": true
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "minWidth": 900,
+    "minHeight": 650,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

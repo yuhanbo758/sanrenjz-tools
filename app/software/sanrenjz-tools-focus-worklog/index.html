@@ -1,0 +1,162 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN" data-layout="focus-ring">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>专注与工时</title>
+<style>
+:root{
+  --accent:#c92a2a;--accent-2:#e03131;--accent-soft:rgba(201,42,42,.1);--accent-line:rgba(201,42,42,.3);
+  --bg:#fdf5f5;--surface:#fff;--surface-2:#fce8e8;--border:#f0d4d4;
+  --ink:#2d1010;--muted:#7a5656;--faint:#a89090;
+  --ok:#16a34a;--err:#dc2626;
+  --mono:'JetBrains Mono',Consolas,monospace;
+  --sans:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans)}
+.app{height:calc(100vh - 32px);display:flex;flex-direction:column;min-height:0}
+.head{display:flex;align-items:center;gap:14px;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
+.icon{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;flex:none}
+.icon svg{width:18px;height:18px;color:#fff}
+.head h1{margin:0;font-size:17px;font-weight:700}
+.head p{margin:0;color:var(--muted);font-size:12px}
+.spacer{flex:1}
+.tabs{display:flex;gap:6px;padding:10px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
+.tab{border:0;background:transparent;color:var(--muted);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;transition:.15s;display:flex;align-items:center;gap:7px}
+.tab svg{width:15px;height:15px}
+.tab:hover{background:var(--surface-2)}.tab.active{background:var(--accent);color:#fff}
+.content{flex:1;min-height:0;overflow:hidden;padding:16px 24px}
+.panel{height:100%;min-height:0;display:none;flex-direction:column;gap:16px;align-items:center}
+.panel.active{display:flex}
+/* pomodoro */
+.timer-wrap{display:flex;flex-direction:column;align-items:center;gap:20px}
+.ring-container{position:relative;width:280px;height:280px}
+.ring-svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring-bg{fill:none;stroke:var(--surface-2);stroke-width:14}
+.ring-fg{fill:none;stroke:var(--accent);stroke-width:14;stroke-linecap:round;transition:stroke-dashoffset 1s linear}
+.ring-fg.break-mode{stroke:var(--ok)}
+.timer-text{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center}
+.timer-text .time{font:700 48px var(--mono);color:var(--ink);line-height:1}
+.timer-text .phase{font-size:13px;color:var(--muted);margin-top:6px;text-transform:uppercase;letter-spacing:.1em}
+.timer-controls{display:flex;gap:12px;align-items:center}
+.btn{border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:999px;padding:12px 28px;font-size:14px;font-weight:600;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:8px}
+.btn:hover{border-color:var(--accent-line)}
+.btn svg{width:16px;height:16px}
+.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;border-color:transparent;min-width:140px;justify-content:center}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.5}
+.pomo-settings{display:flex;gap:16px;align-items:center;flex-wrap:wrap;justify-content:center}
+.pomo-settings label{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.pomo-settings input{width:60px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font:13px var(--mono);text-align:center;outline:none}
+.session-dots{display:flex;gap:6px}
+.session-dot{width:12px;height:12px;border-radius:50%;background:var(--border)}
+.session-dot.active{background:var(--accent)}
+.session-dot.done{background:var(--ok)}
+.pomo-project{display:flex;gap:8px;align-items:center}
+.pomo-project input{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font:14px var(--sans);outline:none;width:200px}
+.pomo-project input:focus{border-color:var(--accent-line)}
+/* worklog */
+.wl-head{display:flex;gap:14px;align-items:center;width:100%;max-width:900px;flex:none}
+.wl-stats{display:flex;gap:20px;flex:1}
+.wl-stat{display:flex;align-items:baseline;gap:6px}
+.wl-stat .n{font:700 22px var(--mono);color:var(--accent)}
+.wl-stat .l{font-size:12px;color:var(--muted)}
+.wl-list{flex:1;min-height:0;overflow:auto;width:100%;max-width:900px;background:var(--surface);border:1px solid var(--border);border-radius:12px}
+.wl-item{display:flex;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--surface-2)}
+.wl-item:last-child{border:0}
+.wl-item .wl-proj{font-weight:600;flex:1}
+.wl-item .wl-note{font-size:12px;color:var(--muted);flex:2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wl-item .wl-min{font:600 13px var(--mono);color:var(--accent);min-width:60px;text-align:right}
+.wl-item .wl-date{font:11px var(--mono);color:var(--faint);min-width:80px;text-align:right}
+.wl-del{border:0;background:transparent;color:var(--faint);cursor:pointer;font-size:14px;padding:4px}
+.wl-del:hover{color:var(--err)}
+.wl-empty{padding:40px;text-align:center;color:var(--faint)}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#2d1010;color:#fff;padding:10px 22px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:50}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#e0bcbc;border-radius:4px}
+</style>
+</head>
+<body>
+<main class="app">
+  <div class="head">
+    <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M12 5V3M9 3h6"/></svg></div>
+    <div><h1>专注与工时</h1><p>专注计时直接沉淀为项目工时与周期报告</p></div>
+    <div class="spacer"></div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" data-tool="pomodoro-focus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/></svg>番茄专注</button>
+    <button class="tab" data-tool="worklog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>工时记录</button>
+  </div>
+  <div class="content">
+    <div class="panel active" data-panel="pomodoro-focus">
+      <div class="timer-wrap">
+        <div class="ring-container">
+          <svg class="ring-svg" viewBox="0 0 100 100">
+            <circle class="ring-bg" cx="50" cy="50" r="45"/>
+            <circle class="ring-fg" id="ringFg" cx="50" cy="50" r="45" stroke-dasharray="282.74" stroke-dashoffset="0"/>
+          </svg>
+          <div class="timer-text"><div class="time" id="timerDisplay">25:00</div><div class="phase" id="timerPhase">专注中</div></div>
+        </div>
+        <div class="timer-controls">
+          <button class="btn primary" id="startBtn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span id="startLabel">开始专注</span></button>
+          <button class="btn" id="resetBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v5h5"/></svg>重置</button>
+        </div>
+        <div class="pomo-settings">
+          <label>专注<input type="number" id="focusMin" value="25" min="1" max="90">分钟</label>
+          <label>休息<input type="number" id="breakMin" value="5" min="1" max="30">分钟</label>
+        </div>
+        <div class="pomo-project"><input id="pomoProject" placeholder="项目名称（用于工时记录）" value="默认项目"></div>
+        <div class="session-dots" id="sessionDots"></div>
+      </div>
+    </div>
+    <div class="panel" data-panel="worklog">
+      <div class="wl-head">
+        <div class="wl-stats">
+          <div class="wl-stat"><span class="n" id="wlToday">0</span><span class="l">分钟 / 今天</span></div>
+          <div class="wl-stat"><span class="n" id="wlWeek">0</span><span class="l">分钟 / 本周</span></div>
+          <div class="wl-stat"><span class="n" id="wlCount">0</span><span class="l">条记录</span></div>
+        </div>
+        <button class="btn" id="wlAdd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>手动添加</button>
+      </div>
+      <div class="wl-list" id="wlList"><div class="wl-empty">暂无工时记录，开始一个番茄钟自动记录</div></div>
+    </div>
+  </div>
+</main>
+<div class="toast" id="toast"></div>
+<script>
+const api=window.pluginAPI;const $=s=>document.querySelector(s);const $$=s=>document.querySelectorAll(s);
+let current='pomodoro-focus';
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1800);}
+$$('.tab').forEach(t=>t.onclick=()=>{current=t.dataset.tool;$$('.tab').forEach(x=>x.classList.toggle('active',x===t));$$('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===current));if(current==='worklog')renderWorklog();});
+// Pomodoro
+let phase='focus';let timeLeft=25*60;let total=25*60;let running=false;let timer=null;let sessionCount=0;
+const CIRC=282.74;
+function updateDisplay(){$('#timerDisplay').textContent=`${Math.floor(timeLeft/60)}:${String(timeLeft%60).padStart(2,'0')}`;$('#timerPhase').textContent=phase==='focus'?'专注中':'休息中';$('#ringFg').classList.toggle('break-mode',phase!=='focus');const p=total>0?timeLeft/total:0;$('#ringFg').setAttribute('stroke-dashoffset',String(CIRC*(1-p)));}
+function setPhase(p){phase=p;const f=+$('#focusMin').value||25,b=+$('#breakMin').value||5;total=p==='focus'?f*60:b*60;timeLeft=total;updateDisplay();}
+function tick(){timeLeft--;updateDisplay();if(timeLeft<=0){running=false;clearInterval(timer);$('#startLabel').textContent='开始专注';if(phase==='focus'){sessionCount++;addWorklogSession();toast('专注完成！已记录工时');setPhase('break');}else{toast('休息结束，开始下一轮');setPhase('focus');}renderDots();startTimer();}}
+function startTimer(){if(running)return;running=true;$('#startLabel').textContent='暂停';timer=setInterval(tick,1000);}
+function pauseTimer(){running=false;clearInterval(timer);$('#startLabel').textContent='继续';}
+$('#startBtn').onclick=()=>{if(running)pauseTimer();else startTimer();};
+$('#resetBtn').onclick=()=>{running=false;clearInterval(timer);$('#startLabel').textContent='开始专注';setPhase('focus');sessionCount=0;renderDots();};
+$('#focusMin').onchange=$('#breakMin').onchange=()=>{if(!running)setPhase('focus');};
+function renderDots(){const dots=Array.from({length:4},(_,i)=>`<div class="session-dot${i<sessionCount%4?' done':''}${i===sessionCount%4&&running&&phase==='focus'?' active':''}"></div>`).join('');$('#sessionDots').innerHTML=dots;}
+async function addWorklogSession(){let logs=await api.storage.get('worklog')||[];const minutes=+$('#focusMin').value||25;logs.unshift({project:$('#pomoProject').value||'默认项目',minutes,note:'番茄钟自动记录',date:new Date().toISOString().slice(0,10)});await api.storage.set('worklog',logs);}
+updateDisplay();renderDots();
+// Worklog
+async function renderWorklog(){const logs=await api.storage.get('worklog')||[];const today=new Date().toISOString().slice(0,10);const weekAgo=new Date(Date.now()-7*86400000).toISOString().slice(0,10);
+  const todayMin=logs.filter(l=>l.date===today).reduce((s,l)=>s+l.minutes,0);
+  const weekMin=logs.filter(l=>l.date>=weekAgo).reduce((s,l)=>s+l.minutes,0);
+  $('#wlToday').textContent=todayMin;$('#wlWeek').textContent=weekMin;$('#wlCount').textContent=logs.length;
+  if(!logs.length){$('#wlList').innerHTML='<div class="wl-empty">暂无工时记录，开始一个番茄钟自动记录</div>';return;}
+  $('#wlList').innerHTML=logs.map((l,i)=>`<div class="wl-item"><span class="wl-proj">${esc(l.project)}</span><span class="wl-note">${esc(l.note||'')}</span><span class="wl-min">${l.minutes} min</span><span class="wl-date">${l.date.slice(5)}</span><button class="wl-del" data-del="${i}">×</button></div>`).join('');
+  $$('#wlList [data-del]').forEach(el=>el.onclick=async()=>{logs.splice(+el.dataset.del,1);await api.storage.set('worklog',logs);renderWorklog();});
+}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+$('#wlAdd').onclick=async()=>{const project=prompt('项目名称：','默认项目');if(!project)return;const minutes=+prompt('时长（分钟）：','30')||30;let logs=await api.storage.get('worklog')||[];logs.unshift({project,minutes,note:'手动添加',date:new Date().toISOString().slice(0,10)});await api.storage.set('worklog',logs);renderWorklog();toast('已添加');};
+window.addEventListener('plugin-enter',e=>{});
+</script>
+</body></html>

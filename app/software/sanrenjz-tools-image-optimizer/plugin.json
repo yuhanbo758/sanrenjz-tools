@@ -1,0 +1,102 @@
+{
+  "pluginName": "图片优化器",
+  "description": "批量调整质量、格式和尺寸，并即时比较体积。",
+  "version": "2.0.0",
+  "author": "三人聚智",
+  "category": "效率工具",
+  "main": "index.html",
+  "logo": "logo.ico",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "plugin-market-image-compressor",
+      "explain": "图片压缩",
+      "description": "批量调整质量、格式和尺寸，并即时比较体积。",
+      "cmds": [
+        "图片压缩",
+        "压缩图片",
+        "image compress",
+        {
+          "type": "over",
+          "label": "用图片优化器处理",
+          "minLength": 1,
+          "maxLength": 200000
+        }
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": true,
+      "category": "效率工具",
+      "priority": 20,
+      "useClipboardText": true
+    },
+    {
+      "code": "plugin-market-image-converter",
+      "explain": "格式转换",
+      "description": "批量调整质量、格式和尺寸，并即时比较体积。",
+      "cmds": [
+        "图片转换",
+        "webp",
+        "png转jpg",
+        {
+          "type": "over",
+          "label": "用图片优化器处理",
+          "minLength": 1,
+          "maxLength": 200000
+        }
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": true,
+      "category": "效率工具",
+      "priority": 20,
+      "useClipboardText": true
+    },
+    {
+      "code": "plugin-market-image-resizer",
+      "explain": "尺寸调整",
+      "description": "批量调整质量、格式和尺寸，并即时比较体积。",
+      "cmds": [
+        "图片尺寸",
+        "缩放图片",
+        "resize",
+        {
+          "type": "over",
+          "label": "用图片优化器处理",
+          "minLength": 1,
+          "maxLength": 200000
+        }
+      ],
+      "icon": "logo.ico",
+      "platform": [
+        "win32",
+        "darwin",
+        "linux"
+      ],
+      "mode": "none",
+      "superPanel": true,
+      "category": "效率工具",
+      "priority": 20,
+      "useClipboardText": true
+    }
+  ],
+  "pluginSetting": {
+    "width": 1180,
+    "height": 760,
+    "minWidth": 900,
+    "minHeight": 650,
+    "single": true,
+    "autoHideMenuBar": true,
+    "menuBarVisible": false
+  }
+}

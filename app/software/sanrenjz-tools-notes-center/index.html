@@ -1,0 +1,186 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN" data-layout="paper-desk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>本地笔记中心</title>
+<style>
+:root{
+  --accent:#3b5bdb;--accent-2:#5c7cfa;--accent-soft:rgba(59,91,219,.1);--accent-line:rgba(59,91,219,.3);
+  --bg:#f5f7fe;--surface:#fff;--surface-2:#eef2fc;--border:#dbe3f5;
+  --ink:#1a2340;--muted:#5a6b8a;--faint:#9aa8c0;
+  --ok:#16a34a;--err:#dc2626;
+  --mono:'JetBrains Mono','Fira Code',Consolas,monospace;
+  --sans:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans)}
+.app{height:calc(100vh - 32px);display:flex;flex-direction:column;min-height:0}
+.head{display:flex;align-items:center;gap:14px;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
+.icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;flex:none}
+.icon svg{width:18px;height:18px;color:#fff}
+.head h1{margin:0;font-size:17px;font-weight:700}
+.head p{margin:0;color:var(--muted);font-size:12px}
+.spacer{flex:1}
+.tabs{display:flex;gap:6px;padding:10px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
+.tab{border:0;background:transparent;color:var(--muted);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;transition:.15s;display:flex;align-items:center;gap:7px}
+.tab svg{width:15px;height:15px}
+.tab:hover{background:var(--surface-2)}.tab.active{background:var(--accent);color:#fff}
+.content{flex:1;min-height:0;overflow:hidden}
+.panel{height:100%;min-height:0;display:none}
+.panel.active{display:flex}
+/* markdown notes */
+.md-layout{height:100%;display:grid;grid-template-columns:260px 1fr;gap:0}
+.note-list{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+.nl-head{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex:none}
+.nl-head h2{margin:0;font-size:14px;font-weight:700}
+.new-btn{border:0;background:var(--accent);color:#fff;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer}
+.nl-search{padding:8px 12px;border-bottom:1px solid var(--border);flex:none}
+.nl-search input{width:100%;border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px;outline:none}
+.nl-search input:focus{border-color:var(--accent-line)}
+.nl-items{flex:1;overflow:auto;padding:6px}
+.nl-item{padding:10px 12px;border-radius:8px;cursor:pointer;transition:.12s;margin-bottom:4px;border:1px solid transparent}
+.nl-item:hover{background:var(--surface-2)}
+.nl-item.active{background:var(--accent-soft);border-color:var(--accent-line)}
+.nl-item .nt{font-weight:600;font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nl-item .np{font-size:11px;color:var(--faint);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.editor-area{display:flex;flex-direction:column;min-height:0}
+.ed-head{padding:12px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex:none}
+.ed-title{flex:1;border:0;font:600 16px var(--sans);background:transparent;outline:none;color:var(--ink)}
+.ed-title::placeholder{color:var(--faint)}
+.ed-btn{border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer}
+.ed-btn:hover{border-color:var(--accent-line);color:var(--accent)}
+.ed-btn.danger{color:var(--err);border-color:var(--err)}
+.ed-view{display:flex;gap:6px}
+.ed-view button{border:1px solid var(--border);background:var(--surface);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer}
+.ed-view button.active{background:var(--accent);color:#fff;border-color:transparent}
+.ed-body{flex:1;min-height:0;display:flex;overflow:hidden}
+.ed-textarea{flex:1;border:0;outline:0;resize:none;padding:18px 24px;font:14px/1.7 var(--mono);background:var(--surface);color:var(--ink)}
+.ed-preview{flex:1;overflow:auto;padding:18px 24px;background:var(--surface-2)}
+.md-body h1{font-size:22px;margin:0 0 12px;border-bottom:1px solid var(--border);padding-bottom:6px}
+.md-body h2{font-size:18px;margin:18px 0 8px}
+.md-body h3{font-size:16px;margin:14px 0 6px}
+.md-body p{margin:0 0 10px}
+.md-body ul,.md-body ol{margin:0 0 10px;padding-left:24px}
+.md-body li{margin-bottom:4px}
+.md-body code{background:var(--accent-soft);padding:2px 6px;border-radius:3px;font:13px var(--mono);color:var(--accent)}
+.md-body pre{background:#1a2340;color:#cfe;padding:14px;border-radius:8px;overflow:auto;margin:0 0 12px}
+.md-body pre code{background:transparent;color:inherit;padding:0}
+.md-body blockquote{border-left:3px solid var(--accent);margin:0 0 10px;padding:4px 14px;color:var(--muted)}
+.md-body a{color:var(--accent)}
+.md-body table{border-collapse:collapse;width:100%;margin:0 0 12px}
+.md-body th,.md-body td{border:1px solid var(--border);padding:6px 10px;text-align:left}
+.md-body th{background:var(--surface)}
+.md-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--faint);gap:10px}
+.md-empty svg{width:48px;height:48px;opacity:.3}
+/* floating notes */
+.fn-area{height:100%;overflow:auto;padding:20px 24px}
+.fn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+.fn-card{background:#fffce8;border:1px solid #f0e8a8;border-radius:10px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.06);transition:.15s;cursor:default}
+.fn-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.1)}
+.fn-card .fn-del{float:right;border:0;background:transparent;color:var(--faint);cursor:pointer;font-size:16px;line-height:1}
+.fn-card .fn-del:hover{color:var(--err)}
+.fn-card textarea{width:100%;border:0;background:transparent;resize:vertical;min-height:80px;outline:none;font:13px/1.6 var(--sans);color:var(--ink)}
+.fn-card .fn-time{font:11px var(--mono);color:var(--faint);margin-top:8px}
+.fn-add{border:2px dashed var(--border);border-radius:10px;padding:20px;text-align:center;cursor:pointer;color:var(--faint);transition:.15s;min-height:120px;display:flex;align-items:center;justify-content:center}
+.fn-add:hover{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a2340;color:#fff;padding:10px 22px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:50}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#c8d4f0;border-radius:4px}
+</style>
+</head>
+<body>
+<main class="app">
+  <div class="head">
+    <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg></div>
+    <div><h1>本地笔记中心</h1><p>Markdown 资料库与轻便便签并排管理</p></div>
+    <div class="spacer"></div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" data-tool="markdown-notes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Markdown 笔记</button>
+    <button class="tab" data-tool="floating-notes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>轻便便签</button>
+  </div>
+  <div class="content">
+    <div class="panel active" data-panel="markdown-notes">
+      <div class="md-layout">
+        <aside class="note-list">
+          <div class="nl-head"><h2>笔记列表</h2><button class="new-btn" id="newNote">+ 新建</button></div>
+          <div class="nl-search"><input id="noteSearch" placeholder="搜索笔记…"></div>
+          <div class="nl-items" id="noteItems"></div>
+        </aside>
+        <div class="editor-area" id="editorArea">
+          <div class="ed-head">
+            <input class="ed-title" id="noteTitle" placeholder="笔记标题">
+            <div class="ed-view"><button class="active" data-view="edit">编辑</button><button data-view="split">分屏</button><button data-view="preview">预览</button></div>
+            <button class="ed-btn danger" id="delNote">删除</button>
+          </div>
+          <div class="ed-body" id="edBody">
+            <textarea class="ed-textarea" id="noteContent" spellcheck="false" placeholder="# 标题&#10;&#10;开始书写你的 Markdown 笔记…"></textarea>
+            <div class="ed-preview md-body" id="notePreview" style="display:none"></div>
+          </div>
+        </div>
+        <div class="md-empty" id="mdEmpty" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg><span>选择或新建一篇笔记</span></div>
+      </div>
+    </div>
+    <div class="panel" data-panel="floating-notes">
+      <div class="fn-area">
+        <div class="fn-grid" id="fnGrid">
+          <div class="fn-add" id="fnAdd"><span>+ 添加便签</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+<div class="toast" id="toast"></div>
+<script>
+const api=window.pluginAPI;const $=s=>document.querySelector(s);const $$=s=>document.querySelectorAll(s);
+let current='markdown-notes';
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1600);}
+$$('.tab').forEach(t=>t.onclick=()=>{current=t.dataset.tool;$$('.tab').forEach(x=>x.classList.toggle('active',x===t));$$('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===current));if(current==='floating-notes')loadStickies();});
+// Markdown notes
+let notes=[];let activeId=null;let viewMode='edit';let saveTimer=null;
+function mdToHtml(md){return esc(md)
+  .replace(/```(\w*)\n([\s\S]*?)```/g,(_,l,c)=>`<pre><code>${c}</code></pre>`)
+  .replace(/^### (.+)$/gm,'<h3>$1</h3>')
+  .replace(/^## (.+)$/gm,'<h2>$1</h2>')
+  .replace(/^# (.+)$/gm,'<h1>$1</h1>')
+  .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+  .replace(/\*(.+?)\*/g,'<em>$1</em>')
+  .replace(/`([^`]+)`/g,'<code>$1</code>')
+  .replace(/\[(.+?)\]\((.+?)\)/g,(_,label,url)=>`<a href="${/^(https?:\/\/|mailto:)/i.test(url.trim())?url.trim():'#'}">${label}</a>`)
+  .replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>')
+  .replace(/^[-*] (.+)$/gm,'<li>$1</li>')
+  .replace(/(<li>.+<\/li>\n?)+/g,m=>`<ul>${m}</ul>`)
+  .replace(/^\d+\. (.+)$/gm,'<li>$1</li>')
+  .replace(/\n\n/g,'</p><p>').replace(/^/,'<p>').replace(/$/,'</p>')
+  .replace(/<p>(<(?:h[1-6]|ul|ol|pre|blockquote))/g,'$1').replace(/(<\/(?:h[1-6]|ul|ol|pre|blockquote)>)<\/p>/g,'$1');}
+async function loadNotes(){notes=await api.storage.get('md-notes')||[];if(!notes.length){notes=[{id:Date.now(),title:'欢迎使用',content:'# 欢迎使用\n\n这是你的第一篇 **Markdown** 笔记。\n\n- 支持列表\n- 支持 `代码`\n- 支持 [链接](https://sanrenjz.com)'}];await api.storage.set('md-notes',notes);}renderList();if(notes.length)selectNote(notes[0].id);}
+function renderList(){const q=$('#noteSearch').value.toLowerCase();const filtered=notes.filter(n=>(n.title+n.content).toLowerCase().includes(q));
+  $('#noteItems').innerHTML=filtered.map(n=>`<div class="nl-item${n.id===activeId?' active':''}" data-id="${n.id}"><div class="nt">${esc(n.title||'无标题')}</div><div class="np">${esc(n.content.slice(0,60))||'空笔记'}</div></div>`).join('')||'<div style="padding:20px;text-align:center;color:var(--faint);font-size:13px">无匹配笔记</div>';
+  $$('#noteItems .nl-item').forEach(el=>el.onclick=()=>selectNote(+el.dataset.id));}
+function selectNote(id){activeId=id;const n=notes.find(x=>x.id===id);if(!n)return;
+  $('#noteTitle').value=n.title;$('#noteContent').value=n.content;
+  $('#mdEmpty').style.display='none';$('#editorArea').style.display='flex';
+  renderList();updatePreview();}
+$('#newNote').onclick=async()=>{const n={id:Date.now(),title:'新笔记',content:''};notes.unshift(n);await api.storage.set('md-notes',notes);selectNote(n.id);$('#noteTitle').focus();};
+$('#noteSearch').oninput=renderList;
+$('#noteTitle').oninput=scheduleSave;$('#noteContent').oninput=scheduleSave;
+function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(async()=>{const n=notes.find(x=>x.id===activeId);if(n){n.title=$('#noteTitle').value;n.content=$('#noteContent').value;await api.storage.set('md-notes',notes);renderList();updatePreview();}},400);}
+$('#delNote').onclick=async()=>{if(!activeId)return;notes=notes.filter(n=>n.id!==activeId);await api.storage.set('md-notes',notes);if(notes.length)selectNote(notes[0].id);else{$('#mdEmpty').style.display='flex';$('#editorArea').style.display='none';activeId=null;}renderList();toast('已删除');};
+$$('.ed-view button').forEach(b=>b.onclick=()=>{viewMode=b.dataset.view;$$('.ed-view button').forEach(x=>x.classList.toggle('active',x===b));const ta=$('#noteContent'),pv=$('#notePreview');
+  if(viewMode==='edit'){ta.style.display='';pv.style.display='none';}
+  else if(viewMode==='preview'){ta.style.display='none';pv.style.display='';}
+  else{ta.style.display='';pv.style.display='';}updatePreview();});
+function updatePreview(){const n=notes.find(x=>x.id===activeId);if(n)$('#notePreview').innerHTML=mdToHtml(n.content);}
+// Floating notes
+async function loadStickies(){const s=await api.storage.get('stickies')||[];const grid=$('#fnGrid');grid.innerHTML='<div class="fn-add" id="fnAdd"><span>+ 添加便签</span></div>'+s.map((st,i)=>`<div class="fn-card" data-i="${i}"><button class="fn-del" data-del="${i}">×</button><textarea data-sti="${i}" spellcheck="false" placeholder="随手记…">${esc(st.text)}</textarea><div class="fn-time">${st.time}</div></div>`).join('');
+  $('#fnAdd').onclick=addSticky;$$('#fnGrid [data-del]').forEach(b=>b.onclick=async()=>{const s2=await api.storage.get('stickies')||[];s2.splice(+b.dataset.del,1);await api.storage.set('stickies',s2);loadStickies();});
+  $$('#fnGrid [data-sti]').forEach(ta=>ta.oninput=async()=>{const s2=await api.storage.get('stickies')||[];s2[+ta.dataset.sti].text=ta.value;s2[+ta.dataset.sti].time=new Date().toLocaleString('zh-CN').slice(5);await api.storage.set('stickies',s2);});}
+async function addSticky(){let s=await api.storage.get('stickies')||[];s.unshift({text:'',time:new Date().toLocaleString('zh-CN').slice(5)});await api.storage.set('stickies',s);loadStickies();}
+loadNotes();
+</script>
+</body></html>

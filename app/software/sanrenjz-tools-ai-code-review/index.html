@@ -1,0 +1,127 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN" data-layout="review-terminal">
+<head data-business>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI 代码审查</title>
+<style>
+:root{--a:#dc2626;--a2:#ef4444;--as:rgba(220,38,38,.1);--al:rgba(220,38,38,.3);--bg:#fdf5f5;--sf:#fff;--s2:#fce8e8;--bd:#f0d4d4;--ink:#2d1010;--mt:#7a5656;--ft:#a89090;--ok:#16a34a;--err:#dc2626;--warn:#d97706;--crit:#991b1b;--info:#2563eb;--mono:'JetBrains Mono','Fira Code',Consolas,monospace;--sans:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif}
+*{box-sizing:border-box}html,body{height:100%;overflow:hidden}body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans)}
+.app{height:calc(100vh - 32px);display:flex;flex-direction:column;min-height:0}
+.head{display:flex;align-items:center;gap:14px;padding:14px 24px;background:var(--sf);border-bottom:1px solid var(--bd);flex:none}
+.icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--a),var(--a2));display:flex;align-items:center;justify-content:center;flex:none}.icon svg{width:18px;height:18px;color:#fff}
+.head h1{margin:0;font-size:17px;font-weight:700}.head p{margin:0;color:var(--mt);font-size:12px}
+.spacer{flex:1}.gear{border:1px solid var(--bd);background:var(--sf);color:var(--a);border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px}.gear svg{width:14px;height:14px}
+.modes{display:flex;gap:6px;padding:10px 24px;background:var(--sf);border-bottom:1px solid var(--bd);flex:none}
+.mode{border:1px solid var(--bd);background:var(--sf);color:var(--mt);padding:7px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;transition:.12s}.mode:hover{border-color:var(--al);color:var(--a)}.mode.active{background:var(--a);color:#fff;border-color:transparent}
+.body{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:0;overflow:hidden}
+.code-side{display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--bd);background:var(--sf)}
+.code-h{padding:10px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px;flex:none}
+.code-h .title{font-weight:700;font-size:13px;flex:1}.code-h .cnt{font:11px var(--mono);color:var(--ft)}
+.code-area{flex:1;min-height:0;border:0;outline:0;resize:none;padding:16px;font:13px/1.6 var(--mono);background:#1a1010;color:#f0d4d4;min-height:0}
+.code-area::placeholder{color:#6a5050}
+.issues-side{display:flex;flex-direction:column;min-height:0;overflow:hidden;background:var(--sf)}
+.issues-h{padding:10px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px;flex:none}
+.issues-h .title{font-weight:700;font-size:13px}.issues-h .stat{font:11px var(--mono);color:var(--ft)}
+.sev-badge{font:600 10px var(--mono);padding:3px 10px;border-radius:999px}
+.sev-crit{background:rgba(153,27,27,.15);color:var(--crit)}.sev-high{background:rgba(220,38,38,.12);color:var(--err)}.sev-med{background:rgba(217,119,6,.12);color:var(--warn)}.sev-low{background:var(--s2);color:var(--mt)}
+.issues-list{flex:1;min-height:0;overflow:auto;padding:12px}
+.issue{background:var(--s2);border:1px solid var(--bd);border-left:4px solid var(--err);border-radius:8px;padding:12px 14px;margin-bottom:10px}
+.issue.crit{border-left-color:var(--crit)}.issue.high{border-left-color:var(--err)}.issue.med{border-left-color:var(--warn)}.issue.low{border-left-color:var(--ft)}
+.issue .ih{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.issue .id{font:600 13px var(--sans);flex:1}
+.issue .idesc{font-size:13px;line-height:1.6;color:var(--ink)}
+.issue .iloc{font:11px var(--mono);color:var(--ft);margin-top:6px}
+.issues-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--ft);gap:10px}.issues-empty svg{width:48px;height:48px;opacity:.3}
+.act-bar{padding:12px 24px;border-top:1px solid var(--bd);background:var(--sf);display:flex;gap:10px;align-items:center;flex:none}
+.btn{border:1px solid var(--bd);background:var(--sf);color:var(--ink);border-radius:8px;padding:9px 18px;font-size:13px;cursor:pointer;transition:.12s;display:inline-flex;align-items:center;gap:6px}.btn:hover{border-color:var(--al)}
+.btn svg{width:14px;height:14px}
+.btn.primary{background:linear-gradient(135deg,var(--a),var(--a2));color:#fff;border-color:transparent}.btn.primary:hover{filter:brightness(1.08)}.btn:disabled{opacity:.5}
+.drawer{position:fixed;top:32px;right:0;bottom:0;width:min(420px,92vw);background:var(--sf);box-shadow:-12px 0 40px rgba(0,0,0,.1);z-index:50;transform:translateX(100%);transition:.25s;overflow:auto;padding:24px}.drawer.open{transform:translateX(0)}.drawer h2{margin:0 0 16px;font-size:16px}.drawer .close{position:absolute;top:16px;right:16px;border:0;background:transparent;font-size:20px;color:var(--ft);cursor:pointer}
+.field{margin-bottom:16px}.field label{display:block;font-size:12px;color:var(--mt);font-weight:600;margin-bottom:6px}.field input{width:100%;border:1px solid var(--bd);border-radius:8px;padding:9px 12px;font:14px var(--sans);outline:none;background:var(--s2);color:var(--ink)}.field input:focus{border-color:var(--al)}
+.overlay{position:fixed;inset:32px 0 0 0;background:rgba(0,0,0,.3);z-index:40;display:none}.overlay.show{display:block}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#2d1010;color:#fff;padding:10px 22px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:60}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#e0bcbc;border-radius:4px}
+</style>
+</head>
+<body>
+<main class="app">
+  <div class="head">
+    <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
+    <div><h1>AI 代码审查</h1><p>检查代码或 Git Diff，按严重程度输出问题，不改动文件</p></div>
+    <div class="spacer"></div>
+    <button class="gear" onclick="toggleDrawer()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 1-.1 1.2l2 1.5-2 3.4-2.3-1a7 7 0 0 1-2 1.2l-.4 2.5H9l-.4-2.5a7 7 0 0 1-2-1.2l-2.3 1-2-3.4 2-1.5A7 7 0 0 1 4 12a7 7 0 0 1 .1-1.2l-2-1.5 2-3.4 2.3 1a7 7 0 0 1 2-1.2L9 1h4l.4 2.5a7 7 0 0 1 2 1.2l2.3-1 2 3.4-2 1.5A7 7 0 0 1 19 12z"/></svg>供应商设置</button>
+  </div>
+  <div class="modes">
+    <button class="mode active" data-mode="review">审查代码</button>
+    <button class="mode" data-mode="diff">审查 Diff</button>
+    <button class="mode" data-mode="security">安全检查</button>
+  </div>
+  <div class="body">
+    <div class="code-side">
+      <div class="code-h"><span class="title">代码输入</span><span class="cnt" id="codeCnt">0 行</span></div>
+      <textarea class="code-area" id="codeInput" spellcheck="false" placeholder="粘贴需要审查的代码或 Git Diff…"></textarea>
+    </div>
+    <div class="issues-side">
+      <div class="issues-h"><span class="title">审查结果</span><span class="stat" id="issueStat">等待审查</span></div>
+      <div class="issues-list" id="issuesList"><div class="issues-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6z"/></svg><span>粘贴代码后点击审查</span></div></div>
+    </div>
+  </div>
+  <div class="act-bar">
+    <button class="btn primary" id="reviewBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span id="reviewLabel">开始审查</span></button>
+    <button class="btn" id="stopBtn" disabled>取消</button>
+    <button class="btn" id="copyBtn">复制报告</button>
+    <button class="btn" id="clearBtn">清空</button>
+  </div>
+</main>
+<div class="overlay" id="overlay" onclick="toggleDrawer()"></div>
+<aside class="drawer" id="drawer"><button class="close" onclick="toggleDrawer()">×</button><h2>统一供应商配置</h2>
+  <div class="field"><label>服务名称</label><input id="pName" value="OpenAI 兼容服务"></div>
+  <div class="field"><label>Base URL</label><input id="pUrl" value="https://api.openai.com/v1"></div>
+  <div class="field"><label>模型 ID</label><input id="pModel" value="gpt-4o-mini"></div>
+  <div class="field"><label>API Key</label><input id="pKey" type="password" placeholder="仅保存到系统安全存储"></div>
+  <button class="btn primary" style="width:100%;justify-content:center" onclick="saveProvider()">保存并共享</button>
+</aside>
+<div class="toast" id="toast"></div>
+<script src="../../plugin_runtime/ai-provider-manager.js"></script>
+<script>
+const api=window.aiAPI;const $=s=>document.querySelector(s);const $$=s=>document.querySelectorAll(s);
+let mode='review';let requestId='';let lastReport='';
+const providerManager=AIProviderManager.create(api,{capability:'text',notify:toast});
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1600);}
+function toggleDrawer(){$('#drawer').classList.toggle('open');$('#overlay').classList.toggle('show');}
+$$('#modes .mode').forEach(b=>b.onclick=()=>{$$('#modes .mode').forEach(x=>x.classList.remove('active'));b.classList.add('active');mode=b.dataset.mode;$('#reviewLabel').textContent={review:'开始审查',diff:'审查 Diff',security:'安全检查'}[mode];});
+$('#codeInput').addEventListener('input',()=>$('#codeCnt').textContent=$('#codeInput').value.split('\n').length+' 行');
+const prompts={review:'请审查以下代码，按严重程度（严重/高/中/低）列出问题。每个问题包含：标题、描述、位置。不修改代码。\n\n',diff:'请审查以下 Git Diff，关注潜在问题和改进建议。按严重程度列出问题。\n\n',security:'请对以下代码进行安全检查，关注注入、XSS、敏感信息泄露、权限等问题。按严重程度列出。\n\n'};
+api.onChunk(chunk=>{if(chunk.requestId===requestId){lastReport=chunk.text;renderIssues(chunk.text);}});
+$('#reviewBtn').onclick=async()=>{
+  const code=$('#codeInput').value.trim();if(!code){toast('请输入代码');return;}
+  requestId=crypto.randomUUID();lastReport='';$('#reviewBtn').disabled=true;$('#stopBtn').disabled=false;$('#issueStat').textContent='审查中…';
+  $('#issuesList').innerHTML='<div style="padding:30px;text-align:center;color:var(--ft)">审查中…</div>';
+  try{const r=await api.complete({requestId,capability:'text',selection:await providerManager.getSelection(),stream:true,messages:[{role:'user',content:prompts[mode]+code}]});lastReport=r.text;renderIssues(r.text);$('#issueStat').textContent='审查完成';}
+  catch(e){$('#issuesList').innerHTML=`<div style="padding:20px;color:${e.message==='请求已取消'?'var(--ft)':'var(--err)'}">${esc(e.message)}</div>`;$('#issueStat').textContent=e.message==='请求已取消'?'已取消':'失败';}
+  finally{$('#reviewBtn').disabled=false;$('#stopBtn').disabled=true;}
+};
+$('#stopBtn').onclick=()=>{if(requestId){api.cancel(requestId);$('#reviewBtn').disabled=false;$('#stopBtn').disabled=true;$('#issueStat').textContent='已取消';}};
+function renderIssues(text){
+  const lines=text.split('\n');let html='';let current=null;
+  for(const line of lines){
+    const sevMatch=line.match(/(严重|高|中|低)/);
+    if(/^(##|###|\d+\.|-)/.test(line)&&sevMatch){
+      if(current){html+=issueHtml(current);}
+      const sev={严重:'crit',高:'high',中:'med',低:'low'}[sevMatch[1]]||'low';
+      current={sev,title:line.replace(/^(##|###|\d+\.|-)\s*/,'').trim(),desc:'',loc:''};
+    }else if(current){current.desc+=line+'\n';}
+    else if(line.trim()){html+=`<div style="padding:8px 0;font:13px var(--mono);color:var(--ink)">${esc(line)}</div>`;}
+  }
+  if(current)html+=issueHtml(current);
+  if(!html)html=`<div style="padding:20px;color:var(--ink);white-space:pre-wrap">${esc(text)}</div>`;
+  $('#issuesList').innerHTML=html;
+}
+function issueHtml(i){return `<div class="issue ${i.sev}"><div class="ih"><span class="sev-badge sev-${i.sev}">{{SEV}}</span><span class="id">${esc(i.title)}</span></div><div class="idesc">${esc(i.desc.trim())}</div></div>`.replace('{{SEV}}',{crit:'严重',high:'高',med:'中',low:'低'}[i.sev]);}
+$('#copyBtn').onclick=()=>{if(lastReport){navigator.clipboard.writeText(lastReport);toast('已复制报告');}else toast('暂无报告');};
+$('#clearBtn').onclick=()=>{$('#codeInput').value='';$('#codeCnt').textContent='0 行';$('#issuesList').innerHTML='<div class="issues-empty"><span>粘贴代码后点击审查</span></div>';$('#issueStat').textContent='等待审查';lastReport='';};
+window.addEventListener('plugin-enter',e=>{const text=e.detail?.payload||e.detail?.clipboardText||'';if(text)$('#codeInput').value=text;});
+</script>
+</body></html>
