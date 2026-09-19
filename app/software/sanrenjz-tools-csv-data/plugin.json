@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "plugin-market-csv-table",
-      "explain": "CSV 表格",
+      "explain": "CSV表格",
       "description": "像表格一样筛选、排序并在 CSV 与 JSON 之间转换。",
       "cmds": [
         "csv",

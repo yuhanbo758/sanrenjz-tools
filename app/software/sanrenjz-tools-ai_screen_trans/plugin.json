@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "ai-screen-text-translate",
-      "explain": "DeepSeek V4 文本翻译",
+      "explain": "文本翻译",
       "description": "选中文本或复制文本后使用，自动进行中英互译",
       "cmds": [
         "翻译",
@@ -36,7 +36,7 @@
     },
     {
       "code": "ai-screen-ocr-translate",
-      "explain": "框选截图，识别或翻译",
+      "explain": "截图翻译",
       "description": "直接框选屏幕区域，可仅 OCR 并复制原文，也可继续翻译",
       "cmds": [
         "截图翻译",

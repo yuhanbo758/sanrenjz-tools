@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "plugin-market-batch-renamer",
-      "explain": "批量重命名",
+      "explain": "批量改名",
       "description": "先预览命名和校验清单，再执行文件修改。",
       "cmds": [
         "批量重命名",

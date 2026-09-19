@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "plugin-market-bookmark-launcher",
-      "explain": "书签",
+      "explain": "网址书签",
       "description": "网址、项目目录、启动命令和运行日志统一启动。",
       "cmds": [
         "书签",
@@ -37,7 +37,7 @@
     },
     {
       "code": "plugin-market-project-launcher",
-      "explain": "项目命令",
+      "explain": "项目启动",
       "description": "网址、项目目录、启动命令和运行日志统一启动。",
       "cmds": [
         "项目启动",

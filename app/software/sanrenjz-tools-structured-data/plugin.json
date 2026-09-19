@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "plugin-market-json-workbench",
-      "explain": "JSON",
+      "explain": "JSON编辑",
       "description": "数据在格式之间流动、校验并精确定位节点。",
       "cmds": [
         "json",
@@ -65,7 +65,7 @@
     },
     {
       "code": "plugin-market-xml-workbench",
-      "explain": "XML",
+      "explain": "XML编辑",
       "description": "数据在格式之间流动、校验并精确定位节点。",
       "cmds": [
         "xml",

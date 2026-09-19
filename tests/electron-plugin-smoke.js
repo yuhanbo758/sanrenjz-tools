@@ -1,4 +1,5 @@
 const {app,BrowserWindow,ipcMain}=require('electron');
+const assert=require('assert');
 const path=require('path');
 const {catalog}=require('../scripts/plugin-market/catalog');
 const memory=new Map();
@@ -8,10 +9,17 @@ memory.set('AI 共享配置中心:runtime-config',{schemaVersion:1,providers:[
 ],selections:{text:{providerId:'deepseek',modelId:'deepseek-chat'},vision:{providerId:'glm',modelId:'glm-4v-plus'}},timeoutMs:60000});
 app.disableHardwareAcceleration();app.on('window-all-closed',()=>{});
 ipcMain.on('show-open-dialog',event=>event.returnValue=[]);ipcMain.on('show-save-dialog',event=>event.returnValue='');
+ipcMain.on('plugin-storage-get',(event,name,key)=>{event.returnValue=memory.get(`${name}:${key}`)??null});
+ipcMain.on('plugin-storage-set',(event,name,key,value)=>{memory.set(`${name}:${key}`,value);event.returnValue=true});
 ipcMain.handle('plugin-storage-get-async',(_e,name,key)=>memory.get(`${name}:${key}`)??null);
 ipcMain.handle('plugin-storage-set-async',(_e,name,key,value)=>{memory.set(`${name}:${key}`,value);return true});
 ipcMain.handle('plugin-secret-get',()=> 'mock-key');ipcMain.handle('plugin-secret-set',()=>true);ipcMain.handle('plugin-secret-remove',()=>true);
+ipcMain.handle('register-plugin-features',()=>true);
 for(const channel of ['toggle-plugin-pin-window','minimize-plugin-window','create-plugin-indicator-window','close-plugin-indicator-window'])ipcMain.handle(channel,()=>false);
+
+// 记录总指挥实际发出的 IPC 参数，用于验证首次执行与再次打开的费用安全边界。
+const commanderDispatches=[];
+ipcMain.handle('execute-super-panel-action',(_event,payload)=>{commanderDispatches.push(payload);return{success:true}});
 
 async function inspect(plugin,width,height){
   const directory=path.join(__dirname,'..','app','software',plugin.folder);const errors=[];
@@ -25,4 +33,33 @@ async function inspect(plugin,width,height){
   const expectedModel=plugin.id==='ai-image'?'glm-4v-plus':'deepseek-chat';
   win.destroy();if(errors.length||!state.api||state.scrollX>1||state.scrollY>1||state.paddingTop!=='32px'||state.hostTop!=='host-test-controls'||state.title!==plugin.name||(plugin.type==='ai'&&(state.modelOptions<1||state.providerGroups!==expectedGroups||!state.modelValue.includes(expectedModel))))throw new Error(`${plugin.id}@${width}x${height}: ${JSON.stringify({state,errors})}`);
 }
-app.whenReady().then(async()=>{try{for(const plugin of catalog){for(const [w,h] of [[900,650],[1180,760],[1440,900]])await inspect(plugin,w,h)}console.log(`Electron smoke passed: ${catalog.length} plugins x 3 window sizes`);app.exit(0)}catch(error){console.error(error);app.exit(1)}});
+
+async function inspectCommanderDelegation(){
+  const directory=path.join(__dirname,'..','app','software','sanrenjz.tools-ai');
+  const win=new BrowserWindow({show:false,x:-32000,y:-32000,width:1180,height:760,webPreferences:{preload:path.join(directory,'preload.js'),nodeIntegration:true,contextIsolation:false,webSecurity:false}});
+  await win.loadFile(path.join(directory,'index.html'));
+  await new Promise(resolve=>setTimeout(resolve,150));
+  commanderDispatches.length=0;
+  const uiState=await win.webContents.executeJavaScript(`(async()=>{
+    const input=document.getElementById('promptInput');
+    input.value='会议总结：项目已完成验收，下周开始上线准备。';
+    await sendMessage();
+    const openButton=document.querySelector('.delegate-card .delegate-actions button:nth-child(2)');
+    if(!openButton)throw new Error('未生成总指挥派发卡片');
+    openButton.click();
+    await new Promise(resolve=>setTimeout(resolve,50));
+    return{buttonText:openButton.textContent,status:document.querySelector('.delegate-card>div:nth-child(2)')?.textContent||''};
+  })()`);
+  win.destroy();
+
+  assert.strictEqual(commanderDispatches.length,2,'总指挥首次派发和再次打开应各产生一次 IPC');
+  assert.strictEqual(commanderDispatches[0].action.feature.code,'plugin-market-ai-meeting');
+  assert.strictEqual(commanderDispatches[0].action.feature.args.autoRun,true,'首次派发必须自动执行会议总结');
+  assert.strictEqual(commanderDispatches[1].action.feature.args.autoRun,false,'再次打开不得重复调用模型');
+  assert.ok(commanderDispatches[0].action.pluginPath.endsWith(path.join('app','software','sanrenjz-tools-ai-meeting')));
+  assert.ok(commanderDispatches[0].clipboardText.includes('会议总结'));
+  assert.strictEqual(uiState.buttonText,'打开插件');
+  assert.ok(uiState.status.includes('未重复调用模型'));
+}
+
+app.whenReady().then(async()=>{try{for(const plugin of catalog){for(const [w,h] of [[900,650],[1180,760],[1440,900]])await inspect(plugin,w,h)}await inspectCommanderDelegation();console.log(`Electron smoke passed: ${catalog.length} plugins x 3 window sizes + commander delegation`);app.exit(0)}catch(error){console.error(error);app.exit(1)}});

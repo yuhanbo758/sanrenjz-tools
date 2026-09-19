@@ -7,6 +7,17 @@ const AI_SHARED_NAME = 'AI 共享配置中心';
 // 插件配置
 const PLUGIN_NAME = '余汉波AI助手';
 
+// 共享 AI Runtime：供供应商目录组件（AIProviderManager）管理共享供应商、密钥与连通性测试
+const aiRuntimeForCatalog = createAiRuntime(PLUGIN_NAME, chunk => {
+    if (typeof window.__aiRuntimeChunkListener === 'function') window.__aiRuntimeChunkListener(chunk);
+});
+try {
+    contextBridge.exposeInMainWorld('aiAPI', aiRuntimeForCatalog);
+} catch (_) {
+    // 当前插件窗口未启用 contextIsolation 时，contextBridge 不可用，直接挂到 window
+    window.aiAPI = aiRuntimeForCatalog;
+}
+
 // 默认设置
 const DEFAULT_SETTINGS = {
     openrouterApiKey: '',
@@ -154,6 +165,51 @@ window.exports = {
 window.services = {
     // 获取内置模型列表
     getBuiltInModels: () => [...getSharedModels(), ...BUILT_IN_MODELS],
+
+    // 获取旧版本地直连模型（不含共享目录模型），供界面单独分组展示
+    getLegacyModels: () => [...BUILT_IN_MODELS],
+
+    // 获取共享供应商分组：每个供应商一组，仅保留声明 text 能力的模型
+    getSharedProviderGroups: async () => {
+        try {
+            const config = await window.aiAPI.getConfig();
+            return (config?.providers || [])
+                .map(provider => ({
+                    id: provider.id,
+                    name: provider.name || provider.id,
+                    models: (provider.models || [])
+                        .filter(model => (model.capabilities || []).includes('text'))
+                        .map(model => ({
+                            value: model.id,
+                            label: model.label || model.id,
+                            provider: `shared:${provider.id}`
+                        }))
+                }))
+                .filter(group => group.models.length > 0);
+        } catch (_) {
+            return [];
+        }
+    },
+
+    // 读取共享目录当前文本模型选择（与其他 AI 插件的默认模型来源保持一致）
+    getSharedTextSelection: async () => {
+        try {
+            const config = await window.aiAPI.getConfig();
+            return config?.selections?.text || null;
+        } catch (_) {
+            return null;
+        }
+    },
+
+    // 持久化共享目录文本模型选择，切换模型时与其他 AI 插件共享同一状态
+    saveSharedTextSelection: async (providerId, modelId) => {
+        try {
+            const config = await window.aiAPI.getConfig();
+            config.selections = config.selections || {};
+            config.selections.text = { providerId, modelId };
+            await window.aiAPI.saveConfig(config);
+        } catch (_) {}
+    },
 
     // 获取设置
     getSettings: () => {
@@ -358,6 +414,33 @@ window.services = {
     copyToClipboard: (text) => {
         clipboard.writeText(text);
         window.services.showNotification('已复制到剪贴板');
+    },
+
+    // 总指挥：把任务移交给其他 AI 插件处理
+    // 复用主进程 execute-super-panel-action 的插件调用通道：
+    // 主进程会把 clipboardText 包装成 {type:'over', payload} 传给目标插件的 enter(action)，
+    // feature.args 会作为 featureArgs 一并透传，目标插件据此可实现"自动执行"
+    delegateToPlugin: async (pluginFolder, featureCode, text, options = {}) => {
+        try {
+            // __dirname 即本插件目录，先回到插件根目录再进入目标插件（开发态与打包态路径一致）
+            const targetPath = path.resolve(__dirname, '..', pluginFolder);
+            if (!fs.existsSync(path.join(targetPath, 'plugin.json'))) {
+                return { success: false, error: `未安装插件：${pluginFolder}` };
+            }
+            return await ipcRenderer.invoke('execute-super-panel-action', {
+                action: {
+                    type: 'plugin',
+                    pluginPath: targetPath,
+                    // 首次派发默认自动执行；仅重新打开结果窗口时显式关闭 autoRun，
+                    // 避免重复调用模型并产生额外费用。
+                    feature: { code: featureCode, args: { autoRun: options.autoRun !== false } }
+                },
+                clipboardText: String(text || '')
+            });
+        } catch (error) {
+            console.error('移交插件失败:', error);
+            return { success: false, error: error.message };
+        }
     },
 
     async callAPI(message, modelConfig, conversationHistory, fileAttachment = null) {
@@ -682,4 +765,8 @@ try {
     console.error('动态注册快捷指令失败:', e);
 }
 
-contextBridge.exposeInMainWorld('services', window.services);
+// 旧代码在 contextIsolation 未启用时直接调用 contextBridge 会抛出
+// "Unable to load preload script"；services 已挂在 window 上，失败时忽略即可
+try {
+    contextBridge.exposeInMainWorld('services', window.services);
+} catch (_) {}

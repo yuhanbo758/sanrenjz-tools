@@ -599,6 +599,85 @@
         .ai-message pre code { background: transparent; padding: 0; }
         .ai-message a { color: var(--primary-color); text-decoration: none; }
         .ai-message a:hover { text-decoration: underline; }
+
+        /* 共享供应商目录抽屉（内容由 ai-provider-manager.js 渲染） */
+        .provider-drawer {
+            position: fixed;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: min(420px, 92vw);
+            background: #fff;
+            box-shadow: -12px 0 40px rgba(0, 0, 0, 0.15);
+            z-index: 1200;
+            transform: translateX(105%);
+            transition: transform 0.25s ease;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        .provider-drawer.open {
+            transform: translateX(0);
+        }
+
+        .provider-drawer .close {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            border: 0;
+            background: transparent;
+            font-size: 20px;
+            color: #6b7280;
+            cursor: pointer;
+        }
+
+        #providerOverlay {
+            z-index: 1100;
+        }
+
+        .model-select optgroup {
+            font-style: normal;
+            font-weight: 600;
+        }
+
+        /* 总指挥派发卡片：显示任务已移交哪个 AI 插件 */
+        .delegate-card {
+            max-width: 80%;
+            margin: 8px 0;
+            padding: 12px 14px;
+            border: 1px solid #bfdbfe;
+            border-radius: 10px;
+            background: #eff6ff;
+            font-size: 13px;
+            color: #1e40af;
+        }
+
+        .delegate-card.error {
+            border-color: #fecaca;
+            background: #fef2f2;
+            color: #b91c1c;
+        }
+
+        .delegate-card .delegate-title {
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .delegate-card .delegate-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .delegate-card .delegate-actions button {
+            border: 1px solid #93c5fd;
+            background: #fff;
+            color: #1d4ed8;
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-size: 12px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -614,6 +693,7 @@
         </div>
         <div class="right-buttons">
             <button onclick="saveChatToFile()" class="header-button">保存对话</button>
+            <button onclick="toggleProviderDrawer(true)" class="header-button">供应商</button>
             <button onclick="toggleSettings()" class="header-button">设置</button>
         </div>
     </div>
@@ -665,6 +745,14 @@
         </div>
 
         <div class="settings-item">
+            <label>总指挥模式</label>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" id="commanderEnabled" checked>
+                <span style="font-size:13px;color:#6b7280;">发送内容命中其他 AI 插件任务（如"会议总结"、"代码审查"）时，自动移交给对应插件处理</span>
+            </div>
+        </div>
+
+        <div class="settings-item">
             <label>聊天记录保存路径</label>
             <div style="display: flex; gap: 10px;">
                 <input type="text" id="savePath" readonly placeholder="请选择保存路径">
@@ -680,7 +768,14 @@
             </div>
         </div>
 
-        <h3>API 密钥</h3>
+        <h3>共享 AI 供应商</h3>
+        <div class="settings-item">
+            <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.6;">
+                共享供应商与模型由统一目录管理（所有 AI 插件共用），点击顶部「供应商」按钮可新增、编辑并测试。
+            </p>
+        </div>
+
+        <h3>旧版直连 API 密钥</h3>
         <div class="settings-item">
             <label>OpenRouter API Key</label>
             <input type="password" id="openrouterKey" placeholder="sk-...">
@@ -707,6 +802,10 @@
             <button onclick="saveSettings()" class="settings-button primary">保存设置</button>
         </div>
     </div>
+
+    <!-- 共享供应商目录抽屉与遮罩（与所有 AI 插件共用同一配置） -->
+    <div class="overlay" id="providerOverlay" onclick="toggleProviderDrawer(false)"></div>
+    <div class="provider-drawer" id="providerDrawer"></div>
 
     <!-- Add Model Modal -->
     <div class="modal" id="addModelModal">
@@ -774,6 +873,7 @@
         </div>
     </div>
 
+    <script src="../../plugin_runtime/ai-provider-manager.js"></script>
     <script>
         // 聊天历史数组
         let chatHistory = [];
@@ -782,10 +882,129 @@
         let lastAtPosition = -1;
         let currentFile = null; // 当前选择的文件
 
+        // 总指挥路由表：关键词命中后移交对应 AI 插件处理。
+        // keywords 使用保守措辞避免误路由；trigger 为目标插件"开始处理"按钮的选择器；
+        // autoRun=false 的插件只填入内容，由用户在其界面继续操作（如文档问答需要追问）。
+        const DELEGATE_TARGETS = [
+            { id: 'meeting',   name: 'AI 会议纪要',   folder: 'sanrenjz-tools-ai-meeting',     feature: 'plugin-market-ai-meeting',     trigger: '#genBtn',     keywords: ['会议总结', '会议纪要', '会议记录', '整理会议', '开会纪要'] },
+            { id: 'writing',   name: 'AI 写作工作室', folder: 'sanrenjz-tools-ai-writing',     feature: 'plugin-market-ai-writing',     trigger: '#genBtn',     keywords: ['润色', '改写一下', '帮我改写', '扩写', '缩写', '生成标题', '起个标题'] },
+            { id: 'review',    name: 'AI 代码审查',   folder: 'sanrenjz-tools-ai-code-review', feature: 'plugin-market-ai-code-review', trigger: '#reviewBtn',  keywords: ['代码审查', '审查代码', '代码评审', 'code review', '检查代码'] },
+            { id: 'git',       name: 'AI Git 助手',   folder: 'sanrenjz-tools-ai-git',         feature: 'plugin-market-ai-git',         trigger: '#genBtn',     keywords: ['提交信息', 'commit message', 'git commit', '生成提交说明'] },
+            { id: 'regex',     name: 'AI 正则工坊',   folder: 'sanrenjz-tools-ai-regex',       feature: 'plugin-market-ai-regex',       trigger: '#genBtn',     keywords: ['正则表达式', '写个正则', '写一段正则', '正则匹配'] },
+            { id: 'sql',       name: 'AI SQL 助手',   folder: 'sanrenjz-tools-ai-sql',         feature: 'plugin-market-ai-sql',         trigger: '#genBtn',     keywords: ['写sql', '写 sql', 'sql语句', 'sql 语句', '生成sql', '生成 sql', '查询语句'] },
+            { id: 'prompt',    name: 'AI 提示词工坊', folder: 'sanrenjz-tools-ai-prompt',      feature: 'plugin-market-ai-prompt',      trigger: '#optBtn',     keywords: ['优化提示词', '提示词优化', '写个提示词', '生成提示词'] },
+            { id: 'learning',  name: 'AI 学习助手',   folder: 'sanrenjz-tools-ai-learning',    feature: 'plugin-market-ai-learning',    trigger: '#genBtn',     keywords: ['制定学习计划', '学习计划', '费曼学习', '出几道题', '出练习题'] },
+            { id: 'document',  name: 'AI 文档速读',   folder: 'sanrenjz-tools-ai-document',    feature: 'plugin-market-ai-document',    trigger: null,          keywords: ['总结文档', '文档总结', '读一下文档', '文档速读'] }
+        ];
+
+        // 意图检测：返回命中的目标插件（多目标命中时取关键词最长的一个，更具体者优先）
+        function detectDelegation(message) {
+            const settings = window.services.getSettings();
+            if (settings.commanderEnabled === false) return null;
+            const text = String(message || '').toLowerCase();
+            if (!text) return null;
+            let best = null;
+            let bestKeywordLength = 0;
+            for (const target of DELEGATE_TARGETS) {
+                for (const keyword of target.keywords) {
+                    if (text.includes(keyword.toLowerCase()) && keyword.length > bestKeywordLength) {
+                        best = target;
+                        bestKeywordLength = keyword.length;
+                    }
+                }
+            }
+            return best;
+        }
+
+        // 渲染派发卡片：显示移交目标与状态；失败或需要时可一键改由本助手直接回答
+        function addDispatchCard(target, message) {
+            const card = document.createElement('div');
+            card.className = 'delegate-card';
+            const title = document.createElement('div');
+            title.className = 'delegate-title';
+            title.textContent = '总指挥：正在移交给「' + target.name + '」处理…';
+            const status = document.createElement('div');
+            const actions = document.createElement('div');
+            actions.className = 'delegate-actions';
+            const fallbackBtn = document.createElement('button');
+            fallbackBtn.textContent = '改由本助手回答';
+            fallbackBtn.onclick = async () => {
+                card.remove();
+                await sendMessage(true, message, true);
+            };
+            const reopenBtn = document.createElement('button');
+            reopenBtn.textContent = '打开插件';
+            reopenBtn.style.display = 'none';
+            reopenBtn.onclick = async () => {
+                reopenBtn.disabled = true;
+                status.textContent = '正在打开插件窗口…';
+                // 这里只恢复目标窗口并重新填入原内容，不自动执行，防止重复调用模型。
+                const result = await window.services.delegateToPlugin(
+                    target.folder,
+                    target.feature,
+                    message,
+                    { autoRun: false }
+                );
+                reopenBtn.disabled = false;
+                if (result && result.success) {
+                    card.classList.remove('error');
+                    status.textContent = '插件窗口已打开，原内容已重新填入，未重复调用模型。';
+                } else {
+                    card.classList.add('error');
+                    status.textContent = (result && result.error) ? result.error : '打开插件失败。';
+                }
+            };
+            actions.append(fallbackBtn, reopenBtn);
+            card.append(title, status, actions);
+            document.getElementById('chatContainer').appendChild(card);
+            card.scrollIntoView({ behavior: 'smooth' });
+            return {
+                done(result) {
+                    if (result && result.success) {
+                        title.textContent = '总指挥：已移交给「' + target.name + '」处理';
+                        status.textContent = '内容已填入并自动开始，请在该插件窗口查看结果。';
+                        reopenBtn.style.display = '';
+                    } else {
+                        card.classList.add('error');
+                        title.textContent = '总指挥：移交给「' + target.name + '」失败';
+                        status.textContent = (result && result.error) ? result.error : '未知错误，可改由本助手回答。';
+                    }
+                }
+            };
+        }
+
+        // 共享供应商目录管理器：渲染供应商管理抽屉（新增/编辑/测试/密钥）。
+        // before 指向不存在的锚点，跳过组件自带选择器挂载，保留本插件的 #currentModel 下拉。
+        const providerManager = AIProviderManager.create(window.aiAPI, {
+            capability: 'text',
+            notify: message => window.services.showNotification(message),
+            drawer: '#providerDrawer',
+            overlay: '#providerOverlay',
+            before: '#ai-provider-picker-anchor-unused'
+        });
+
+        // 顶部切换模型后，同步共享目录的文本模型选择（与其他 AI 插件行为一致）
+        document.getElementById('currentModel').addEventListener('change', async event => {
+            const option = event.target.options[event.target.selectedIndex];
+            if (!option || !option.dataset.provider) return;
+            const settings = window.services.getSettings();
+            settings.defaultModel = option.value;
+            settings.defaultModelProvider = option.dataset.provider;
+            window.services.saveSettings(settings);
+            if (option.dataset.provider.startsWith('shared:')) {
+                await window.services.saveSharedTextSelection(
+                    option.dataset.provider.slice('shared:'.length),
+                    option.value
+                );
+            }
+        });
+
         // 初始化
         window.onload = async () => {
+            // 等待共享目录配置加载完成；即使共享配置读取失败也不阻塞插件初始化
+            await providerManager.ready.catch(() => {});
             await loadSettings();
-            updateModelSelectors();
+            await updateModelSelectors();
             // 聚焦输入框
             document.getElementById('promptInput').focus();
             
@@ -830,7 +1049,8 @@
         window.applyQuickCommand = (cmd) => {
             // 切换模型
             const modelSelect = document.getElementById('currentModel');
-            modelSelect.value = cmd.modelValue;
+            // 不同供应商可能存在相同模型 ID，按 value + provider 精确匹配
+            selectModelByPair(modelSelect, cmd.modelValue, cmd.modelProvider);
             
             // 添加系统消息
             if (cmd.prompt) {
@@ -877,32 +1097,7 @@
             // 同步快捷指令到超级面板
             syncQuickCommandsToFeatures(settings);
             
-            const models = window.services.getBuiltInModels();
-            
-            // 填充默认模型选择器
-            const defaultModel = document.getElementById('defaultModel');
-            defaultModel.innerHTML = '';
-            
-            // 添加内置模型
-            models.forEach(model => {
-                const option = document.createElement('option');
-                option.value = model.value;
-                option.text = `${model.label} (${model.provider})`;
-                defaultModel.appendChild(option);
-            });
-            
-            // 添加自定义模型
-            if (settings.customModels) {
-                settings.customModels.forEach(model => {
-                    const option = document.createElement('option');
-                    option.value = model.value;
-                    option.text = `${model.label} (${model.provider})`;
-                    defaultModel.appendChild(option);
-                });
-            }
-            
-            // 设置当前值
-            defaultModel.value = settings.defaultModel || (models[0] ? models[0].value : '');
+            // 默认模型选择器由 updateModelSelectors 统一按供应商分组填充
             
             // 填充其他设置
             document.getElementById('openrouterKey').value = settings.openrouterApiKey || '';
@@ -910,6 +1105,7 @@
             document.getElementById('deepseekKey').value = settings.deepseekApiKey || '';
             document.getElementById('savePath').value = settings.savePath || '';
             document.getElementById('promptsPath').value = settings.promptsPath || '';
+            document.getElementById('commanderEnabled').checked = settings.commanderEnabled !== false;
             
             // 更新UI
             updateModelList();
@@ -919,14 +1115,18 @@
         // 保存设置
         async function saveSettings() {
             const settings = window.services.getSettings();
+            const defaultModelSelect = document.getElementById('defaultModel');
+            const defaultOption = defaultModelSelect.options[defaultModelSelect.selectedIndex];
             const newSettings = {
                 ...settings,
                 openrouterApiKey: document.getElementById('openrouterKey').value,
                 geminiApiKey: document.getElementById('geminiKey').value,
                 deepseekApiKey: document.getElementById('deepseekKey').value,
                 savePath: document.getElementById('savePath').value,
-                defaultModel: document.getElementById('defaultModel').value,
+                defaultModel: defaultModelSelect.value,
+                defaultModelProvider: defaultOption ? (defaultOption.dataset.provider || '') : '',
                 promptsPath: document.getElementById('promptsPath').value,
+                commanderEnabled: document.getElementById('commanderEnabled').checked,
             };
 
             if (window.services.saveSettings(newSettings)) {
@@ -1011,40 +1211,106 @@
             toggleSettings();
         };
 
-        // 更新模型选择器
-        function updateModelSelectors() {
+        // 组装模型分组：共享供应商目录在前（按供应商分组），本插件直连与自定义模型在后
+        async function getModelGroups() {
             const settings = window.services.getSettings();
-            const builtInModels = window.services.getBuiltInModels();
-            const currentModelSelect = document.getElementById('currentModel');
-            const qcModelSelect = document.getElementById('qcModel');
-            
-            const populate = (select) => {
-                select.innerHTML = '';
-                builtInModels.forEach(model => {
+            const groups = [];
+            const sharedGroups = await window.services.getSharedProviderGroups();
+            sharedGroups.forEach(group => groups.push({
+                label: `共享 · ${group.name}`,
+                models: group.models
+            }));
+            const localModels = window.services.getLegacyModels().map(model => ({ ...model }));
+            (settings.customModels || []).forEach(model => localModels.push({
+                value: model.value,
+                label: model.label,
+                provider: model.provider,
+                isCustom: true
+            }));
+            if (localModels.length) groups.push({ label: '本插件直连', models: localModels });
+            return groups;
+        }
+
+        // 按分组填充下拉框
+        function populateModelSelect(select, groups) {
+            select.innerHTML = '';
+            groups.forEach(group => {
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = group.label;
+                group.models.forEach(model => {
                     const option = document.createElement('option');
                     option.value = model.value;
-                    option.text = `${model.label} (${model.provider})`;
+                    option.text = model.label;
                     option.dataset.provider = model.provider;
-                    select.appendChild(option);
+                    if (model.isCustom) option.dataset.isCustom = 'true';
+                    optgroup.appendChild(option);
                 });
-                if (settings.customModels) {
-                    settings.customModels.forEach(model => {
-                        const option = document.createElement('option');
-                        option.value = model.value;
-                        option.text = `${model.label} (${model.provider})`;
-                        option.dataset.isCustom = 'true';
-                        option.dataset.provider = model.provider;
-                        select.appendChild(option);
-                    });
-                }
-            };
+                select.appendChild(optgroup);
+            });
+        }
 
-            populate(currentModelSelect);
-            populate(qcModelSelect);
-            
-            // 选中默认
-            const defaultVal = settings.defaultModel || (builtInModels[0] ? builtInModels[0].value : '');
-            currentModelSelect.value = defaultVal;
+        // 不同供应商可能存在相同模型 ID，按 value + provider 精确选中
+        function selectModelByPair(select, value, provider) {
+            if (!value) return;
+            let fallbackIndex = -1;
+            for (let i = 0; i < select.options.length; i++) {
+                const option = select.options[i];
+                if (option.value !== value) continue;
+                if (!provider || option.dataset.provider === provider) {
+                    select.selectedIndex = i;
+                    return;
+                }
+                if (fallbackIndex === -1) fallbackIndex = i;
+            }
+            if (fallbackIndex >= 0) select.selectedIndex = fallbackIndex;
+        }
+
+        // 更新模型选择器（顶部当前模型、快捷指令、设置页默认模型共用同一分组数据）
+        async function updateModelSelectors() {
+            const settings = window.services.getSettings();
+            const groups = await getModelGroups();
+            const currentModelSelect = document.getElementById('currentModel');
+            const qcModelSelect = document.getElementById('qcModel');
+            const defaultModelSelect = document.getElementById('defaultModel');
+            [currentModelSelect, qcModelSelect, defaultModelSelect].forEach(select => {
+                if (select) populateModelSelect(select, groups);
+            });
+
+            // 顶部当前模型优先跟随共享目录的文本模型选择（与其他 AI 插件一致）
+            const sharedSelection = await window.services.getSharedTextSelection();
+            if (sharedSelection && sharedSelection.providerId) {
+                selectModelByPair(
+                    currentModelSelect,
+                    sharedSelection.modelId,
+                    `shared:${sharedSelection.providerId}`
+                );
+            } else {
+                selectModelByPair(currentModelSelect, settings.defaultModel, settings.defaultModelProvider);
+            }
+            if (currentModelSelect.selectedIndex === -1 && currentModelSelect.options.length) {
+                currentModelSelect.selectedIndex = 0;
+            }
+
+            // 快捷指令与默认模型按本插件设置选中
+            [qcModelSelect, defaultModelSelect].forEach(select => {
+                if (!select) return;
+                selectModelByPair(select, settings.defaultModel, settings.defaultModelProvider);
+                if (select.selectedIndex === -1 && select.options.length) select.selectedIndex = 0;
+            });
+        }
+
+        // 打开/关闭共享供应商目录抽屉；关闭后刷新模型下拉以应用供应商变更
+        function toggleProviderDrawer(force) {
+            const drawer = document.getElementById('providerDrawer');
+            const overlay = document.getElementById('providerOverlay');
+            const open = typeof force === 'boolean' ? force : !drawer.classList.contains('open');
+            drawer.classList.toggle('open', open);
+            overlay.classList.toggle('show', open);
+            if (!open) {
+                Promise.resolve(providerManager.refresh())
+                    .then(() => updateModelSelectors())
+                    .catch(() => {});
+            }
         }
 
         // 自定义模型管理
@@ -1159,7 +1425,7 @@
             // 设置模型选择
             const modelSelect = document.getElementById('qcModel');
             if (cmd.modelValue) {
-                modelSelect.value = cmd.modelValue;
+                selectModelByPair(modelSelect, cmd.modelValue, cmd.modelProvider);
             }
 
             // 更改按钮文本为“保存”
@@ -1225,12 +1491,27 @@
         }
 
         // 发送消息逻辑
-        async function sendMessage() {
+        // forceLocal=true 时跳过总指挥路由，直接由本助手回答（派发卡片的回退入口）
+        async function sendMessage(forceLocal = false, presetMessage = null, skipUserBubble = false) {
             const input = document.getElementById('promptInput');
-            const message = input.value.trim();
+            const message = presetMessage !== null ? String(presetMessage).trim() : input.value.trim();
             
             // 检查是否有消息或文件
             if (!message && !currentFile) return;
+
+            // 总指挥路由：无附件且命中关键词时，移交对应 AI 插件处理
+            if (!forceLocal && !presetMessage && !currentFile) {
+                const route = detectDelegation(message);
+                if (route) {
+                    addMessage(message, true);
+                    input.value = '';
+                    input.style.height = 'auto';
+                    const card = addDispatchCard(route, message);
+                    const result = await window.services.delegateToPlugin(route.folder, route.feature, message);
+                    card.done(result);
+                    return;
+                }
+            }
 
             // 收集系统消息
             const systemMessages = Array.from(document.getElementsByClassName('system-message'))
@@ -1255,7 +1536,8 @@
             if (currentFile) {
                 displayContent += `\n\n[附件: ${document.getElementById('fileName').textContent}]`;
             }
-            addMessage(displayContent, true);
+            // 回退路径（skipUserBubble）中用户消息已在派发前展示，不再重复
+            if (!skipUserBubble) addMessage(displayContent, true);
             
             // 清理输入和文件
             input.value = '';

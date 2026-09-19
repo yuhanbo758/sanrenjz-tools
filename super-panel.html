@@ -597,8 +597,11 @@
 
             const titleDiv = document.createElement('div');
             titleDiv.className = 'action-title';
-            titleDiv.textContent = action.title || '未命名';
-            titleDiv.title = action.description || ''; // 鼠标悬浮显示描述
+            const fullTitle = String(action.title || '').trim() || '未命名';
+            // 标题在动作来源处按功能语义控制长度，面板不再截断造成歧义。
+            titleDiv.textContent = fullTitle;
+            // 鼠标悬浮显示完整标题和描述，便于查看动作详情。
+            titleDiv.title = action.description ? fullTitle + '\n' + action.description : fullTitle;
 
             actionDiv.appendChild(deleteBtn);
             actionDiv.appendChild(iconDiv);

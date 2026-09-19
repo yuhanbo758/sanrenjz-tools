@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "plugin-market-image-watermark",
-      "explain": "水印",
+      "explain": "图片水印",
       "description": "水印、拼接和截图美化共用一块可视画布。",
       "cmds": [
         "图片水印",
@@ -37,7 +37,7 @@
     },
     {
       "code": "plugin-market-image-collage",
-      "explain": "拼接",
+      "explain": "图片拼接",
       "description": "水印、拼接和截图美化共用一块可视画布。",
       "cmds": [
         "图片拼接",

@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "main-feature",
-      "explain": "在工具平台中浏览网页",
+      "explain": "网页浏览",
       "description": "在三人聚智工具平台中浏览网页，支持书签管理和历史记录",
       "cmds": ["网页浏览", "浏览器", "surfing"],
       "icon": "logo.svg",

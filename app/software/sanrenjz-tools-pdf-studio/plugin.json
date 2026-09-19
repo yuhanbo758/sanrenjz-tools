@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "plugin-market-pdf-organizer",
-      "explain": "PDF 页面",
+      "explain": "PDF编辑",
       "description": "合并、拆分、旋转、排序和提取 PDF 页面。",
       "cmds": [
         "pdf合并",

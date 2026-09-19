@@ -64,7 +64,7 @@
     },
     {
       "code": "plugin-market-image-resizer",
-      "explain": "尺寸调整",
+      "explain": "图片缩放",
       "description": "批量调整质量、格式和尺寸，并即时比较体积。",
       "cmds": [
         "图片尺寸",

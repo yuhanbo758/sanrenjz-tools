@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "plugin-market-archive-tool",
-      "explain": "ZIP 压缩包",
+      "explain": "压缩解压",
       "description": "创建、预览并安全解压 ZIP，拦截越界路径。",
       "cmds": [
         "zip",

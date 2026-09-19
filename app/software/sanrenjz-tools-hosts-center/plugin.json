@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "plugin-market-hosts-manager",
-      "explain": "Hosts",
+      "explain": "域名映射",
       "description": "配置组、差异预览、自动备份与权限反馈。",
       "cmds": [
         "hosts",

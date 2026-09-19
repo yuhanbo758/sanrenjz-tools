@@ -123,5 +123,7 @@ function issueHtml(i){return `<div class="issue ${i.sev}"><div class="ih"><span 
 $('#copyBtn').onclick=()=>{if(lastReport){navigator.clipboard.writeText(lastReport);toast('已复制报告');}else toast('暂无报告');};
 $('#clearBtn').onclick=()=>{$('#codeInput').value='';$('#codeCnt').textContent='0 行';$('#issuesList').innerHTML='<div class="issues-empty"><span>粘贴代码后点击审查</span></div>';$('#issueStat').textContent='等待审查';lastReport='';};
 window.addEventListener('plugin-enter',e=>{const text=e.detail?.payload||e.detail?.clipboardText||'';if(text)$('#codeInput').value=text;});
+// 总指挥模式：收到 featureArgs.autoRun 时自动开始审查
+window.addEventListener('plugin-enter',e=>{const text=e.detail?.payload||e.detail?.clipboardText||'';if(e.detail?.featureArgs?.autoRun&&text)setTimeout(()=>{const b=$('#reviewBtn');if(b&&!b.disabled)b.click()},150);});
 </script>
 </body></html>

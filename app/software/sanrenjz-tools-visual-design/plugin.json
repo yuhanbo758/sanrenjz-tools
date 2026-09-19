@@ -37,7 +37,7 @@
     },
     {
       "code": "plugin-market-color-workbench",
-      "explain": "颜色 / 对比度",
+      "explain": "颜色对比",
       "description": "从图片与 SVG 中提取颜色，检查对比度并导出作品。",
       "cmds": [
         "颜色转换",
@@ -65,7 +65,7 @@
     },
     {
       "code": "plugin-market-svg-workbench",
-      "explain": "SVG",
+      "explain": "SVG编辑",
       "description": "从图片与 SVG 中提取颜色，检查对比度并导出作品。",
       "cmds": [
         "svg",

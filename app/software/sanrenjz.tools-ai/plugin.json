@@ -1,7 +1,7 @@
 {
   "pluginName": "余汉波AI助手",
-  "description": "AI对话助手，支持多种模型和API",
-  "version": "1.4.0",
+  "description": "AI对话助手与总指挥，可自动调用其他AI插件完成任务",
+  "version": "1.6.0",
   "author": "余汉波",
   "category": "效率工具",
   "main": "index.html",
@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "ai",
-      "explain": "AI助手",
+      "explain": "智能问答",
       "icon": "logo.ico",
       "superPanel": true,
       "cmds": [

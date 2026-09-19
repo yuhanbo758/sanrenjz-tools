@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "plugin-market-ai-document",
-      "explain": "AI 文档阅读器",
+      "explain": "文档速读",
       "description": "读取 PDF、Markdown、TXT，生成摘要、目录并围绕文档问答。",
       "cmds": [
         "AI 文档阅读器",

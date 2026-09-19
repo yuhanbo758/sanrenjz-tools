@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "plugin-market-qr-barcode",
-      "explain": "二维码 / 条码",
+      "explain": "二维码",
       "description": "生成、识别、导出并保存最近使用记录。",
       "cmds": [
         "二维码",

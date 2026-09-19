@@ -104,5 +104,7 @@ function parseSections(text){
   setOut('议题','outAgenda');setOut('结论','outSummary');setOut('决策','outDecisions');setOut('待办事项','outTodos');
 }
 window.addEventListener('plugin-enter',e=>{const text=e.detail?.payload||e.detail?.clipboardText||'';if(text){$('#transcript').value=text;$('#cnt').textContent=text.length+' 字';}});
+// 总指挥模式：收到 featureArgs.autoRun 时自动开始生成
+window.addEventListener('plugin-enter',e=>{const text=e.detail?.payload||e.detail?.clipboardText||'';if(e.detail?.featureArgs?.autoRun&&text)setTimeout(()=>{const b=$('#genBtn');if(b&&!b.disabled)b.click()},150);});
 </script>
 </body></html>

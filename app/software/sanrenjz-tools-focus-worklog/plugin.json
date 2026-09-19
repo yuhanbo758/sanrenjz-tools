@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "plugin-market-pomodoro-focus",
-      "explain": "番茄专注",
+      "explain": "专注计时",
       "description": "专注计时直接沉淀为项目工时与周期报告。",
       "cmds": [
         "番茄钟",
@@ -37,7 +37,7 @@
     },
     {
       "code": "plugin-market-worklog",
-      "explain": "工时日志",
+      "explain": "工时记录",
       "description": "专注计时直接沉淀为项目工时与周期报告。",
       "cmds": [
         "工时",

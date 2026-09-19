@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "plugin-market-ai-image",
-      "explain": "AI 图片理解",
+      "explain": "图片理解",
       "description": "生成图片描述、标签、无障碍文本、分析和反向提示词。",
       "cmds": [
         "AI 图片理解",

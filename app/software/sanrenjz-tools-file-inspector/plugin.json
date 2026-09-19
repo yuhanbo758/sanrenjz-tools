@@ -37,7 +37,7 @@
     },
     {
       "code": "plugin-market-folder-compare",
-      "explain": "文件夹对比",
+      "explain": "文件对比",
       "description": "搜索内容、比较目录并生成结构树。",
       "cmds": [
         "文件夹对比",
@@ -64,7 +64,7 @@
     },
     {
       "code": "plugin-market-directory-tree",
-      "explain": "目录树",
+      "explain": "目录结构",
       "description": "搜索内容、比较目录并生成结构树。",
       "cmds": [
         "目录树",

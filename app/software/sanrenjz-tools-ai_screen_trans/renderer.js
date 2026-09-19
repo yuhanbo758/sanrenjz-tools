@@ -5,6 +5,7 @@
 const state = {
     settings: null,
     currentMode: 'text',
+    screenshotDataUrl: '',
     screenshotBase64: '',
     textDraft: '',
     ocrText: '',
@@ -12,7 +13,8 @@ const state = {
     pendingSecrets: {},
     secretCache: {},
     abortController: null,
-    entryCaptureRunning: false
+    entryCaptureRunning: false,
+    ocrRunning: false
 };
 
 const $ = id => document.getElementById(id);
@@ -153,9 +155,15 @@ async function selectScreenshot(options = {}) {
             if (entryFlow) await window.services.closeWindow();
             return;
         }
-        state.screenshotBase64 = String(result.dataUrl || '').split(',')[1] || '';
-        $('screenshotPreview').src = result.dataUrl;
-        $('promptPreview').src = result.dataUrl;
+        const dataUrl = String(result.dataUrl || '');
+        if (!/^data:image\/(png|jpe?g|webp);base64,/i.test(dataUrl)) {
+            throw new Error('截图数据格式无效，请重新框选');
+        }
+        // 保留完整 data URL，避免把 JPEG/WebP 错标为 PNG 后被视觉模型拒绝。
+        state.screenshotDataUrl = dataUrl;
+        state.screenshotBase64 = dataUrl.split(',')[1] || '';
+        $('screenshotPreview').src = dataUrl;
+        $('promptPreview').src = dataUrl;
         $('promptDescription').textContent = `已选择 ${result.width} × ${result.height} 区域，可仅识别文字或识别后翻译`;
         resetOcrText();
         resetResult();
@@ -216,7 +224,15 @@ async function translateText() {
 }
 
 async function recognizeScreenshot() {
-    if (!state.screenshotBase64) return StatusBar.set('请先点击“选择截图”完成框选');
+    if (state.ocrRunning) return '';
+    if (!state.screenshotDataUrl || !state.screenshotBase64) {
+        StatusBar.set('请先点击“选择截图”完成框选');
+        return '';
+    }
+    state.ocrRunning = true;
+    $('ocrBtn').disabled = true;
+    $('promptOcrBtn').disabled = true;
+    $('promptTranslateBtn').disabled = true;
     resetResult();
     $('targetTag').textContent = 'OCR 识别中…';
     StatusBar.set('正在识别截图文字…', true);
@@ -224,7 +240,7 @@ async function recognizeScreenshot() {
         const ocrText = await callOpenAI(state.settings.ocrSelection, [{
             role: 'user',
             content: [
-                { type: 'image_url', image_url: { url: `data:image/png;base64,${state.screenshotBase64}` } },
+                { type: 'image_url', image_url: { url: state.screenshotDataUrl } },
                 { type: 'text', text: '只输出图片中识别到的文字，保持原始顺序和换行，不要解释。' }
             ]
         }], { temperature: 0, maxTokens: 4096, timeout: 60000 });
@@ -241,6 +257,11 @@ async function recognizeScreenshot() {
         $('targetTag').textContent = '等待翻译';
         StatusBar.set(`OCR 识别失败：${error.message}`);
         return '';
+    } finally {
+        state.ocrRunning = false;
+        $('ocrBtn').disabled = false;
+        $('promptOcrBtn').disabled = false;
+        $('promptTranslateBtn').disabled = false;
     }
 }
 
@@ -448,8 +469,10 @@ async function init() {
             event.preventDefault();
             const reader = new FileReader();
             reader.onload = loadEvent => {
-                state.screenshotBase64 = String(loadEvent.target.result).split(',')[1] || '';
-                $('screenshotPreview').src = loadEvent.target.result;
+                const dataUrl = String(loadEvent.target.result || '');
+                state.screenshotDataUrl = dataUrl;
+                state.screenshotBase64 = dataUrl.split(',')[1] || '';
+                $('screenshotPreview').src = dataUrl;
                 setMode('ocr');
                 resetOcrText();
                 resetResult();

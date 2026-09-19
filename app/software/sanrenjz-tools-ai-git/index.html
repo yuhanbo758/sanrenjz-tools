@@ -92,5 +92,7 @@ $('#genBtn').onclick=async()=>{
 $('#stopBtn').onclick=()=>{if(requestId){api.cancel(requestId);$('#genBtn').disabled=false;$('#stopBtn').disabled=true;$('#resStat').textContent='已取消';}};
 $('#copyBtn').onclick=()=>{const t=$('#result').textContent;if(t&&t!=='结果将显示在这里'){navigator.clipboard.writeText(t);toast('已复制');}else toast('暂无结果');};
 window.addEventListener('plugin-enter',e=>{const text=e.detail?.payload||e.detail?.clipboardText||'';if(text){$('#input').value=text;$('#inCnt').textContent=text.split('\n').length+' 行';}});
+// 总指挥模式：收到 featureArgs.autoRun 时自动开始生成
+window.addEventListener('plugin-enter',e=>{const text=e.detail?.payload||e.detail?.clipboardText||'';if(e.detail?.featureArgs?.autoRun&&text)setTimeout(()=>{const b=$('#genBtn');if(b&&!b.disabled)b.click()},150);});
 </script>
 </body></html>

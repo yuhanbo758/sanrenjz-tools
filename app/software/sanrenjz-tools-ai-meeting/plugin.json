@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "plugin-market-ai-meeting",
-      "explain": "AI 会议纪要",
+      "explain": "会议纪要",
       "description": "把转写文本整理为议题、结论、决策和待办。",
       "cmds": [
         "AI 会议纪要",

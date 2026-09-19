@@ -37,7 +37,7 @@
     },
     {
       "code": "plugin-market-date-world-clock",
-      "explain": "日期 / 世界时钟",
+      "explain": "世界时钟",
       "description": "把时间、日期、单位和逐行计算放到同一张工作桌。",
       "cmds": [
         "世界时钟",

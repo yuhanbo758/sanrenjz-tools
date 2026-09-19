@@ -114,5 +114,7 @@ function renderResult(text){
 $('#copyBtn').onclick=()=>{if(lastResult){navigator.clipboard.writeText(lastResult);toast('已复制');}else toast('暂无结果');};
 $('#exportBtn').onclick=()=>{if(!lastResult){toast('请先生成');return;}if(mode==='Anki'){const target=api.saveCsv(lastResult);if(target)toast('已导出');return;}const blob=new Blob([lastResult],{type:'text/plain'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='学习'+mode+'.txt';a.click();URL.revokeObjectURL(a.href);toast('已导出');};
 window.addEventListener('plugin-enter',e=>{const text=e.detail?.payload||e.detail?.clipboardText||'';if(text){$('#input').value=text;$('#inCnt').textContent=text.length+' 字';}});
+// 总指挥模式：收到 featureArgs.autoRun 时自动开始生成
+window.addEventListener('plugin-enter',e=>{const text=e.detail?.payload||e.detail?.clipboardText||'';if(e.detail?.featureArgs?.autoRun&&text)setTimeout(()=>{const b=$('#genBtn');if(b&&!b.disabled)b.click()},150);});
 </script>
 </body></html>

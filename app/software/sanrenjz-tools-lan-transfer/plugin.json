@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "plugin-market-lan-transfer",
-      "explain": "局域网快传",
+      "explain": "LAN传输",
       "description": "创建临时局域网接收站，传输文字与文件。",
       "cmds": [
         "局域网传输",

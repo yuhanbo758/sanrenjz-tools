@@ -58,7 +58,13 @@
                 size.style.display = 'none';
                 return;
             }
-            ipcRenderer.send('screenshot-region-selected', { displayId, rect });
+            // clientX/clientY 是当前叠加层 CSS 视口坐标；将视口尺寸一并传给主进程，
+            // 由主进程按截图缩略图的真实尺寸换算，兼容 Windows DPI 缩放与多显示器。
+            ipcRenderer.send('screenshot-region-selected', {
+                displayId,
+                rect,
+                viewport: { width: innerWidth, height: innerHeight }
+            });
         });
         addEventListener('keydown', event => { if (event.key === 'Escape') ipcRenderer.send('screenshot-region-cancel'); });
         addEventListener('contextmenu', event => event.preventDefault());

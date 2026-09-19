@@ -96,7 +96,7 @@ let mode='描述';let requestId='';let imageDataUrl='';
 const providerManager=AIProviderManager.create(api,{capability:'vision',notify:toast});
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1600);}
 function toggleDrawer(){$('#drawer').classList.toggle('open');$('#overlay').classList.toggle('show');}
-$$('#modes .mode').forEach(b=>b.onclick=()=>{$$('#modes .mode').forEach(x=>x.classList.remove('active'));b.classList.add('active');mode=b.dataset.mode;$('#genLabel').textContent='生成'+mode;});
+$$('.modes .mode').forEach(b=>b.onclick=()=>{$$('.modes .mode').forEach(x=>x.classList.remove('active'));b.classList.add('active');mode=b.dataset.mode;$('#genLabel').textContent='生成'+mode;});
 function pickImage(){const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.onchange=e=>{const f=e.target.files[0];if(f){const r=new FileReader();r.onload=()=>setImage(r.result);r.readAsDataURL(f);}};inp.click();}
 function pasteImage(){const dataUrl=api.readClipboardImage();if(dataUrl)setImage(dataUrl);else toast('剪贴板无图片');}
 function setImage(dataUrl){imageDataUrl=dataUrl;$('#imgStage').innerHTML=`<img src="${dataUrl}">`;$('#imgStage').onclick=pickImage;}
@@ -114,6 +114,28 @@ $('#genBtn').onclick=async()=>{
 };
 $('#stopBtn').onclick=()=>{if(requestId){api.cancel(requestId);$('#genBtn').disabled=false;$('#stopBtn').disabled=true;$('#resStat').textContent='已取消';}};
 $('#copyBtn').onclick=()=>{const t=$('#result').textContent;if(t&&t!=='选择图片并点击生成'){navigator.clipboard.writeText(t);toast('已复制');}else toast('暂无结果');};
-window.addEventListener('plugin-enter',e=>{});
+// 超级面板进入：优先识别本地图片路径，其次读取剪贴板图片（覆盖选中图片与截图场景）
+window.addEventListener('plugin-enter',e=>{
+  const payload=String(e.detail?.payload||e.detail?.clipboardText||e.detail?.action?.payload||'').trim();
+  const filePath=payload.split(/\r?\n/).map(s=>s.trim().replace(/^"+|"+$/g,'')).find(s=>/\.(png|jpe?g|webp|bmp|gif)$/i.test(s));
+  if(filePath){try{setImage(api.readImage(filePath));return;}catch(_){/* 路径失效时继续尝试剪贴板 */}}
+  const clip=api.readClipboardImage();if(clip)setImage(clip);
+});
+// 拖放支持：拦截窗口级默认行为，任意位置拖入图片均可加载
+window.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='copy';$('#imgStage').style.borderColor='var(--a)';});
+window.addEventListener('dragleave',e=>{if(!e.relatedTarget)$('#imgStage').style.borderColor='';});
+window.addEventListener('drop',e=>{
+  e.preventDefault();e.stopPropagation();$('#imgStage').style.borderColor='';
+  const dt=e.dataTransfer;
+  if(dt.files&&dt.files.length){
+    const file=[...dt.files].find(f=>f.type.startsWith('image/'));
+    if(file){const r=new FileReader();r.onload=()=>setImage(r.result);r.readAsDataURL(file);}
+    else toast('仅支持图片文件');return;
+  }
+  const url=String(dt.getData('text/uri-list')||dt.getData('text/plain')||'').trim();
+  if(/^data:image\//i.test(url))setImage(url);
+});
+// Ctrl+V 粘贴剪贴板图片（输入框内保持系统默认粘贴行为）
+window.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='v'&&!e.target.closest('input,textarea'))pasteImage();});
 </script>
 </body></html>

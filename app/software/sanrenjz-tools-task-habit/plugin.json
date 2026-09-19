@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "plugin-market-todo-list",
-      "explain": "待办",
+      "explain": "待办清单",
       "description": "把一次性任务和长期习惯放在同一条进度线上。",
       "cmds": [
         "待办",
@@ -37,7 +37,7 @@
     },
     {
       "code": "plugin-market-habit-tracker",
-      "explain": "习惯",
+      "explain": "习惯打卡",
       "description": "把一次性任务和长期习惯放在同一条进度线上。",
       "cmds": [
         "习惯",

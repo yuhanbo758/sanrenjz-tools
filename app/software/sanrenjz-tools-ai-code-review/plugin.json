@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "plugin-market-ai-code-review",
-      "explain": "AI 代码审查",
+      "explain": "代码审查",
       "description": "检查代码或 Git Diff，按严重程度输出问题，不改动文件。",
       "cmds": [
         "AI 代码审查",

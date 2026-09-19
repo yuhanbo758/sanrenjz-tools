@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "image-crop",
-      "explain": "图片裁剪编辑",
+      "explain": "图片裁剪",
       "description": "快速裁剪图片，支持多种尺寸预设和文字添加",
       "cmds": ["图片裁剪", "裁剪图片", "图片编辑", "封面制作", "图片处理"],
       "icon": "logo.ico",

@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "plugin-market-markdown-notes",
-      "explain": "Markdown 笔记",
+      "explain": "本地笔记",
       "description": "Markdown 资料库与轻便便签并排管理。",
       "cmds": [
         "markdown笔记",

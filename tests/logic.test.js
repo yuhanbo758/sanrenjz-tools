@@ -48,5 +48,15 @@ assert.ok(pluginRenderer.includes('复制 OCR 文本'));
 assert.ok(pluginRenderer.includes('async function recognizeScreenshot()'));
 assert.ok(pluginRenderer.includes('async function translateRecognizedText()'));
 assert.ok(pluginRenderer.includes("StatusBar.set('OCR 识别完成，可复制文字或继续翻译')"));
+// OCR 必须把实际截图 data URL 原样传给视觉模型，不能把 JPEG/WebP 一律伪装成 PNG。
+assert.ok(pluginRenderer.includes("image_url: { url: state.screenshotDataUrl }"));
+assert.ok(pluginRenderer.includes('ocrRunning: false'));
+
+// 截图叠加层需要上报实际 CSS 视口尺寸，主进程才能在 Windows DPI 缩放下正确裁剪。
+const screenshotOverlay = fs.readFileSync(path.join(__dirname, '..', 'screenshot-overlay.html'), 'utf8');
+const mainProcess = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+assert.ok(screenshotOverlay.includes('viewport: { width: innerWidth, height: innerHeight }'));
+assert.ok(mainProcess.includes('payload.viewport?.width'));
+assert.ok(mainProcess.includes('截图坐标换算失败，请重新截图'));
 
 console.log('logic tests passed');

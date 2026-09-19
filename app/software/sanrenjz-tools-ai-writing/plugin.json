@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "plugin-market-ai-writing",
-      "explain": "AI 写作工作室",
+      "explain": "文本润色",
       "description": "润色、改写、扩写、缩写、语气和标题生成。",
       "cmds": [
         "AI 写作工作室",

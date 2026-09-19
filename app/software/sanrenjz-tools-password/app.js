@@ -968,6 +968,17 @@ function confirmAddCategory() {
         // 重新加载分类
         loadCategories();
         updateCategorySelect();
+
+        // 修复：搜索模式下删除分类后，同步清理过期的搜索结果，
+        // 否则列表仍会显示已随分类删除的条目，且分类筛选可能指向不存在的分类
+        if (searchMode) {
+            searchResults = searchResults.filter(p => p.category !== categoryName);
+            if (currentSearchCategory === categoryName) {
+                currentSearchCategory = null;
+            }
+            updateSearchHeader();
+            renderCurrentPasswords();
+        }
         
         // 如果分类管理界面是打开的，刷新它
         const categoryModal = document.getElementById('categoryModal');
@@ -1481,10 +1492,35 @@ function deleteCurrentPassword() {
     
     if (confirm('确定要删除这个密码记录吗？')) {
         try {
-            db.deletePassword(currentPassword.id, currentPassword.category);
+            // 先记录待删除条目的关键信息，clearPasswordDetail 会把 currentPassword 置空
+            const deletedId = currentPassword.id;
+            const deletedCategory = currentPassword.category;
+
+            db.deletePassword(deletedId, deletedCategory);
             clearPasswordDetail();
-            loadPasswords(currentCategory);
-            renderCategories(); // 更新分类计数
+
+            if (searchMode) {
+                // 修复：搜索模式下必须同步移除已删除条目，否则会出现“幽灵条目”，
+                // 分类计数不更新、再次删除无效果，界面表现为卡住
+                searchResults = searchResults.filter(p => p.id !== deletedId);
+
+                // 若当前筛选的分类已无搜索结果，重置为显示全部搜索结果
+                if (currentSearchCategory && !searchResults.some(p => p.category === currentSearchCategory)) {
+                    currentSearchCategory = null;
+                }
+
+                // 同步后台分类数据，避免退出搜索模式后显示已删除的条目
+                if (deletedCategory === currentCategory) {
+                    passwords = db.getPasswordsByCategory(currentCategory);
+                }
+
+                updateSearchHeader();
+                renderCategories();
+                renderCurrentPasswords();
+            } else {
+                loadPasswords(currentCategory);
+                renderCategories(); // 更新分类计数
+            }
             showNotification('密码已删除');
         } catch (error) {
             showNotification('删除失败：' + error.message, 'error');

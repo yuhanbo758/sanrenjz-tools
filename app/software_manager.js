@@ -9,10 +9,7 @@ class PluginManager {
         try {
             const candidatePluginDirs = app.isPackaged
                 ? [
-                    path.join(process.resourcesPath, 'app', 'software'),
-                    path.join(process.resourcesPath, 'app.asar', 'app', 'software'),
-                    path.join(app.getAppPath(), 'app', 'software'),
-                    path.join(__dirname, 'software')
+                    path.join(process.env.PORTABLE_EXECUTABLE_DIR || path.dirname(process.execPath), 'plugins')
                 ]
                 : [
                     path.join(__dirname, 'software'),

@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "plugin-market-regex-lab",
-      "explain": "正则",
+      "explain": "正则替换",
       "description": "正则、差异、行处理与文件编码集中调试。",
       "cmds": [
         "正则",
@@ -37,7 +37,7 @@
     },
     {
       "code": "plugin-market-text-diff",
-      "explain": "文本差异",
+      "explain": "文本对比",
       "description": "正则、差异、行处理与文件编码集中调试。",
       "cmds": [
         "文本对比",
@@ -64,7 +64,7 @@
     },
     {
       "code": "plugin-market-line-processor",
-      "explain": "行处理",
+      "explain": "文本处理",
       "description": "正则、差异、行处理与文件编码集中调试。",
       "cmds": [
         "行处理",

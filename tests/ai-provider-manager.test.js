@@ -18,5 +18,16 @@ assert.deepStrictEqual(JSON.parse(JSON.stringify(models)), [
   { id: 'glm-4v-plus', label: 'GLM-4V Plus', capabilities: ['text', 'vision'] },
   { id: 'deepseek-chat', label: 'DeepSeek Chat', capabilities: ['text'] }
 ]);
+// 多模态能力（vision/audio）应被解析保留，audio 不再被静默丢弃；未知能力被过滤
+const multimodal = context.window.AIProviderManager.parseModels([
+  'mimo-v2.5 | MiMo V2.5 多模态 | text,vision,audio',
+  'MiniMax-M3 | MiniMax M3 视觉 | text,vision',
+  'unknown-cap | 未知能力 | text,bogus,vision'
+].join('\n'));
+assert.deepStrictEqual(JSON.parse(JSON.stringify(multimodal)), [
+  { id: 'mimo-v2.5', label: 'MiMo V2.5 多模态', capabilities: ['text', 'vision', 'audio'] },
+  { id: 'MiniMax-M3', label: 'MiniMax M3 视觉', capabilities: ['text', 'vision'] },
+  { id: 'unknown-cap', label: '未知能力', capabilities: ['text', 'vision'] }
+]);
 
 console.log('AI provider manager tests passed: multi-provider model parsing');

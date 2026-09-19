@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "plugin-market-ai-prompt",
-      "explain": "AI 提示词工坊",
+      "explain": "提示优化",
       "description": "管理变量模板、优化提示词、比较版本和模型输出。",
       "cmds": [
         "AI 提示词工坊",

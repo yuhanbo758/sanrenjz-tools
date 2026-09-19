@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "plugin-market-ai-learning",
-      "explain": "AI 学习卡片",
+      "explain": "学习卡片",
       "description": "从文本或文档生成知识点、问答、术语表、测试题和 Anki CSV。",
       "cmds": [
         "AI 学习卡片",

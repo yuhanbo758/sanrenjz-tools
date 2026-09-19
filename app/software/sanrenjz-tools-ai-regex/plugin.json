@@ -10,7 +10,7 @@
   "features": [
     {
       "code": "plugin-market-ai-regex",
-      "explain": "AI 正则助手",
+      "explain": "正则生成",
       "description": "用自然语言生成、解释和修复正则，并在本地样本上验证。",
       "cmds": [
         "AI 正则助手",

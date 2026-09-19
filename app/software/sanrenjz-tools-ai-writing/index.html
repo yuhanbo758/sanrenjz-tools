@@ -109,5 +109,7 @@ $('#stopBtn').onclick=()=>{if(requestId){api.cancel(requestId);streaming=false;$
 $('#copyBtn').onclick=()=>{const t=$('#result').textContent;if(t&&t!=='结果将显示在这里'){const cb=navigator.clipboard||{writeText:x=>{const ta=document.createElement('textarea');ta.value=x;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();}};cb.writeText(t);toast('已复制');}else toast('暂无结果');};
 $('#clearBtn').onclick=()=>{$('#source').value='';$('#result').textContent='结果将显示在这里';$('#result').classList.add('empty');$('#srcCnt').textContent='0 字';$('#resStat').textContent='等待';};
 window.addEventListener('plugin-enter',e=>{const text=e.detail?.payload||e.detail?.clipboardText||'';if(text){$('#source').value=text;$('#srcCnt').textContent=text.length+' 字';}});
+// 总指挥模式：收到 featureArgs.autoRun 时自动开始生成
+window.addEventListener('plugin-enter',e=>{const text=e.detail?.payload||e.detail?.clipboardText||'';if(e.detail?.featureArgs?.autoRun&&text)setTimeout(()=>{const b=$('#genBtn');if(b&&!b.disabled)b.click()},150);});
 </script>
 </body></html>

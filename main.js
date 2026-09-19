@@ -4,6 +4,10 @@ const fs = require('fs');
 const { exec, spawn } = require('child_process');
 const http = require('http');
 const https = require('https');
+const { waitForPluginWindowReady } = require('./app/plugin_runtime/plugin-window-ready');
+const { initializePluginStore, normalizePluginIdentity } = require(app.isPackaged
+    ? path.join(process.resourcesPath, 'app', 'plugin_store.js')
+    : './app/plugin_store');
 const { detectTextContextTypes } = require(app.isPackaged
     ? path.join(process.resourcesPath, 'app', 'super_panel_context.js')
     : './app/super_panel_context');
@@ -178,8 +182,35 @@ function isDirectPluginDownloadUrl(rawUrl) {
 function getPluginInstallDir() {
     if (pluginManager?.pluginDir) return pluginManager.pluginDir;
     return app.isPackaged
+        ? path.join(getInstalledAppDir(), 'plugins')
+        : path.join(__dirname, 'app', 'software');
+}
+
+function getInstalledAppDir() {
+    if (!app.isPackaged) return __dirname;
+    // Portable 版实际运行于临时解包目录，必须使用便携 EXE 原始所在目录。
+    return process.env.PORTABLE_EXECUTABLE_DIR || path.dirname(process.execPath);
+}
+
+function getBundledPluginDir() {
+    return app.isPackaged
         ? path.join(process.resourcesPath, 'app', 'software')
         : path.join(__dirname, 'app', 'software');
+}
+
+function preparePluginStore() {
+    if (!app.isPackaged) {
+        return { persistentDir: getPluginInstallDir(), migrated: [], added: [], preserved: [] };
+    }
+
+    const installedAppDir = getInstalledAppDir();
+    const result = initializePluginStore({
+        bundledDir: getBundledPluginDir(),
+        persistentDir: getPluginInstallDir(),
+        migrationDirs: [`${installedAppDir}.plugin-update-backup`]
+    });
+    console.log('用户插件目录已就绪:', result);
+    return result;
 }
 
 function uniquePath(filePath) {
@@ -220,6 +251,23 @@ function findPluginRoots(rootDir) {
 function copyDirectoryContents(sourceDir, targetDir) {
     fs.mkdirSync(targetDir, { recursive: true });
     fs.cpSync(sourceDir, targetDir, { recursive: true, force: true });
+}
+
+function findInstalledPluginPath(installDir, pluginName) {
+    if (!fs.existsSync(installDir)) return null;
+    const expectedIdentity = normalizePluginIdentity(pluginName);
+    for (const entry of fs.readdirSync(installDir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        const pluginPath = path.join(installDir, entry.name);
+        const configPath = path.join(pluginPath, 'plugin.json');
+        if (!fs.existsSync(configPath)) continue;
+        try {
+            const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            const installedName = config.pluginName || entry.name;
+            if (normalizePluginIdentity(installedName) === expectedIdentity) return pluginPath;
+        } catch (_) { }
+    }
+    return null;
 }
 
 function extractArchive(archivePath, destinationDir) {
@@ -267,7 +315,8 @@ async function installDownloadedPlugin(downloadPath) {
         for (const pluginRoot of pluginRoots) {
             const pluginConfig = JSON.parse(fs.readFileSync(path.join(pluginRoot, 'plugin.json'), 'utf8'));
             const pluginName = sanitizeFileName(pluginConfig.pluginName || path.basename(pluginRoot));
-            const targetDir = path.join(installDir, pluginName);
+            // 程序升级不会覆盖同名插件；只有用户主动从小店安装时才替换现有插件。
+            const targetDir = findInstalledPluginPath(installDir, pluginName) || path.join(installDir, pluginName);
             removePath(targetDir);
             copyDirectoryContents(pluginRoot, targetDir);
             installed.push({ name: pluginName, path: targetDir });
@@ -2274,21 +2323,28 @@ async function captureSelectedTextForPanel() {
         bookmark: clipboard.readBookmark(),
         image: clipboard.readImage()
     };
-    const marker = `__SANRENJZ_SELECTION_${Date.now()}_${Math.random().toString(16).slice(2)}__`;
-    try {
-        clipboard.writeText(marker);
-        await copySelectedTextToClipboard();
-        await new Promise(resolve => setTimeout(resolve, 80));
-        const copiedText = clipboard.readText();
-        const copiedImage = clipboard.readImage();
-        return {
-            text: copiedText === marker ? '' : copiedText,
-            hasImage: copiedText === marker && copiedImage && !copiedImage.isEmpty(),
-            source: 'selection'
-        };
-    } finally {
-        try { clipboard.write(snapshot); } catch (error) { console.warn('恢复剪贴板失败:', error.message); }
-    }
+        const marker = `__SANRENJZ_SELECTION_${Date.now()}_${Math.random().toString(16).slice(2)}__`;
+        let capturedImage = null;
+        try {
+            clipboard.writeText(marker);
+            await copySelectedTextToClipboard();
+            await new Promise(resolve => setTimeout(resolve, 80));
+            const copiedText = clipboard.readText();
+            const copiedImage = clipboard.readImage();
+            const hasSelectedImage = copiedText === marker && copiedImage && !copiedImage.isEmpty();
+            if (hasSelectedImage) capturedImage = copiedImage;
+            return {
+                text: copiedText === marker ? '' : copiedText,
+                hasImage: Boolean(hasSelectedImage),
+                source: 'selection'
+            };
+        } finally {
+            try {
+                // 选中图片时保留刚捕获的图片供插件读取；其余情况恢复用户原剪贴板
+                if (capturedImage && !capturedImage.isEmpty()) clipboard.writeImage(capturedImage);
+                else clipboard.write(snapshot);
+            } catch (error) { console.warn('恢复剪贴板失败:', error.message); }
+        }
 }
 
 function toFileUrl(filePath) {
@@ -3163,8 +3219,22 @@ ipcMain.on('screenshot-region-selected', (event, payload) => {
     if (!sourceInfo) return finishRegionCapture({ cancelled: true, error: '找不到截图对应的显示器' });
     const { thumbnail, display } = sourceInfo;
     const imageSize = thumbnail.getSize();
-    const scaleX = imageSize.width / display.bounds.width;
-    const scaleY = imageSize.height / display.bounds.height;
+    // 框选坐标来自叠加层的 CSS 视口。Windows 缩放、多显示器 DPI 或无边框窗口
+    // 均可能让该视口与 display.bounds 不完全一致；必须以发送方实测的视口尺寸换算，
+    // 否则会出现“框选 A 区域，却截取到 B 区域”的问题。
+    const viewportWidth = Number(payload.viewport?.width);
+    const viewportHeight = Number(payload.viewport?.height);
+    const coordinateWidth = Number.isFinite(viewportWidth) && viewportWidth > 0
+        ? viewportWidth
+        : display.bounds.width;
+    const coordinateHeight = Number.isFinite(viewportHeight) && viewportHeight > 0
+        ? viewportHeight
+        : display.bounds.height;
+    const scaleX = imageSize.width / coordinateWidth;
+    const scaleY = imageSize.height / coordinateHeight;
+    if (!Number.isFinite(scaleX) || !Number.isFinite(scaleY) || scaleX <= 0 || scaleY <= 0) {
+        return finishRegionCapture({ cancelled: true, error: '截图坐标换算失败，请重新截图' });
+    }
     const cropRect = {
         x: Math.max(0, Math.round(payload.rect.x * scaleX)),
         y: Math.max(0, Math.round(payload.rect.y * scaleY)),
@@ -3175,6 +3245,9 @@ ipcMain.on('screenshot-region-selected', (event, payload) => {
     if (cropRect.y + cropRect.height > imageSize.height) cropRect.height = imageSize.height - cropRect.y;
     const cropped = thumbnail.crop(cropRect);
     const croppedSize = cropped.getSize();
+    if (cropped.isEmpty() || croppedSize.width < 1 || croppedSize.height < 1) {
+        return finishRegionCapture({ cancelled: true, error: '截图区域为空，请重新框选' });
+    }
     finishRegionCapture({
         cancelled: false,
         dataUrl: cropped.toDataURL(),
@@ -3983,14 +4056,11 @@ function getPluginFolderName(pluginName) {
 }
 
 function getPluginRootDirs() {
-    const dirs = [];
-    if (app.isPackaged) {
-        dirs.push(path.join(process.resourcesPath, 'app', 'software'));
-        dirs.push(path.join(process.resourcesPath, 'app.asar', 'app', 'software'));
-    }
-    dirs.push(path.join(app.getAppPath(), 'app', 'software'));
-    dirs.push(path.join(__dirname, 'app', 'software'));
-    return dirs;
+    if (app.isPackaged) return [getPluginInstallDir()];
+    return Array.from(new Set([
+        path.join(app.getAppPath(), 'app', 'software'),
+        path.join(__dirname, 'app', 'software')
+    ]));
 }
 
 function findPluginPathByName(pluginName) {
@@ -4587,6 +4657,7 @@ app.whenReady().then(async () => {
             : './app/software_manager.js');
         bindAutoUpdaterEvents();
         bindBuiltinSessionEvents();
+        preparePluginStore();
 
         // 在应用准备就绪时就设置空菜单，确保所有平台都生效
         Menu.setApplicationMenu(null);
@@ -5400,7 +5471,7 @@ async function getBuiltinSuperPanelActions() {
         },
         {
             id: 'open-terminal',
-            title: '在终端打开',
+            title: '终端打开',
             description: '在终端中打开剪贴板路径（文件将打开其所在目录）',
             icon: '🖥️',
             type: 'builtin',
@@ -5454,7 +5525,7 @@ async function getDynamicSuperPanelActions(clipboardText) {
             if (stat.isDirectory()) {
                 dynamicActions.push({
                     id: 'open-terminal-dir-' + Date.now(),
-                    title: '在终端打开',
+                    title: '终端打开',
                     description: '在终端中打开该文件夹',
                     icon: '🖥️',
                     type: 'dynamic',
@@ -5465,7 +5536,7 @@ async function getDynamicSuperPanelActions(clipboardText) {
                 });
                 dynamicActions.push({
                     id: 'open-folder-' + Date.now(),
-                    title: '打开文件夹',
+                    title: '打开目录',
                     description: '在资源管理器中打开该文件夹',
                     icon: '📁',
                     type: 'dynamic',
@@ -5499,7 +5570,7 @@ async function getDynamicSuperPanelActions(clipboardText) {
                 });
                 dynamicActions.push({
                     id: 'open-terminal-file-' + Date.now(),
-                    title: '在终端打开目录',
+                    title: '终端目录',
                     description: '在终端中打开该文件所在目录',
                     icon: '🖥️',
                     type: 'dynamic',
@@ -5559,7 +5630,7 @@ async function getDynamicSuperPanelActions(clipboardText) {
     if (text.match(/^[\d\+\-\*\/\.\(\)\s]+$/)) {
         dynamicActions.push({
             id: 'calculate-' + Date.now(),
-            title: '计算表达式',
+            title: '计算式',
             description: `计算 ${text}`,
             icon: '🧮',
             type: 'dynamic',
@@ -5574,7 +5645,7 @@ async function getDynamicSuperPanelActions(clipboardText) {
     if (/[\u4e00-\u9fa5]/.test(text)) {
         dynamicActions.push({
             id: 'translate-zh-en-' + Date.now(),
-            title: '翻译到英文',
+            title: '译成英文',
             description: '翻译剪贴板中的中文文本到英文',
             icon: '🌍',
             type: 'dynamic',
@@ -5589,7 +5660,7 @@ async function getDynamicSuperPanelActions(clipboardText) {
     if (/^[a-zA-Z\s.,!?'\"]+$/.test(text)) {
         dynamicActions.push({
             id: 'translate-en-zh-' + Date.now(),
-            title: '翻译到中文',
+            title: '译成中文',
             description: '翻译剪贴板中的英文文本到中文',
             icon: '🌏',
             type: 'dynamic',
@@ -6374,12 +6445,9 @@ async function runPluginAction(pluginPath, feature, clipboardText) {
         const startHidden = configuredFeature?.startHidden === true;
         const pluginWindow = await pluginManager.createPluginWindow(pluginPath, pluginConfig, { startHidden });
         if (startHidden && pluginWindow && !pluginWindow.isDestroyed()) pluginWindow.hide();
-        // 等待窗口加载完成，保证插件已初始化
-        await new Promise((resolve) => {
-            try {
-                pluginWindow.webContents.once('dom-ready', resolve);
-            } catch (_) { resolve(); }
-        });
+        // 新建窗口需要等待 DOM 初始化；复用已打开窗口时必须立即继续，
+        // 否则等待一个不会再次触发的 dom-ready 会让第二次总指挥派发永久卡住。
+        await waitForPluginWindowReady(pluginWindow.webContents);
         await new Promise(res => setTimeout(res, 300));
 
         // 构造上下文对象并安全序列化
@@ -8007,7 +8075,7 @@ ipcMain.handle('get-available-custom-actions', async () => {
             },
             {
                 id: 'custom-open-terminal',
-                title: '在终端打开',
+                title: '终端打开',
                 description: '在终端中打开剪贴板路径（文件将打开其所在目录）',
                 icon: '🖥️',
                 type: 'custom',
@@ -8047,7 +8115,7 @@ ipcMain.handle('get-available-custom-actions', async () => {
             },
             {
                 id: 'custom-google-search',
-                title: 'Google搜索',
+                title: '谷歌搜索',
                 description: '使用Google搜索选中内容',
                 icon: '🔍',
                 type: 'custom',

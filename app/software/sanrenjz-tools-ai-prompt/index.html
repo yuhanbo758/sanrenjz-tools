@@ -112,5 +112,7 @@ $('#stopBtn').onclick=()=>{if(requestId){api.cancel(requestId);$('#optBtn').disa
 $('#copyBtn').onclick=()=>{const t=$('#pvOut').textContent;if(t&&t!=='编辑提示词后点击「优化」'){navigator.clipboard.writeText(t);toast('已复制');}else toast('暂无结果');};
 loadPrompts();
 window.addEventListener('plugin-enter',e=>{const text=e.detail?.payload||e.detail?.clipboardText||'';if(text){$('#pBody').value=text;onEdit();}});
+// 总指挥模式：收到 featureArgs.autoRun 时自动开始优化
+window.addEventListener('plugin-enter',e=>{const text=e.detail?.payload||e.detail?.clipboardText||'';if(e.detail?.featureArgs?.autoRun&&text)setTimeout(()=>{const b=$('#optBtn');if(b&&!b.disabled)b.click()},150);});
 </script>
 </body></html>

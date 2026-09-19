@@ -9,7 +9,7 @@
   "features": [
     {
       "code": "text-snippets",
-      "explain": "超级文本片段 - 浏览和管理",
+      "explain": "片段管理",
       "description": "快速搜索和插入Markdown文本片段",
       "cmds": [
         "余汉波文本片段助手",
@@ -40,7 +40,7 @@
     },
     {
       "code": "text-snippets-quick-access",
-      "explain": "文本片段快速访问",
+      "explain": "片段速查",
       "description": "从超级面板快速访问文本片段",
       "icon": "logo.ico",
       "mode": "none",
