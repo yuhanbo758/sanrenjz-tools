@@ -19,6 +19,7 @@
 - 10 个 AI 插件通过 `app/plugin_runtime/ai-provider-manager.js` 共享多供应商目录；可同时保留 GLM、DeepSeek 等供应商和多个模型，文本与视觉模型选择分别持久化，视觉插件只展示声明 `vision` 能力的模型。
 - 插件间调用的可用通道是 `execute-super-panel-action` IPC（`action.type:'plugin'`）：主进程本地 `runPluginAction` 会把 `clipboardText` 包装成 `{type:'over', payload}` 完整传给目标插件 `enter(action)`，并把 `feature.args` 作为 `featureArgs` 透传；`run-plugin-action` IPC（main.js 的 ipcMain.handle 版本）会在 executeJavaScript 阶段丢弃 payload，不要用它传文本（2026-08-16 余汉波AI助手总指挥模式已验证）。
 - 打包版插件代码统一存放在用户选择的程序安装目录下 `plugins` 子目录；Portable 版使用便携 EXE 所在目录的 `plugins`。安装包内 `resources/app/software` 只作为内置插件源，启动时按 `plugin.json.pluginName` 执行“本地优先、仅补缺”同步；Windows NSIS 升级前把现有 `plugins`（首次迁移时为旧 `resources/app/software`）暂存到原安装目录旁，安装完成后恢复，失败时保留备份并中止（2026-09-20 已通过迁移单测与 Electron 插件冒烟，尚未执行真实已安装客户端升级验收）。
+- 安装目录 `plugins/<插件>` 中的内置插件仍以 `../../plugin_runtime` 引用共享运行时，因此打包版启动时必须把 `resources/app/plugin_runtime` 覆盖同步到安装根目录 `plugin_runtime`；只更新主程序共享运行时，不覆盖或删除本地插件（2026-09-20 已通过持久化插件目录 Electron 冒烟和已安装客户端启动验证）。
 - 供应商预设（`PRESET_PROVIDERS`）现含 OpenAI、DeepSeek、智谱 GLM、Moonshot Kimi、通义千问、MiniMax（含视觉）、OpenCode Go、小米 MiMo（`https://api.xiaomimimo.com/v1`，`mimo-v2.5` 多模态 text/vision/audio）、硅基流动（`https://api.siliconflow.cn/v1`，含 Qwen-VL/InternVL 等视觉模型）。
 - 模型能力白名单支持 `text`、`vision`、`audio` 三种；`parseModels/serializeModels` 可往返保留多模态组合；视觉插件按 `includes('vision')` 过滤可选模型，含 `audio` 仅作附加元信息标记，运行时目前不消费音频输入构建。
 - 共享供应商设置支持从本机 OpenCode 动态导入全部“已连接”供应商与模型；主进程按需启动仅监听 `127.0.0.1` 的 OpenCode Server，由 OpenCode 继续持有并刷新 API Key/OAuth（含 OpenAI Codex 认证），渲染层只接收不含凭据的模型目录。模型采样禁用 OpenCode 工具权限并在完成或失败后删除临时会话（2026-09-20 已通过目录实测、逻辑测试和 Electron 三尺寸冒烟；未执行真实计费模型采样）。
@@ -93,3 +94,4 @@
 | 2026-09-03 | 修复总指挥重复派发复用窗口时等待 `dom-ready` 卡住；“打开插件”改为 `autoRun:false`，避免重复模型调用 | `tests/plugin-window-ready.test.js`、`npm run test:plugins`、`npm run test:plugins:electron` |
 | 2026-09-20 | 将打包版插件改存到用户选择的安装目录下 `plugins`；应用升级按插件名称只补缺不覆盖，NSIS 在旧版卸载前暂存并于新版安装后恢复 | `tests/plugin-store.test.js`、`npm run test:plugins`、`npm run test:plugins:electron` |
 | 2026-09-20 | 新增本机 OpenCode 动态供应商导入与主进程托管调用，复用 OpenCode 已连接模型及 OpenAI Codex OAuth，不向插件渲染层暴露凭据 | `tests/opencode-runtime.test.js`、真实 `/provider` 目录读取、`npm run test:plugins`、`npm run test:plugins:electron` |
+| 2026-09-20 | 修复持久化插件目录缺失共享 `plugin_runtime` 导致 AI preload 与供应商目录不加载；启动时同步应用自带运行时 | `tests/plugin-store.test.js`、持久化插件目录 Electron 冒烟、已安装 2.18.0 客户端验证 |

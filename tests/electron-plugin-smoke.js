@@ -1,6 +1,8 @@
 const {app,BrowserWindow,ipcMain}=require('electron');
 const assert=require('assert');
 const path=require('path');
+const fs=require('fs');
+const os=require('os');
 const {catalog}=require('../scripts/plugin-market/catalog');
 const memory=new Map();
 memory.set('AI 共享配置中心:runtime-config',{schemaVersion:1,providers:[
@@ -79,4 +81,28 @@ async function inspectOpenCodeImport(){
   assert.strictEqual(imported.models[0].sourceModelId,'gpt-codex');
 }
 
-app.whenReady().then(async()=>{try{for(const plugin of catalog){for(const [w,h] of [[900,650],[1180,760],[1440,900]])await inspect(plugin,w,h)}await inspectCommanderDelegation();await inspectOpenCodeImport();console.log(`Electron smoke passed: ${catalog.length} plugins x 3 window sizes + commander delegation + OpenCode import`);app.exit(0)}catch(error){console.error(error);app.exit(1)}});
+async function inspectPersistentPluginLayout(){
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'tools-persistent-plugin-'));
+  try{
+    const plugin=catalog.find(item=>item.type==='ai');
+    const source=path.join(__dirname,'..','app','software',plugin.folder);
+    const directory=path.join(root,'plugins',plugin.folder);
+    fs.cpSync(source,directory,{recursive:true});
+    fs.cpSync(path.join(__dirname,'..','app','plugin_runtime'),path.join(root,'plugin_runtime'),{recursive:true});
+    const errors=[];
+    const win=new BrowserWindow({show:false,width:1180,height:760,webPreferences:{preload:path.join(directory,'preload.js'),nodeIntegration:true,contextIsolation:false,webSecurity:false}});
+    win.webContents.on('console-message',(_e,level,message)=>{if(level>=3)errors.push(message)});
+    await win.loadFile(path.join(directory,'index.html'));
+    await new Promise(resolve=>setTimeout(resolve,120));
+    const state=await win.webContents.executeJavaScript(`({api:Boolean(window.aiAPI),openCodeImport:Boolean(document.querySelector('[data-ai-opencode]')),modelOptions:document.querySelector('.ai-model-picker select')?.options.length||0})`);
+    win.destroy();
+    assert.deepStrictEqual(errors,[],'持久化插件目录不应出现共享运行时加载错误');
+    assert.strictEqual(state.api,true);
+    assert.strictEqual(state.openCodeImport,true);
+    assert.ok(state.modelOptions>0);
+  }finally{
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
+app.whenReady().then(async()=>{try{for(const plugin of catalog){for(const [w,h] of [[900,650],[1180,760],[1440,900]])await inspect(plugin,w,h)}await inspectCommanderDelegation();await inspectOpenCodeImport();await inspectPersistentPluginLayout();console.log(`Electron smoke passed: ${catalog.length} plugins x 3 window sizes + commander delegation + OpenCode import + persistent plugin layout`);app.exit(0)}catch(error){console.error(error);app.exit(1)}});

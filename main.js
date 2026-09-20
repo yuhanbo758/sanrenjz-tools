@@ -11,7 +11,7 @@ const { waitForPluginWindowReady } = require(app.isPackaged
 const { OpenCodeRuntime } = require(app.isPackaged
     ? path.join(process.resourcesPath, 'app', 'plugin_runtime', 'opencode-runtime.js')
     : './app/plugin_runtime/opencode-runtime');
-const { initializePluginStore, normalizePluginIdentity } = require(app.isPackaged
+const { initializePluginStore, normalizePluginIdentity, syncBundledPluginRuntime } = require(app.isPackaged
     ? path.join(process.resourcesPath, 'app', 'plugin_store.js')
     : './app/plugin_store');
 const { detectTextContextTypes } = require(app.isPackaged
@@ -211,13 +211,17 @@ function preparePluginStore() {
     }
 
     const installedAppDir = getInstalledAppDir();
+    const runtimeDir = syncBundledPluginRuntime(
+        path.join(process.resourcesPath, 'app', 'plugin_runtime'),
+        path.join(installedAppDir, 'plugin_runtime')
+    );
     const result = initializePluginStore({
         bundledDir: getBundledPluginDir(),
         persistentDir: getPluginInstallDir(),
         migrationDirs: [`${installedAppDir}.plugin-update-backup`]
     });
-    console.log('用户插件目录已就绪:', result);
-    return result;
+    console.log('用户插件目录已就绪:', { ...result, runtimeDir });
+    return { ...result, runtimeDir };
 }
 
 function uniquePath(filePath) {

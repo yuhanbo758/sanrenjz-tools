@@ -97,9 +97,21 @@ function initializePluginStore({ bundledDir, persistentDir, migrationDirs = [], 
     };
 }
 
+function syncBundledPluginRuntime(sourceDir, targetDir) {
+    if (!sourceDir || !fs.existsSync(sourceDir)) {
+        throw new Error(`内置插件运行时不存在: ${sourceDir || '(empty)'}`);
+    }
+    if (!targetDir) throw new Error('插件运行时目标目录为空');
+    fs.mkdirSync(targetDir, { recursive: true });
+    // 共享运行时属于主程序版本的一部分，随程序升级覆盖；用户插件目录仍保持本地优先。
+    fs.cpSync(sourceDir, targetDir, { recursive: true, force: true });
+    return targetDir;
+}
+
 module.exports = {
     copyMissingPlugins,
     initializePluginStore,
     listPluginEntries,
-    normalizePluginIdentity
+    normalizePluginIdentity,
+    syncBundledPluginRuntime
 };
