@@ -30,4 +30,16 @@ assert.deepStrictEqual(JSON.parse(JSON.stringify(multimodal)), [
   { id: 'unknown-cap', label: '未知能力', capabilities: ['text', 'vision'] }
 ]);
 
-console.log('AI provider manager tests passed: multi-provider model parsing');
+const merged = context.window.AIProviderManager.mergeOpenCodeProviders(
+  [{ id: 'manual', name: 'Manual' }, { id: 'opencode:old', source: 'opencode', transport: 'opencode' }],
+  [{ id: 'openai', name: 'OpenAI', models: [{ id: 'gpt-codex', label: 'GPT Codex', capabilities: ['text'] }] }]
+);
+assert.deepStrictEqual(JSON.parse(JSON.stringify(merged.providers)), [
+  { id: 'manual', name: 'Manual' },
+  {
+    id: 'opencode:openai', name: 'OpenAI', sourceProviderId: 'openai', source: 'opencode', transport: 'opencode', managed: true,
+    models: [{ id: 'gpt-codex', label: 'GPT Codex', capabilities: ['text'], sourceModelId: 'gpt-codex' }]
+  }
+]);
+
+console.log('AI provider manager tests passed: multi-provider parsing and managed OpenCode import');

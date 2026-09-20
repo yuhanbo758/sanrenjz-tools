@@ -104,6 +104,10 @@ async function hasProviderSecret(providerId) {
   return Boolean(await getProviderSecret(providerId));
 }
 
+async function listOpenCodeModels() {
+  return ipcRenderer.invoke('ai-opencode-list-models');
+}
+
 function resolveModel(config, capability, selection) {
   const chosen = selection || config.selections?.[capability] || config.selections?.text;
   const provider = config.providers.find(item => item.id === chosen?.providerId);
@@ -271,13 +275,28 @@ async function complete(request = {}, onChunk) {
   const config = await getConfig();
   const capability = request.capability === 'vision' ? 'vision' : 'text';
   const { provider, model } = resolveModel(config, capability, request.selection);
-  const secret = await getProviderSecret(provider.id);
-  if (!secret) throw new Error(`请先为“${provider.name}”保存 API Key`);
   const controller = new AbortController();
   activeRequests.set(requestId, controller);
   let timedOut = false;
-  const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, Math.max(50, Number(request.timeoutMs || config.timeoutMs || 60000)));
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+    if (provider.transport === 'opencode') ipcRenderer.invoke('ai-opencode-cancel', requestId).catch(() => {});
+  }, Math.max(50, Number(request.timeoutMs || config.timeoutMs || 60000)));
   try {
+    if (provider.transport === 'opencode') {
+      const result = await ipcRenderer.invoke('ai-opencode-complete', {
+        ...request,
+        requestId,
+        providerId: provider.sourceProviderId || provider.id.replace(/^opencode:/, ''),
+        modelId: model.sourceModelId || model.id
+      });
+      if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+      if (onChunk) onChunk({ requestId, token: result.text, text: result.text });
+      return result;
+    }
+    const secret = await getProviderSecret(provider.id);
+    if (!secret) throw new Error(`请先为“${provider.name}”保存 API Key`);
     return await performRequest({ provider, model, style: modelApiStyle(model), secret, request: { ...request, signal: controller.signal }, onChunk, requestId });
   } catch (error) {
     throw new Error(timedOut ? '请求超时，请稍后重试' : errorMessage(error));
@@ -291,12 +310,13 @@ function cancel(requestId) {
   const controller = activeRequests.get(String(requestId || ''));
   if (!controller) return false;
   controller.abort();
+  ipcRenderer.invoke('ai-opencode-cancel', String(requestId || '')).catch(() => {});
   return true;
 }
 
 function createAiRuntime(pluginName, emitChunk) {
   return {
-    getConfig, saveConfig, saveProviderSecret, hasProviderSecret, getProviderSecret, testProvider,
+    getConfig, saveConfig, saveProviderSecret, hasProviderSecret, getProviderSecret, testProvider, listOpenCodeModels,
     removeProviderSecret: providerId => ipcRenderer.invoke('plugin-secret-remove', STORAGE_NAME, `provider:${providerId}`),
     complete: request => complete(request, emitChunk), cancel,
     storage: {

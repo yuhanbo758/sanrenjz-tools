@@ -5,6 +5,7 @@ const { exec, spawn } = require('child_process');
 const http = require('http');
 const https = require('https');
 const { waitForPluginWindowReady } = require('./app/plugin_runtime/plugin-window-ready');
+const { OpenCodeRuntime } = require('./app/plugin_runtime/opencode-runtime');
 const { initializePluginStore, normalizePluginIdentity } = require(app.isPackaged
     ? path.join(process.resourcesPath, 'app', 'plugin_store.js')
     : './app/plugin_store');
@@ -63,6 +64,7 @@ const pluginPinnedMap = new Map();
 let lastActiveWindow = null; // 记录最后活动的窗口句柄
 let isSuperPanelFocusListenerRegistered = false;
 let superPanelChildWindows = new Set();
+const openCodeRuntime = new OpenCodeRuntime();
 
 const SHOP_BASE_URL = process.env.SANRENJZ_TOOLS_SHOP_BASE_URL || 'https://shop.sanrenjz.com';
 const SHOP_MEMBER_CENTER_URL = `${SHOP_BASE_URL}/member-center`;
@@ -4495,6 +4497,10 @@ ipcMain.handle('plugin-secret-remove', (event, pluginName, key) => {
     return { success: true, encryptionAvailable };
 });
 
+ipcMain.handle('ai-opencode-list-models', async () => openCodeRuntime.listModels());
+ipcMain.handle('ai-opencode-complete', async (event, request) => openCodeRuntime.complete(request));
+ipcMain.handle('ai-opencode-cancel', (event, requestId) => openCodeRuntime.cancel(requestId));
+
 // 获取插件数据存储目录
 // 函数级注释：
 // - 优先返回当前插件管理器正在使用的目录，保证与实际读写一致
@@ -4777,6 +4783,7 @@ app.on('before-quit', () => {
     // 停止鼠标监控
     stopMouseMonitor();
     closeTextSnippetWatchers();
+    openCodeRuntime.stop();
 
     // 停止所有插件
     if (pluginManager) {

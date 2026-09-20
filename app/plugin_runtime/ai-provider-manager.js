@@ -11,8 +11,10 @@
       .ai-model-picker select:focus{border-color:var(--al,#8b5cf6)}
       .ai-provider-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;padding-right:28px}
       .ai-provider-head h2{margin:0!important}
-      .ai-provider-add,.ai-provider-save,.ai-provider-secondary{border:1px solid var(--bd,#dbe2ea);border-radius:8px;background:var(--sf,#fff);color:var(--ink,#172033);padding:8px 13px;font:12px var(--sans,-apple-system,"Segoe UI",sans-serif);cursor:pointer}
+      .ai-provider-head-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+      .ai-provider-add,.ai-provider-import,.ai-provider-save,.ai-provider-secondary{border:1px solid var(--bd,#dbe2ea);border-radius:8px;background:var(--sf,#fff);color:var(--ink,#172033);padding:8px 13px;font:12px var(--sans,-apple-system,"Segoe UI",sans-serif);cursor:pointer}
       .ai-provider-add,.ai-provider-save{background:var(--a,#4f46e5);border-color:var(--a,#4f46e5);color:#fff;font-weight:600}
+      .ai-provider-import{color:var(--a,#4f46e5);font-weight:600}
       .ai-provider-list{display:flex;flex-direction:column;gap:9px;margin-bottom:18px}
       .ai-provider-card{border:1px solid var(--bd,#dbe2ea);border-radius:10px;padding:11px 12px;background:var(--s2,#f7f8fa)}
       .ai-provider-card-top{display:flex;align-items:flex-start;gap:9px}
@@ -168,6 +170,20 @@
     }).join('\n');
   }
 
+  function mergeOpenCodeProviders(existing, imported) {
+    const manual = (existing || []).filter(provider => provider.source !== 'opencode' && provider.transport !== 'opencode');
+    const managed = (imported || []).map(provider => ({
+      ...provider,
+      id: `opencode:${provider.id}`,
+      sourceProviderId: provider.id,
+      source: 'opencode',
+      transport: 'opencode',
+      managed: true,
+      models: (provider.models || []).map(model => ({ ...model, sourceModelId: model.id }))
+    }));
+    return { providers: [...manual, ...managed], managed };
+  }
+
   function create(api, options = {}) {
     injectStyles();
     const capability = options.capability === 'vision' ? 'vision' : 'text';
@@ -193,7 +209,7 @@
       if (!drawer) return;
       drawer.innerHTML = `
         <button class="close" type="button" data-ai-close>×</button>
-        <div class="ai-provider-head"><h2>供应商目录</h2><button class="ai-provider-add" type="button" data-ai-add>新增供应商</button></div>
+        <div class="ai-provider-head"><h2>供应商目录</h2><div class="ai-provider-head-actions"><button class="ai-provider-import" type="button" data-ai-opencode>导入 OpenCode</button><button class="ai-provider-add" type="button" data-ai-add>新增供应商</button></div></div>
         <div class="ai-provider-list" data-ai-list></div>
         <form class="ai-provider-form" data-ai-form>
           <h3 data-ai-form-title>新增供应商</h3>
@@ -206,6 +222,7 @@
         </form>`;
       drawer.querySelector('[data-ai-close]').onclick = closeDrawer;
       drawer.querySelector('[data-ai-add]').onclick = () => editProvider('');
+      drawer.querySelector('[data-ai-opencode]').onclick = syncOpenCode;
       drawer.querySelector('[data-ai-cancel]').onclick = () => editProvider('');
       drawer.querySelector('[data-ai-remove-key]').onclick = removeKey;
       drawer.querySelector('[data-ai-preset]').onchange = applyPreset;
@@ -241,12 +258,12 @@
         list.innerHTML = '<div class="ai-provider-empty">还没有供应商，请先新增。</div>';
         return;
       }
-      const secretStates = await Promise.all(config.providers.map(provider => api.hasProviderSecret(provider.id)));
+      const secretStates = await Promise.all(config.providers.map(provider => provider.transport === 'opencode' ? true : api.hasProviderSecret(provider.id)));
       list.innerHTML = config.providers.map((provider, index) => `
         <div class="ai-provider-card" data-provider-id="${provider.id}">
-          <div class="ai-provider-card-top"><div class="ai-provider-card-main"><div class="ai-provider-card-name"></div><div class="ai-provider-card-url"></div></div><span class="ai-provider-status ${secretStates[index] ? '' : 'missing'}">${secretStates[index] ? '密钥已保存' : '未保存密钥'}</span></div>
+          <div class="ai-provider-card-top"><div class="ai-provider-card-main"><div class="ai-provider-card-name"></div><div class="ai-provider-card-url"></div></div><span class="ai-provider-status ${secretStates[index] ? '' : 'missing'}">${provider.transport === 'opencode' ? 'OpenCode 已认证' : (secretStates[index] ? '密钥已保存' : '未保存密钥')}</span></div>
           <div class="ai-provider-models"></div>
-          <div class="ai-provider-actions"><button type="button" data-edit>编辑</button><button type="button" class="danger" data-delete>删除</button></div>
+          <div class="ai-provider-actions">${provider.transport === 'opencode' ? '<button type="button" data-sync>同步模型</button>' : '<button type="button" data-edit>编辑</button>'}<button type="button" class="danger" data-delete>删除</button></div>
         </div>`).join('');
       config.providers.forEach(provider => {
         const card = list.querySelector(`[data-provider-id="${CSS.escape(provider.id)}"]`);
@@ -259,9 +276,43 @@
           chip.textContent = model.label || model.id;
           models.appendChild(chip);
         });
-        card.querySelector('[data-edit]').onclick = () => editProvider(provider.id);
+        const edit = card.querySelector('[data-edit]');
+        const sync = card.querySelector('[data-sync]');
+        if (edit) edit.onclick = () => editProvider(provider.id);
+        if (sync) sync.onclick = syncOpenCode;
         card.querySelector('[data-delete]').onclick = () => deleteProvider(provider.id);
       });
+    }
+
+    async function syncOpenCode() {
+      if (typeof api.listOpenCodeModels !== 'function') {
+        notify('当前主程序不支持 OpenCode 模型同步，请先更新程序');
+        return;
+      }
+      const button = drawer.querySelector('[data-ai-opencode]');
+      button.disabled = true;
+      button.textContent = '同步中…';
+      try {
+        const imported = await api.listOpenCodeModels();
+        if (!Array.isArray(imported) || !imported.length) {
+          notify('OpenCode 中没有已连接且包含模型的供应商，请先运行 opencode auth login');
+          return;
+        }
+        const oldSelection = { ...(config.selections || {}) };
+        const merged = mergeOpenCodeProviders(config.providers, imported);
+        const managed = merged.managed;
+        config.providers = merged.providers;
+        config.selections = oldSelection;
+        await api.saveConfig(config);
+        await loadConfig();
+        const modelCount = managed.reduce((sum, provider) => sum + provider.models.length, 0);
+        notify(`已同步 ${managed.length} 个 OpenCode 供应商、${modelCount} 个模型`);
+      } catch (error) {
+        notify(`OpenCode 同步失败：${error instanceof Error ? error.message : String(error)}`);
+      } finally {
+        button.disabled = false;
+        button.textContent = '导入 OpenCode';
+      }
     }
 
     async function renderModels() {
@@ -344,6 +395,10 @@
     function editProvider(id) {
       editingId = id;
       const provider = config?.providers.find(item => item.id === id);
+      if (provider?.transport === 'opencode') {
+        notify('OpenCode 供应商由本机 OpenCode 托管，请使用“同步模型”更新');
+        return;
+      }
       drawer.querySelector('[data-ai-form-title]').textContent = provider ? '编辑供应商' : '新增供应商';
       drawer.querySelector('[data-ai-preset]').value = '';
       drawer.querySelector('[data-ai-name]').value = provider?.name || '';
@@ -386,7 +441,7 @@
       const provider = config.providers.find(item => item.id === id);
       if (!global.confirm(`确认删除供应商“${provider?.name || id}”？`)) return;
       config.providers = config.providers.filter(item => item.id !== id);
-      await api.removeProviderSecret(id);
+      if (provider?.transport !== 'opencode') await api.removeProviderSecret(id);
       await api.saveConfig(config);
       editingId = '';
       await loadConfig();
@@ -416,5 +471,5 @@
     };
   }
 
-  global.AIProviderManager = { create, parseModels };
+  global.AIProviderManager = { create, parseModels, mergeOpenCodeProviders };
 })(window);

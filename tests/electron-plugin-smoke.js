@@ -14,6 +14,7 @@ ipcMain.on('plugin-storage-set',(event,name,key,value)=>{memory.set(`${name}:${k
 ipcMain.handle('plugin-storage-get-async',(_e,name,key)=>memory.get(`${name}:${key}`)??null);
 ipcMain.handle('plugin-storage-set-async',(_e,name,key,value)=>{memory.set(`${name}:${key}`,value);return true});
 ipcMain.handle('plugin-secret-get',()=> 'mock-key');ipcMain.handle('plugin-secret-set',()=>true);ipcMain.handle('plugin-secret-remove',()=>true);
+ipcMain.handle('ai-opencode-list-models',()=>[{id:'openai',name:'OpenAI',transport:'opencode',source:'opencode',managed:true,baseUrl:'opencode://openai',models:[{id:'gpt-codex',label:'GPT Codex',capabilities:['text','vision']}]}]);
 ipcMain.handle('register-plugin-features',()=>true);
 for(const channel of ['toggle-plugin-pin-window','minimize-plugin-window','create-plugin-indicator-window','close-plugin-indicator-window'])ipcMain.handle(channel,()=>false);
 
@@ -28,10 +29,10 @@ async function inspect(plugin,width,height){
   const win=new BrowserWindow({show:false,x:-32000,y:-32000,width,height,webPreferences:{preload:path.join(directory,'preload.js'),nodeIntegration:true,contextIsolation:false,webSecurity:false}});
   win.webContents.on('console-message',(_e,level,message)=>{if(level>=3)errors.push(message)});win.webContents.on('render-process-gone',(_e,d)=>errors.push(`renderer:${d.reason}`));
   await win.loadFile(path.join(directory,'index.html'));win.showInactive();await new Promise(resolve=>setTimeout(resolve,80));
-  const state=await win.webContents.executeJavaScript(`(()=>{const bar=document.createElement('div');bar.id='host-test-controls';bar.style='position:fixed;z-index:2147483647;top:0;right:0;width:160px;height:32px;background:#123';document.body.appendChild(bar);const body=getComputedStyle(document.body);const top=document.elementFromPoint(innerWidth-10,10);const modelSelect=document.querySelector('.ai-model-picker select');return{title:document.title,api:Boolean(window.pluginAPI||window.aiAPI),scrollX:document.documentElement.scrollWidth-document.documentElement.clientWidth,scrollY:document.documentElement.scrollHeight-document.documentElement.clientHeight,paddingTop:body.paddingTop,hostTop:top?.id||'',layout:document.documentElement.dataset.layout,modelOptions:modelSelect?.options.length||0,providerGroups:modelSelect?.querySelectorAll('optgroup').length||0,modelValue:modelSelect?.value||''}})()`);
+  const state=await win.webContents.executeJavaScript(`(()=>{const bar=document.createElement('div');bar.id='host-test-controls';bar.style='position:fixed;z-index:2147483647;top:0;right:0;width:160px;height:32px;background:#123';document.body.appendChild(bar);const body=getComputedStyle(document.body);const top=document.elementFromPoint(innerWidth-10,10);const modelSelect=document.querySelector('.ai-model-picker select');return{title:document.title,api:Boolean(window.pluginAPI||window.aiAPI),scrollX:document.documentElement.scrollWidth-document.documentElement.clientWidth,scrollY:document.documentElement.scrollHeight-document.documentElement.clientHeight,paddingTop:body.paddingTop,hostTop:top?.id||'',layout:document.documentElement.dataset.layout,modelOptions:modelSelect?.options.length||0,providerGroups:modelSelect?.querySelectorAll('optgroup').length||0,modelValue:modelSelect?.value||'',openCodeImport:Boolean(document.querySelector('[data-ai-opencode]'))}})()`);
   const expectedGroups=plugin.type==='ai'?(plugin.id==='ai-image'?1:2):0;
   const expectedModel=plugin.id==='ai-image'?'glm-4v-plus':'deepseek-chat';
-  win.destroy();if(errors.length||!state.api||state.scrollX>1||state.scrollY>1||state.paddingTop!=='32px'||state.hostTop!=='host-test-controls'||state.title!==plugin.name||(plugin.type==='ai'&&(state.modelOptions<1||state.providerGroups!==expectedGroups||!state.modelValue.includes(expectedModel))))throw new Error(`${plugin.id}@${width}x${height}: ${JSON.stringify({state,errors})}`);
+  win.destroy();if(errors.length||!state.api||state.scrollX>1||state.scrollY>1||state.paddingTop!=='32px'||state.hostTop!=='host-test-controls'||state.title!==plugin.name||(plugin.type==='ai'&&(state.modelOptions<1||state.providerGroups!==expectedGroups||!state.modelValue.includes(expectedModel)||!state.openCodeImport)))throw new Error(`${plugin.id}@${width}x${height}: ${JSON.stringify({state,errors})}`);
 }
 
 async function inspectCommanderDelegation(){
@@ -62,4 +63,20 @@ async function inspectCommanderDelegation(){
   assert.ok(uiState.status.includes('未重复调用模型'));
 }
 
-app.whenReady().then(async()=>{try{for(const plugin of catalog){for(const [w,h] of [[900,650],[1180,760],[1440,900]])await inspect(plugin,w,h)}await inspectCommanderDelegation();console.log(`Electron smoke passed: ${catalog.length} plugins x 3 window sizes + commander delegation`);app.exit(0)}catch(error){console.error(error);app.exit(1)}});
+async function inspectOpenCodeImport(){
+  const plugin=catalog.find(item=>item.type==='ai');
+  const directory=path.join(__dirname,'..','app','software',plugin.folder);
+  const win=new BrowserWindow({show:false,width:1180,height:760,webPreferences:{preload:path.join(directory,'preload.js'),nodeIntegration:true,contextIsolation:false,webSecurity:false}});
+  await win.loadFile(path.join(directory,'index.html'));
+  await new Promise(resolve=>setTimeout(resolve,100));
+  await win.webContents.executeJavaScript(`document.querySelector('[data-ai-opencode]').click()`);
+  await new Promise(resolve=>setTimeout(resolve,150));
+  win.destroy();
+  const config=memory.get('AI 共享配置中心:runtime-config');
+  const imported=config.providers.find(provider=>provider.id==='opencode:openai');
+  assert.ok(imported,'供应商设置应保存 OpenCode 导入结果');
+  assert.strictEqual(imported.sourceProviderId,'openai');
+  assert.strictEqual(imported.models[0].sourceModelId,'gpt-codex');
+}
+
+app.whenReady().then(async()=>{try{for(const plugin of catalog){for(const [w,h] of [[900,650],[1180,760],[1440,900]])await inspect(plugin,w,h)}await inspectCommanderDelegation();await inspectOpenCodeImport();console.log(`Electron smoke passed: ${catalog.length} plugins x 3 window sizes + commander delegation + OpenCode import`);app.exit(0)}catch(error){console.error(error);app.exit(1)}});
