@@ -4,8 +4,13 @@ const fs = require('fs');
 const { exec, spawn } = require('child_process');
 const http = require('http');
 const https = require('https');
-const { waitForPluginWindowReady } = require('./app/plugin_runtime/plugin-window-ready');
-const { OpenCodeRuntime } = require('./app/plugin_runtime/opencode-runtime');
+// app 目录通过 extraResources 放在 ASAR 外，打包后必须从 resources 加载。
+const { waitForPluginWindowReady } = require(app.isPackaged
+    ? path.join(process.resourcesPath, 'app', 'plugin_runtime', 'plugin-window-ready.js')
+    : './app/plugin_runtime/plugin-window-ready');
+const { OpenCodeRuntime } = require(app.isPackaged
+    ? path.join(process.resourcesPath, 'app', 'plugin_runtime', 'opencode-runtime.js')
+    : './app/plugin_runtime/opencode-runtime');
 const { initializePluginStore, normalizePluginIdentity } = require(app.isPackaged
     ? path.join(process.resourcesPath, 'app', 'plugin_store.js')
     : './app/plugin_store');

@@ -19,7 +19,7 @@
     "test:logic": "node tests/logic.test.js && node tests/plugin-store.test.js && node tests/plugin-window-ready.test.js && node tests/plugin-market.test.js && node tests/ai-runtime.test.js && node tests/ai-provider-manager.test.js && node tests/opencode-runtime.test.js",
     "generate:plugins": "electron scripts/render-plugin-icons.js",
     "generate:icons": "electron scripts/render-plugin-icons.js",
-    "test:plugins": "node scripts/validate-plugins.js && node tests/plugin-store.test.js && node tests/plugin-window-ready.test.js && node tests/plugin-market.test.js && node tests/ai-runtime.test.js && node tests/ai-provider-manager.test.js && node tests/opencode-runtime.test.js",
+    "test:plugins": "node scripts/validate-plugins.js && node tests/main-runtime-paths.test.js && node tests/plugin-store.test.js && node tests/plugin-window-ready.test.js && node tests/plugin-market.test.js && node tests/ai-runtime.test.js && node tests/ai-provider-manager.test.js && node tests/opencode-runtime.test.js",
     "test:plugins:electron": "electron tests/electron-plugin-smoke.js",
     "test:plugins:gallery": "electron tests/electron-plugin-gallery.js",
     "test:plugins:icons": "electron tests/electron-icon-gallery.js",
