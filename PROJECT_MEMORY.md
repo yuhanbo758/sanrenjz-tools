@@ -18,7 +18,7 @@
 - 插件密钥通过主进程 `plugin-secret-*` 接口保存，并在系统支持时使用 Electron `safeStorage` 加密；不得把 API Key 写入页面或普通 JSON 存储。
 - 10 个 AI 插件通过 `app/plugin_runtime/ai-provider-manager.js` 共享多供应商目录；可同时保留 GLM、DeepSeek 等供应商和多个模型，文本与视觉模型选择分别持久化，视觉插件只展示声明 `vision` 能力的模型。
 - 插件间调用的可用通道是 `execute-super-panel-action` IPC（`action.type:'plugin'`）：主进程本地 `runPluginAction` 会把 `clipboardText` 包装成 `{type:'over', payload}` 完整传给目标插件 `enter(action)`，并把 `feature.args` 作为 `featureArgs` 透传；`run-plugin-action` IPC（main.js 的 ipcMain.handle 版本）会在 executeJavaScript 阶段丢弃 payload，不要用它传文本（2026-08-16 余汉波AI助手总指挥模式已验证）。
-- 打包版插件代码统一存放在用户选择的程序安装目录下 `plugins` 子目录；Portable 版使用便携 EXE 所在目录的 `plugins`。安装包内 `resources/app/software` 只作为内置插件源，启动时按 `plugin.json.pluginName` 执行“本地优先、仅补缺”同步；Windows NSIS 升级前把现有 `plugins`（首次迁移时为旧 `resources/app/software`）暂存到原安装目录旁，安装完成后恢复，失败时保留备份并中止（2026-09-20 已通过迁移单测与 Electron 插件冒烟，尚未执行真实已安装客户端升级验收）。
+- 打包版插件代码统一存放在用户选择的程序安装目录下 `plugins` 子目录；Portable 版使用便携 EXE 所在目录的 `plugins`。安装包内 `resources/app/software` 作为内置插件源：缺失插件自动补入；同名插件按 `plugin.json.pluginName` 匹配，内置语义版本更高时更新、版本更低时保留本地版本、版本相同或不可比较时仅在内置更新时间更新时覆盖；本地独有插件始终保留。Windows NSIS 升级前把现有 `plugins`（首次迁移时为旧 `resources/app/software`）暂存到原安装目录旁，安装完成后恢复，失败时保留备份并中止（2026-09-20 已通过迁移、版本/日期升级单测与 Electron 插件冒烟，尚未执行真实已安装客户端升级验收）。
 - 安装目录 `plugins/<插件>` 中的内置插件仍以 `../../plugin_runtime` 引用共享运行时，因此打包版启动时必须把 `resources/app/plugin_runtime` 覆盖同步到安装根目录 `plugin_runtime`；只更新主程序共享运行时，不覆盖或删除本地插件（2026-09-20 已通过持久化插件目录 Electron 冒烟和已安装客户端启动验证）。
 - 供应商预设（`PRESET_PROVIDERS`）现含 OpenAI、DeepSeek、智谱 GLM、Moonshot Kimi、通义千问、MiniMax（含视觉）、OpenCode Go、小米 MiMo（`https://api.xiaomimimo.com/v1`，`mimo-v2.5` 多模态 text/vision/audio）、硅基流动（`https://api.siliconflow.cn/v1`，含 Qwen-VL/InternVL 等视觉模型）。
 - 模型能力白名单支持 `text`、`vision`、`audio` 三种；`parseModels/serializeModels` 可往返保留多模态组合；视觉插件按 `includes('vision')` 过滤可选模型，含 `audio` 仅作附加元信息标记，运行时目前不消费音频输入构建。
@@ -99,3 +99,4 @@
 | 2026-09-20 | OpenCode 供应商必须由 `opencode://` 路由到主进程托管 Runtime 并复用其已有认证，不读取或要求插件 API Key；旧配置即使丢失 transport 元数据也需自动恢复 | `tests/ai-runtime.test.js`、`tests/ai-provider-manager.test.js`、真实 OpenCode `openai/gpt-5.6-sol` 无密钥调用 |
 | 2026-09-20 | 修复 OpenAI OAuth 模型能力导入：兼容 OpenCode 新版 `capabilities.input` 与旧版 `modalities.input`，使 GPT-5.6 Luna/Luna Fast 正确进入视觉模型目录 | `tests/opencode-runtime.test.js`、真实本机 `/provider` 目录、`npm run test:plugins`、`npm run test:plugins:electron` |
 | 2026-09-20 | OpenCode 上游首请求可能偶发 `unknown certificate verification error`；仅对明确的临时 TLS/网络错误以新会话最多尝试 3 次，不关闭证书校验，模型不支持等业务错误不得重试 | `tests/opencode-runtime.test.js`、开发版 AI 文档阅读器 `gpt-5.6-luna-fast` 连续 3 次真实调用 |
+| 2026-09-20 | 内置插件启动同步由“同名只保留本地”改为版本优先更新：高版本覆盖、低版本不降级、同版本按更新时间决定；替换使用临时副本与可恢复备份并保留本地独有插件 | `tests/plugin-store.test.js`、`npm run test:plugins`、`npm run test:plugins:electron` |

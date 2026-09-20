@@ -207,7 +207,7 @@ function getBundledPluginDir() {
 
 function preparePluginStore() {
     if (!app.isPackaged) {
-        return { persistentDir: getPluginInstallDir(), migrated: [], added: [], preserved: [] };
+        return { persistentDir: getPluginInstallDir(), migrated: [], added: [], updated: [], preserved: [] };
     }
 
     const installedAppDir = getInstalledAppDir();

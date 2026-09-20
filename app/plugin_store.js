@@ -5,6 +5,64 @@ function normalizePluginIdentity(value) {
     return String(value || '').trim().toLowerCase();
 }
 
+function parsePluginVersion(value) {
+    const match = String(value || '').trim().match(/^v?(\d+(?:\.\d+)*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/);
+    if (!match) return null;
+    return {
+        core: match[1].split('.').map(part => Number(part)),
+        prerelease: match[2] ? match[2].split('.') : []
+    };
+}
+
+function comparePluginVersions(left, right) {
+    const leftVersion = parsePluginVersion(left);
+    const rightVersion = parsePluginVersion(right);
+    if (!leftVersion || !rightVersion) return null;
+
+    const coreLength = Math.max(leftVersion.core.length, rightVersion.core.length);
+    for (let index = 0; index < coreLength; index += 1) {
+        const difference = (leftVersion.core[index] || 0) - (rightVersion.core[index] || 0);
+        if (difference !== 0) return Math.sign(difference);
+    }
+
+    if (leftVersion.prerelease.length === 0 && rightVersion.prerelease.length === 0) return 0;
+    if (leftVersion.prerelease.length === 0) return 1;
+    if (rightVersion.prerelease.length === 0) return -1;
+
+    const prereleaseLength = Math.max(leftVersion.prerelease.length, rightVersion.prerelease.length);
+    for (let index = 0; index < prereleaseLength; index += 1) {
+        const leftPart = leftVersion.prerelease[index];
+        const rightPart = rightVersion.prerelease[index];
+        if (leftPart === undefined) return -1;
+        if (rightPart === undefined) return 1;
+        if (leftPart === rightPart) continue;
+
+        const leftNumeric = /^\d+$/.test(leftPart);
+        const rightNumeric = /^\d+$/.test(rightPart);
+        if (leftNumeric && rightNumeric) return Math.sign(Number(leftPart) - Number(rightPart));
+        if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1;
+        return leftPart.localeCompare(rightPart) < 0 ? -1 : 1;
+    }
+    return 0;
+}
+
+function parsePluginDate(value) {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return value < 1e12 ? value * 1000 : value;
+    }
+    const timestamp = Date.parse(String(value).trim());
+    return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function getExplicitPluginDate(config) {
+    for (const field of ['updatedAt', 'updateDate', 'publishDate', 'modifiedAt', 'modified']) {
+        const timestamp = parsePluginDate(config?.[field]);
+        if (timestamp !== null) return timestamp;
+    }
+    return null;
+}
+
 function readPluginEntry(rootDir, entry) {
     if (!entry.isDirectory() || entry.name.startsWith('.')) return null;
     const sourcePath = path.join(rootDir, entry.name);
@@ -23,7 +81,12 @@ function readPluginEntry(rootDir, entry) {
         folderName: entry.name,
         pluginName,
         identity: normalizePluginIdentity(pluginName),
-        sourcePath
+        sourcePath,
+        configPath,
+        config,
+        version: String(config.version || '').trim(),
+        explicitUpdateTime: getExplicitPluginDate(config),
+        manifestMtime: fs.statSync(configPath).mtimeMs
     };
 }
 
@@ -46,14 +109,67 @@ function uniqueDirectoryPath(rootDir, folderName) {
     }
 }
 
-function copyMissingPlugins(sourceDir, targetDir) {
+function shouldReplacePlugin(sourcePlugin, targetPlugin) {
+    const versionComparison = comparePluginVersions(sourcePlugin.version, targetPlugin.version);
+    if (versionComparison !== null && versionComparison !== 0) {
+        return versionComparison > 0;
+    }
+
+    if (sourcePlugin.explicitUpdateTime !== null || targetPlugin.explicitUpdateTime !== null) {
+        if (sourcePlugin.explicitUpdateTime === null) return false;
+        if (targetPlugin.explicitUpdateTime === null) return true;
+        return sourcePlugin.explicitUpdateTime > targetPlugin.explicitUpdateTime;
+    }
+
+    // 旧插件没有日期字段时，使用清单文件时间作为兼容回退。
+    return sourcePlugin.manifestMtime > targetPlugin.manifestMtime + 1000;
+}
+
+function replacePluginDirectory(sourceDir, targetDir) {
+    const parentDir = path.dirname(targetDir);
+    const folderName = path.basename(targetDir);
+    const stagingDir = uniqueDirectoryPath(parentDir, `.plugin-update-${folderName}`);
+    const backupDir = uniqueDirectoryPath(parentDir, `.plugin-backup-${folderName}`);
+    let backupCreated = false;
+
+    try {
+        fs.cpSync(sourceDir, stagingDir, {
+            recursive: true,
+            force: false,
+            errorOnExist: true,
+            preserveTimestamps: true
+        });
+        fs.renameSync(targetDir, backupDir);
+        backupCreated = true;
+        fs.renameSync(stagingDir, targetDir);
+        fs.rmSync(backupDir, { recursive: true, force: true });
+    } catch (error) {
+        fs.rmSync(stagingDir, { recursive: true, force: true });
+        if (backupCreated && fs.existsSync(backupDir) && !fs.existsSync(targetDir)) {
+            fs.renameSync(backupDir, targetDir);
+        }
+        throw error;
+    }
+}
+
+function copyMissingPlugins(sourceDir, targetDir, { updateExisting = false } = {}) {
     fs.mkdirSync(targetDir, { recursive: true });
-    const targetIdentities = new Set(listPluginEntries(targetDir).map(plugin => plugin.identity));
-    const result = { copied: [], skipped: [] };
+    const targetPlugins = new Map(listPluginEntries(targetDir).map(plugin => [plugin.identity, plugin]));
+    const result = { copied: [], updated: [], skipped: [] };
 
     for (const plugin of listPluginEntries(sourceDir)) {
         // 以 pluginName 判重，避免同一插件因文件夹名称不同被远端版本重复补入。
-        if (targetIdentities.has(plugin.identity)) {
+        const existingPlugin = targetPlugins.get(plugin.identity);
+        if (existingPlugin) {
+            if (updateExisting && shouldReplacePlugin(plugin, existingPlugin)) {
+                replacePluginDirectory(plugin.sourcePath, existingPlugin.sourcePath);
+                result.updated.push(plugin.pluginName);
+                targetPlugins.set(plugin.identity, readPluginEntry(
+                    path.dirname(existingPlugin.sourcePath),
+                    { name: path.basename(existingPlugin.sourcePath), isDirectory: () => true }
+                ));
+                continue;
+            }
             result.skipped.push(plugin.pluginName);
             continue;
         }
@@ -62,9 +178,10 @@ function copyMissingPlugins(sourceDir, targetDir) {
         fs.cpSync(plugin.sourcePath, targetPath, {
             recursive: true,
             force: false,
-            errorOnExist: true
+            errorOnExist: true,
+            preserveTimestamps: true
         });
-        targetIdentities.add(plugin.identity);
+        targetPlugins.set(plugin.identity, plugin);
         result.copied.push(plugin.pluginName);
     }
 
@@ -83,7 +200,7 @@ function initializePluginStore({ bundledDir, persistentDir, migrationDirs = [], 
         fs.rmSync(migrationDir, { recursive: true, force: true });
     }
 
-    const seeded = copyMissingPlugins(bundledDir, persistentDir);
+    const seeded = copyMissingPlugins(bundledDir, persistentDir, { updateExisting: true });
     if (migrationMarkerPath) {
         fs.mkdirSync(path.dirname(migrationMarkerPath), { recursive: true });
         fs.writeFileSync(migrationMarkerPath, 'completed\n', 'utf8');
@@ -93,6 +210,7 @@ function initializePluginStore({ bundledDir, persistentDir, migrationDirs = [], 
         persistentDir,
         migrated,
         added: seeded.copied,
+        updated: seeded.updated,
         preserved: seeded.skipped
     };
 }
@@ -109,9 +227,12 @@ function syncBundledPluginRuntime(sourceDir, targetDir) {
 }
 
 module.exports = {
+    comparePluginVersions,
     copyMissingPlugins,
+    getExplicitPluginDate,
     initializePluginStore,
     listPluginEntries,
     normalizePluginIdentity,
+    shouldReplacePlugin,
     syncBundledPluginRuntime
 };
