@@ -18,6 +18,37 @@ const activeRequests = new Map();
 
 function safeClone(value) { return JSON.parse(JSON.stringify(value)); }
 function normalizeBaseUrl(value) { return String(value || '').trim().replace(/\/+$/, ''); }
+function isOpenCodeProvider(provider) {
+  return provider?.transport === 'opencode'
+    || provider?.source === 'opencode'
+    || /^opencode:\/\//i.test(String(provider?.baseUrl || '').trim());
+}
+
+function openCodeProviderId(provider) {
+  if (provider?.sourceProviderId) return String(provider.sourceProviderId);
+  const route = /^opencode:\/\/([^/?#]+)/i.exec(String(provider?.baseUrl || '').trim());
+  if (route?.[1]) return decodeURIComponent(route[1]);
+  return String(provider?.id || '').replace(/^opencode:/i, '');
+}
+
+function normalizeConfig(config) {
+  const next = { ...safeClone(DEFAULT_CONFIG), ...safeClone(config || {}) };
+  next.providers = (Array.isArray(next.providers) ? next.providers : []).map(provider => {
+    if (!isOpenCodeProvider(provider)) return provider;
+    return {
+      ...provider,
+      transport: 'opencode',
+      source: 'opencode',
+      managed: true,
+      sourceProviderId: openCodeProviderId(provider),
+      models: (Array.isArray(provider.models) ? provider.models : []).map(model => ({
+        ...model,
+        sourceModelId: model.sourceModelId || model.id
+      }))
+    };
+  });
+  return next;
+}
 function errorMessage(error) {
   if (error?.name === 'AbortError') return '请求已取消';
   return error instanceof Error ? error.message : String(error || '未知错误');
@@ -79,11 +110,12 @@ function toResponsesPayload(messages) {
 async function getConfig() {
   const stored = await ipcRenderer.invoke('plugin-storage-get-async', STORAGE_NAME, CONFIG_KEY);
   if (!stored || stored.schemaVersion !== 1) return safeClone(DEFAULT_CONFIG);
-  return { ...safeClone(DEFAULT_CONFIG), ...stored };
+  // 旧版屏幕翻译曾在保存时剥离 OpenCode 路由字段；以 opencode:// 为不可歧义的恢复依据。
+  return normalizeConfig(stored);
 }
 
 async function saveConfig(config) {
-  const next = { ...safeClone(config), schemaVersion: 1 };
+  const next = { ...normalizeConfig(config), schemaVersion: 1 };
   await ipcRenderer.invoke('plugin-storage-set-async', STORAGE_NAME, CONFIG_KEY, next);
   return next;
 }
@@ -281,14 +313,14 @@ async function complete(request = {}, onChunk) {
   const timeout = setTimeout(() => {
     timedOut = true;
     controller.abort();
-    if (provider.transport === 'opencode') ipcRenderer.invoke('ai-opencode-cancel', requestId).catch(() => {});
+    if (isOpenCodeProvider(provider)) ipcRenderer.invoke('ai-opencode-cancel', requestId).catch(() => {});
   }, Math.max(50, Number(request.timeoutMs || config.timeoutMs || 60000)));
   try {
-    if (provider.transport === 'opencode') {
+    if (isOpenCodeProvider(provider)) {
       const result = await ipcRenderer.invoke('ai-opencode-complete', {
         ...request,
         requestId,
-        providerId: provider.sourceProviderId || provider.id.replace(/^opencode:/, ''),
+        providerId: openCodeProviderId(provider),
         modelId: model.sourceModelId || model.id
       });
       if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -326,4 +358,4 @@ function createAiRuntime(pluginName, emitChunk) {
   };
 }
 
-module.exports = { createAiRuntime, DEFAULT_CONFIG };
+module.exports = { createAiRuntime, DEFAULT_CONFIG, isOpenCodeProvider, normalizeConfig, openCodeProviderId };

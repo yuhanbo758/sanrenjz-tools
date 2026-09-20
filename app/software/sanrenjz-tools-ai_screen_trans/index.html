@@ -326,6 +326,7 @@
         .settings-modal { width:min(760px, calc(100vw - 30px)); }
         .settings-body { max-height: 460px; overflow-y: auto; padding-right: 4px; }
         .settings-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+        [hidden] { display:none !important; }
         .model-hint { font-size:12px; color:#6b7280; margin-top:5px; }
         #screenshotPrompt { display:none; height:100%; align-items:center; gap:12px; padding:10px 14px; background:#020617; color:#e5e7eb; }
         #screenshotPrompt img { width:64px; height:64px; object-fit:cover; border-radius:7px; border:1px solid #334155; }
@@ -343,25 +344,25 @@
         <img id="promptPreview" alt="截图预览">
         <div class="prompt-copy">
             <div class="prompt-title">截图已完成</div>
-            <div class="prompt-description" id="promptDescription">可以仅识别并复制文字，也可以继续翻译。</div>
+            <div class="prompt-description" id="promptDescription">可以仅识别文字，也可以按设置的方式完成翻译。</div>
         </div>
         <div class="prompt-actions">
             <button class="btn" id="promptRetakeBtn">重新截图</button>
             <button class="btn" id="promptCancelBtn">取消</button>
             <button class="btn" id="promptOcrBtn">仅识别文字</button>
-            <button class="btn btn-primary" id="promptTranslateBtn">识别并翻译</button>
+            <button class="btn btn-primary" id="promptTranslateBtn">截图翻译</button>
         </div>
     </div>
     <div class="app">
         <div class="header">
             <div class="title">
                 AI 屏幕翻译
-                <span>DeepSeek V4 · OpenAI 兼容供应商</span>
+                <span>分步 OCR · 多模态直译</span>
             </div>
             <div class="header-actions">
                 <div class="mode-toggle" id="modeToggle">
                     <button id="modeText" class="active">文本翻译</button>
-                    <button id="modeOcr">截图 OCR</button>
+                    <button id="modeOcr">截图翻译</button>
                 </div>
                 <button class="btn btn-ghost" id="settingsBtn">⚙ 设置</button>
                 <button class="btn btn-ghost" id="closeBtn">✕</button>
@@ -395,7 +396,7 @@
                 </div>
                 <textarea id="targetText" readonly placeholder="翻译结果会显示在这里。"></textarea>
                 <div class="panel-footer">
-                    <div class="hint" id="targetHint">文本与 OCR 可分别选择供应商和模型</div>
+                    <div class="hint" id="targetHint">截图支持分步处理或多模态模型一次完成</div>
                     <div style="display:flex;gap:6px;align-items:center;">
                         <button class="btn" id="copyTargetBtn">复制译文</button>
                     </div>
@@ -417,7 +418,7 @@
     <div class="settings-modal-backdrop" id="settingsBackdrop">
         <div class="settings-modal">
             <div class="settings-header">
-                <div class="settings-title">OpenAI 兼容供应商目录</div>
+                <div class="settings-title">AI 供应商与截图流程</div>
                 <button class="btn btn-ghost" id="settingsCloseBtn">✕</button>
             </div>
             <div class="settings-body">
@@ -452,17 +453,39 @@
                     <label for="visionModelsInput">视觉/OCR 模型 ID（每行一个）</label>
                     <textarea id="visionModelsInput" rows="3" placeholder="deepseek-ai/DeepSeek-OCR"></textarea>
                 </div>
-                <div class="settings-grid">
+                <div class="form-group">
+                    <label for="textProviderSelect">文本翻译模型</label>
+                    <select id="textProviderSelect"></select>
+                    <select id="textModelSelect" style="margin-top:6px"></select>
+                    <div class="model-hint">用于普通文本翻译；分步截图翻译也使用此模型翻译 OCR 结果。</div>
+                </div>
+                <div class="form-group">
+                    <label for="screenshotModeSelect">截图翻译方式</label>
+                    <select id="screenshotModeSelect">
+                        <option value="staged">分步处理：视觉模型识别 + 文本模型翻译</option>
+                        <option value="multimodal">多模态直译：同一模型识别并翻译</option>
+                    </select>
+                </div>
+                <div class="settings-grid" id="stagedScreenshotSettings">
                     <div class="form-group">
-                        <label for="textProviderSelect">文本翻译供应商</label>
-                        <select id="textProviderSelect"></select>
-                        <select id="textModelSelect" style="margin-top:6px"></select>
-                    </div>
-                    <div class="form-group">
-                        <label for="ocrProviderSelect">截图 OCR 供应商</label>
+                        <label for="ocrProviderSelect">OCR 视觉供应商</label>
                         <select id="ocrProviderSelect"></select>
-                        <select id="ocrModelSelect" style="margin-top:6px"></select>
                     </div>
+                    <div class="form-group">
+                        <label for="ocrModelSelect">OCR 视觉模型</label>
+                        <select id="ocrModelSelect"></select>
+                    </div>
+                </div>
+                <div class="settings-grid" id="multimodalScreenshotSettings" hidden>
+                    <div class="form-group">
+                        <label for="multimodalProviderSelect">多模态供应商</label>
+                        <select id="multimodalProviderSelect"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="multimodalModelSelect">多模态模型</label>
+                        <select id="multimodalModelSelect"></select>
+                    </div>
+                    <div class="model-hint" style="grid-column:1 / -1">只设置一次模型；一次请求同时读取截图原文并完成翻译。</div>
                 </div>
                 <div class="pill">
                     API Key 仅保存在本机；Windows 下使用 safeStorage/DPAPI 加密。模型接口按 OpenAI Chat Completions 协议调用。

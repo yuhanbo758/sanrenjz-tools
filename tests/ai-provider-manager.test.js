@@ -41,5 +41,7 @@ assert.deepStrictEqual(JSON.parse(JSON.stringify(merged.providers)), [
     models: [{ id: 'gpt-codex', label: 'GPT Codex', capabilities: ['text'], sourceModelId: 'gpt-codex' }]
   }
 ]);
+assert.strictEqual(context.window.AIProviderManager.isOpenCodeProvider({ baseUrl: 'opencode://openai' }), true);
+assert.strictEqual(context.window.AIProviderManager.isOpenCodeProvider({ baseUrl: 'https://api.openai.com/v1' }), false);
 
-console.log('AI provider manager tests passed: multi-provider parsing and managed OpenCode import');
+console.log('AI provider manager tests passed: multi-provider parsing, managed OpenCode import, legacy route detection');

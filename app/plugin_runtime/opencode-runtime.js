@@ -6,6 +6,7 @@ const path = require('path');
 
 const START_TIMEOUT_MS = 20000;
 const MAX_ERROR_LENGTH = 600;
+const TRANSIENT_RETRY_ATTEMPTS = 3;
 
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -18,6 +19,11 @@ function trimError(value) {
 function requestError(status, detail) {
   const message = trimError(detail) || `HTTP ${status}`;
   return new Error(`OpenCode 返回 ${status}：${message}`);
+}
+
+function isRetryableOpenCodeError(error) {
+  const message = trimError(error?.message || error);
+  return /unknown certificate verification error|certificate verification failed|unable to verify the first certificate|econnreset|etimedout|eai_again|fetch failed|socket hang up|connection reset/i.test(message);
 }
 
 async function readJson(response) {
@@ -65,9 +71,16 @@ function resolveExecutable() {
 }
 
 function modelCapabilities(model) {
-  const input = Array.isArray(model?.modalities?.input) ? model.modalities.input : [];
+  // OpenCode 旧目录使用 modalities.input 数组；当前 /provider 返回
+  // capabilities.input 对象。两种格式都要读取，否则 OpenAI OAuth 模型会被误标为纯文本。
+  const legacyInput = Array.isArray(model?.modalities?.input) ? model.modalities.input : [];
+  const currentCapabilities = model?.capabilities && typeof model.capabilities === 'object' ? model.capabilities : {};
+  const currentInput = currentCapabilities.input && typeof currentCapabilities.input === 'object'
+    ? Object.entries(currentCapabilities.input).filter(([, enabled]) => enabled === true).map(([type]) => type)
+    : [];
+  const input = [...new Set([...legacyInput, ...currentInput])];
   const capabilities = ['text'];
-  if (input.some(value => value === 'image' || value === 'video' || value === 'pdf') || model?.attachment === true) {
+  if (input.some(value => value === 'image' || value === 'video' || value === 'pdf') || model?.attachment === true || currentCapabilities.attachment === true) {
     capabilities.push('vision');
   }
   if (input.includes('audio')) capabilities.push('audio');
@@ -209,49 +222,61 @@ class OpenCodeRuntime {
     if (this.active.has(requestId)) throw new Error('OpenCode 请求标识正在使用');
     const controller = new AbortController();
     this.active.set(requestId, { controller, sessionId: '' });
-    let sessionId = '';
     try {
-      const session = await this.request('/session', {
-        method: 'POST', signal: controller.signal,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: 'sanrenjz-tools AI 请求',
-          // 供应商接入只需要模型采样，禁止 OpenCode Agent 触发任何本地工具。
-          permission: [{ permission: '*', pattern: '*', action: 'deny' }]
-        })
-      });
-      sessionId = String(session?.id || '');
-      if (!sessionId) throw new Error('OpenCode 未返回会话 ID');
-      this.active.get(requestId).sessionId = sessionId;
       const prompt = buildPrompt(request.messages);
-      const result = await this.request(`/session/${encodeURIComponent(sessionId)}/message`, {
-        method: 'POST', signal: controller.signal,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: { providerID: String(request.providerId || ''), modelID: String(request.modelId || '') },
-          tools: {},
-          system: prompt.system,
-          parts: prompt.parts
-        })
-      });
-      if (result?.info?.error) {
-        const detail = result.info.error?.data?.message || result.info.error?.name || '模型调用失败';
-        throw new Error(`OpenCode 模型调用失败：${trimError(detail)}`);
+      for (let attempt = 0; attempt < TRANSIENT_RETRY_ATTEMPTS; attempt += 1) {
+        let sessionId = '';
+        try {
+          const session = await this.request('/session', {
+            method: 'POST', signal: controller.signal,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: 'sanrenjz-tools AI 请求',
+              // 供应商接入只需要模型采样，禁止 OpenCode Agent 触发任何本地工具。
+              permission: [{ permission: '*', pattern: '*', action: 'deny' }]
+            })
+          });
+          sessionId = String(session?.id || '');
+          if (!sessionId) throw new Error('OpenCode 未返回会话 ID');
+          this.active.get(requestId).sessionId = sessionId;
+          const result = await this.request(`/session/${encodeURIComponent(sessionId)}/message`, {
+            method: 'POST', signal: controller.signal,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: { providerID: String(request.providerId || ''), modelID: String(request.modelId || '') },
+              tools: {},
+              system: prompt.system,
+              parts: prompt.parts
+            })
+          });
+          if (result?.info?.error) {
+            const detail = result.info.error?.data?.message || result.info.error?.name || '模型调用失败';
+            throw new Error(`OpenCode 模型调用失败：${trimError(detail)}`);
+          }
+          const text = (result?.parts || [])
+            .filter(part => part?.type === 'text' && !part.ignored)
+            .map(part => String(part.text || ''))
+            .join('');
+          if (!text) throw new Error('OpenCode 模型未返回文本内容');
+          return { requestId, text, model: String(request.modelId || ''), provider: String(request.providerId || '') };
+        } catch (error) {
+          if (error?.name === 'AbortError' || controller.signal.aborted) throw error;
+          if (attempt >= TRANSIENT_RETRY_ATTEMPTS - 1 || !isRetryableOpenCodeError(error)) throw error;
+          // OpenCode 偶发在首个上游连接上返回临时证书错误；保留 TLS 校验并用新会话短暂重试。
+          await delay(300 * (attempt + 1));
+        } finally {
+          if (this.active.has(requestId)) this.active.get(requestId).sessionId = '';
+          if (sessionId) {
+            this.request(`/session/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }).catch(() => {});
+          }
+        }
       }
-      const text = (result?.parts || [])
-        .filter(part => part?.type === 'text' && !part.ignored)
-        .map(part => String(part.text || ''))
-        .join('');
-      if (!text) throw new Error('OpenCode 模型未返回文本内容');
-      return { requestId, text, model: String(request.modelId || ''), provider: String(request.providerId || '') };
+      throw new Error('OpenCode 模型调用失败');
     } catch (error) {
       if (error?.name === 'AbortError') throw new Error('请求已取消');
       throw error;
     } finally {
       this.active.delete(requestId);
-      if (sessionId) {
-        this.request(`/session/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }).catch(() => {});
-      }
     }
   }
 
@@ -275,4 +300,4 @@ class OpenCodeRuntime {
   }
 }
 
-module.exports = { OpenCodeRuntime, buildPrompt, parseProviderCatalog };
+module.exports = { OpenCodeRuntime, buildPrompt, isRetryableOpenCodeError, parseProviderCatalog };

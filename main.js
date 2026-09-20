@@ -3275,11 +3275,18 @@ ipcMain.handle('capture-screen-region', async (event, options = {}) => {
 
     const { screen } = require('electron');
     const displays = screen.getAllDisplays();
-    const maxWidth = Math.max(...displays.map(display => Math.ceil(display.bounds.width * display.scaleFactor)));
-    const maxHeight = Math.max(...displays.map(display => Math.ceil(display.bounds.height * display.scaleFactor)));
-    let capturedSources;
+    let capturedSourceGroups;
     try {
-        capturedSources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: maxWidth, height: maxHeight } });
+        // desktopCapturer 的 thumbnailSize 会应用到本次返回的所有屏幕。若把普通屏与带鱼屏
+        // 共用一组最大宽高，极端宽高比画面可能被拉伸或降采样。按每块屏幕的物理像素尺寸
+        // 分别请求源图，确保 21:9、32:9 与混合 DPI 环境下仍保留原始比例和文字清晰度。
+        capturedSourceGroups = await Promise.all(displays.map(display => desktopCapturer.getSources({
+            types: ['screen'],
+            thumbnailSize: {
+                width: Math.max(1, Math.ceil(display.bounds.width * display.scaleFactor)),
+                height: Math.max(1, Math.ceil(display.bounds.height * display.scaleFactor))
+            }
+        })));
     } catch (error) {
         if (options.restoreOwner !== false && owner && !owner.isDestroyed()) {
             owner.show();
@@ -3288,8 +3295,9 @@ ipcMain.handle('capture-screen-region', async (event, options = {}) => {
         return { cancelled: true, error: `读取屏幕失败：${error.message}` };
     }
     const sources = new Map();
-    for (const display of displays) {
-        const source = capturedSources.find(item => String(item.display_id) === String(display.id)) || capturedSources[displays.indexOf(display)];
+    for (const [displayIndex, display] of displays.entries()) {
+        const capturedSources = capturedSourceGroups[displayIndex] || [];
+        const source = capturedSources.find(item => String(item.display_id) === String(display.id)) || capturedSources[displayIndex];
         if (source) sources.set(String(display.id), { thumbnail: source.thumbnail, display });
     }
     if (sources.size === 0) {

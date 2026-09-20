@@ -1,9 +1,11 @@
 const { contextBridge, ipcRenderer, clipboard, nativeImage } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const { createAiRuntime } = require('../../plugin_runtime/ai-runtime');
 
 const PLUGIN_NAME = 'AI 屏幕翻译';
 const AI_SHARED_NAME = 'AI 共享配置中心';
+const sharedAiRuntime = createAiRuntime(PLUGIN_NAME, () => {});
 
 /**
  * 配置版本 2 使用统一供应商目录。
@@ -31,7 +33,9 @@ const DEFAULT_SETTINGS = {
         }
     ],
     textSelection: { providerId: 'deepseek-official', modelId: 'deepseek-v4-pro' },
-    ocrSelection: { providerId: 'siliconflow', modelId: 'deepseek-ai/DeepSeek-OCR' }
+    ocrSelection: { providerId: 'siliconflow', modelId: 'deepseek-ai/DeepSeek-OCR' },
+    screenshotMode: 'staged',
+    multimodalSelection: { providerId: 'siliconflow', modelId: 'deepseek-ai/DeepSeek-OCR' }
 };
 
 function cloneDefaults() {
@@ -51,17 +55,53 @@ function writeStoredSettings(settings) {
     return ipcRenderer.sendSync('plugin-storage-set', PLUGIN_NAME, 'settings', settings);
 }
 
+function normalizeProvider(provider) {
+    const openCodeMatch = /^opencode:\/\/([^/?#]+)/i.exec(String(provider?.baseUrl || '').trim());
+    const managedByOpenCode = provider?.transport === 'opencode' || provider?.source === 'opencode' || Boolean(openCodeMatch);
+    return {
+        ...provider,
+        ...(managedByOpenCode ? {
+            transport: 'opencode',
+            source: 'opencode',
+            managed: true,
+            sourceProviderId: provider.sourceProviderId || decodeURIComponent(openCodeMatch?.[1] || String(provider.id || '').replace(/^opencode:/i, ''))
+        } : {}),
+        id: String(provider.id),
+        name: String(provider.name || provider.id),
+        baseUrl: String(provider.baseUrl || '').trim(),
+        models: (Array.isArray(provider.models) ? provider.models : []).map(model => ({
+            ...model,
+            ...(managedByOpenCode ? { sourceModelId: model.sourceModelId || model.id } : {}),
+            id: String(model.id),
+            label: String(model.label || model.id),
+            capabilities: Array.isArray(model.capabilities) ? model.capabilities.filter(item => item === 'text' || item === 'vision' || item === 'audio') : ['text']
+        }))
+    };
+}
+
 /**
  * 自动迁移 1.x 的单 URL/Key 配置。旧用户继续使用原供应商，新安装则默认 DeepSeek V4 Pro。
  */
 async function ensureSettings() {
+    const stored = readStoredSettings();
     const shared = ipcRenderer.sendSync('plugin-storage-get', AI_SHARED_NAME, 'runtime-config');
     if (shared?.schemaVersion === 1 && Array.isArray(shared.providers) && shared.providers.length) {
-        return { settingsVersion: 2, providers: shared.providers, textSelection: shared.selections?.text, ocrSelection: shared.selections?.vision || shared.selections?.text };
+        const visionSelection = shared.selections?.vision || shared.selections?.text;
+        return {
+            ...cloneDefaults(),
+            providers: shared.providers,
+            textSelection: shared.selections?.text,
+            ocrSelection: visionSelection,
+            screenshotMode: stored?.screenshotMode === 'multimodal' ? 'multimodal' : 'staged',
+            multimodalSelection: stored?.multimodalSelection || visionSelection
+        };
     }
-    const stored = readStoredSettings();
     if (stored?.settingsVersion === 2 && Array.isArray(stored.providers)) {
-        return { ...cloneDefaults(), ...stored };
+        const merged = { ...cloneDefaults(), ...stored };
+        // 1.2 及更早版本没有多模态选择，沿用已有 OCR 视觉模型即可无损升级。
+        merged.multimodalSelection = stored.multimodalSelection || stored.ocrSelection || merged.multimodalSelection;
+        merged.screenshotMode = stored.screenshotMode === 'multimodal' ? 'multimodal' : 'staged';
+        return merged;
     }
     if (!stored) return cloneDefaults();
 
@@ -85,16 +125,7 @@ async function ensureSettings() {
 
 async function saveSettings(settings, providerSecrets = {}) {
     const clean = { ...settings, settingsVersion: 2 };
-    clean.providers = (Array.isArray(settings.providers) ? settings.providers : []).map(provider => ({
-        id: String(provider.id),
-        name: String(provider.name || provider.id),
-        baseUrl: String(provider.baseUrl || '').trim(),
-        models: (Array.isArray(provider.models) ? provider.models : []).map(model => ({
-            id: String(model.id),
-            label: String(model.label || model.id),
-            capabilities: Array.isArray(model.capabilities) ? model.capabilities.filter(item => item === 'text' || item === 'vision') : ['text']
-        }))
-    }));
+    clean.providers = (Array.isArray(settings.providers) ? settings.providers : []).map(normalizeProvider);
     let encryptionAvailable = true;
     for (const [providerId, secret] of Object.entries(providerSecrets)) {
         const result = await ipcRenderer.invoke('plugin-secret-set', AI_SHARED_NAME, `provider:${providerId}`, secret);
@@ -115,6 +146,9 @@ function handleEnter(mode, action) {
 const services = {
     getSettings: ensureSettings,
     saveSettings,
+    aiComplete: request => sharedAiRuntime.complete(request),
+    aiCancel: requestId => sharedAiRuntime.cancel(requestId),
+    listOpenCodeModels: () => ipcRenderer.invoke('ai-opencode-list-models'),
     getProviderSecret: async providerId => (await ipcRenderer.invoke('plugin-secret-get', AI_SHARED_NAME, `provider:${providerId}`)) || ipcRenderer.invoke('plugin-secret-get', PLUGIN_NAME, `provider:${providerId}`),
     removeProviderSecret: async providerId => ipcRenderer.invoke('plugin-secret-remove', AI_SHARED_NAME, `provider:${providerId}`),
     captureRegion: options => ipcRenderer.invoke('capture-screen-region', options || {}),

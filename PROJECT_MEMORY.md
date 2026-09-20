@@ -23,6 +23,7 @@
 - 供应商预设（`PRESET_PROVIDERS`）现含 OpenAI、DeepSeek、智谱 GLM、Moonshot Kimi、通义千问、MiniMax（含视觉）、OpenCode Go、小米 MiMo（`https://api.xiaomimimo.com/v1`，`mimo-v2.5` 多模态 text/vision/audio）、硅基流动（`https://api.siliconflow.cn/v1`，含 Qwen-VL/InternVL 等视觉模型）。
 - 模型能力白名单支持 `text`、`vision`、`audio` 三种；`parseModels/serializeModels` 可往返保留多模态组合；视觉插件按 `includes('vision')` 过滤可选模型，含 `audio` 仅作附加元信息标记，运行时目前不消费音频输入构建。
 - 共享供应商设置支持从本机 OpenCode 动态导入全部“已连接”供应商与模型；主进程按需启动仅监听 `127.0.0.1` 的 OpenCode Server，由 OpenCode 继续持有并刷新 API Key/OAuth（含 OpenAI Codex 认证），渲染层只接收不含凭据的模型目录。模型采样禁用 OpenCode 工具权限并在完成或失败后删除临时会话（2026-09-20 已通过目录实测、逻辑测试和 Electron 三尺寸冒烟；未执行真实计费模型采样）。
+- OpenCode 1.18.31 的 `/provider` 当前把 OpenAI OAuth 模型输入能力放在 `model.capabilities.input` 对象中，旧目录则可能使用 `model.modalities.input` 数组；导入器必须兼容两种结构，否则 GPT-5.6 Luna/Luna Fast 会被误标为纯文本并从视觉模型下拉消失（2026-09-20 已通过真实本机目录读取确认两者为 `text,vision`，未发起计费模型调用）。
 
 ## 开发环境与约束
 
@@ -95,3 +96,6 @@
 | 2026-09-20 | 将打包版插件改存到用户选择的安装目录下 `plugins`；应用升级按插件名称只补缺不覆盖，NSIS 在旧版卸载前暂存并于新版安装后恢复 | `tests/plugin-store.test.js`、`npm run test:plugins`、`npm run test:plugins:electron` |
 | 2026-09-20 | 新增本机 OpenCode 动态供应商导入与主进程托管调用，复用 OpenCode 已连接模型及 OpenAI Codex OAuth，不向插件渲染层暴露凭据 | `tests/opencode-runtime.test.js`、真实 `/provider` 目录读取、`npm run test:plugins`、`npm run test:plugins:electron` |
 | 2026-09-20 | 修复持久化插件目录缺失共享 `plugin_runtime` 导致 AI preload 与供应商目录不加载；启动时同步应用自带运行时 | `tests/plugin-store.test.js`、持久化插件目录 Electron 冒烟、已安装 2.18.0 客户端验证 |
+| 2026-09-20 | OpenCode 供应商必须由 `opencode://` 路由到主进程托管 Runtime 并复用其已有认证，不读取或要求插件 API Key；旧配置即使丢失 transport 元数据也需自动恢复 | `tests/ai-runtime.test.js`、`tests/ai-provider-manager.test.js`、真实 OpenCode `openai/gpt-5.6-sol` 无密钥调用 |
+| 2026-09-20 | 修复 OpenAI OAuth 模型能力导入：兼容 OpenCode 新版 `capabilities.input` 与旧版 `modalities.input`，使 GPT-5.6 Luna/Luna Fast 正确进入视觉模型目录 | `tests/opencode-runtime.test.js`、真实本机 `/provider` 目录、`npm run test:plugins`、`npm run test:plugins:electron` |
+| 2026-09-20 | OpenCode 上游首请求可能偶发 `unknown certificate verification error`；仅对明确的临时 TLS/网络错误以新会话最多尝试 3 次，不关闭证书校验，模型不支持等业务错误不得重试 | `tests/opencode-runtime.test.js`、开发版 AI 文档阅读器 `gpt-5.6-luna-fast` 连续 3 次真实调用 |

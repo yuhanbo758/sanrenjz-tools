@@ -19,6 +19,7 @@ async function main() {
   };
   const seenAuthHeaders = [];
   const openCodeRequests = [];
+  let secretGetCount = 0;
   const server = http.createServer((request, response) => {
     let body = '';
     request.on('data', chunk => { body += chunk; });
@@ -60,7 +61,10 @@ async function main() {
           invoke(_channel, _name, key, value) {
             if (_channel === 'plugin-storage-get-async') return Promise.resolve(config);
             if (_channel === 'plugin-storage-set-async') { config = value; return Promise.resolve(true); }
-            if (_channel === 'plugin-secret-get') return Promise.resolve({ value: 'mock-key', encryptionAvailable: true });
+            if (_channel === 'plugin-secret-get') {
+              secretGetCount += 1;
+              return Promise.resolve({ value: 'mock-key', encryptionAvailable: true });
+            }
             if (_channel === 'ai-opencode-complete') {
               openCodeRequests.push(_name);
               return Promise.resolve({ requestId: _name.requestId, text: 'opencode-result', model: _name.modelId });
@@ -87,11 +91,16 @@ async function main() {
     config.providers.push({ id: 'deepseek', name: 'DeepSeek', baseUrl: config.providers[0].baseUrl, models: [{ id: 'deepseek-chat', label: 'DeepSeek Chat', capabilities: ['text'] }] });
     result = await api.complete({ requestId: 'provider-selection', selection: { providerId: 'deepseek', modelId: 'deepseek-chat' }, stream: false, messages: [{ role: 'user', content: 'MODEL' }] });
     assert.strictEqual(result.text, 'model:deepseek-chat');
-    config.providers.push({ id: 'opencode:openai', sourceProviderId: 'openai', name: 'OpenAI', transport: 'opencode', models: [{ id: 'gpt-codex', sourceModelId: 'gpt-codex', label: 'GPT Codex', capabilities: ['text'] }] });
+    // 模拟旧版屏幕翻译保存后丢失 transport/source/sourceProviderId 的受损配置。
+    config.providers.push({ id: 'opencode:openai', name: 'OpenAI', baseUrl: 'opencode://openai', models: [{ id: 'gpt-codex', label: 'GPT Codex', capabilities: ['text'] }] });
+    const secretsBeforeOpenCode = secretGetCount;
     result = await api.complete({ requestId: 'opencode', selection: { providerId: 'opencode:openai', modelId: 'gpt-codex' }, messages: [{ role: 'user', content: 'CODEX' }] });
     assert.strictEqual(result.text, 'opencode-result');
     assert.strictEqual(openCodeRequests[0].providerId, 'openai');
     assert.strictEqual(openCodeRequests[0].modelId, 'gpt-codex');
+    assert.strictEqual(secretGetCount, secretsBeforeOpenCode, 'OpenCode 路由不得读取或要求 API Key');
+    const normalized = await api.getConfig();
+    assert.strictEqual(normalized.providers.find(provider => provider.id === 'opencode:openai').transport, 'opencode');
     await assert.rejects(() => api.complete({ requestId: 'auth', messages: [{ role: 'user', content: 'AUTH' }] }), /鉴权失败/);
     config.selections.vision = { providerId: 'mock', modelId: 'text' };
     await assert.rejects(() => api.complete({ requestId: 'vision-mismatch', capability: 'vision', messages: [] }), /不支持\s*图片理解/);
@@ -112,7 +121,7 @@ async function main() {
     assert.strictEqual(probe.results[0].ok, true);
     assert.strictEqual(probe.results[1].modelId, 'bad-model');
     assert.strictEqual(probe.results[1].ok, false);
-    console.log('AI runtime mock tests passed: stream, non-stream, provider selection, OpenCode routing, auth header, timeout, cancel, capability guard, per-model provider test');
+    console.log('AI runtime mock tests passed: stream, non-stream, provider selection, keyless OpenCode recovery/routing, auth header, timeout, cancel, capability guard, per-model provider test');
   } finally {
     Module._load = original;
     server.close();

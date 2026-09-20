@@ -170,8 +170,14 @@
     }).join('\n');
   }
 
+  function isOpenCodeProvider(provider) {
+    return provider?.transport === 'opencode'
+      || provider?.source === 'opencode'
+      || /^opencode:\/\//i.test(String(provider?.baseUrl || '').trim());
+  }
+
   function mergeOpenCodeProviders(existing, imported) {
-    const manual = (existing || []).filter(provider => provider.source !== 'opencode' && provider.transport !== 'opencode');
+    const manual = (existing || []).filter(provider => !isOpenCodeProvider(provider));
     const managed = (imported || []).map(provider => ({
       ...provider,
       id: `opencode:${provider.id}`,
@@ -258,12 +264,12 @@
         list.innerHTML = '<div class="ai-provider-empty">还没有供应商，请先新增。</div>';
         return;
       }
-      const secretStates = await Promise.all(config.providers.map(provider => provider.transport === 'opencode' ? true : api.hasProviderSecret(provider.id)));
+      const secretStates = await Promise.all(config.providers.map(provider => isOpenCodeProvider(provider) ? true : api.hasProviderSecret(provider.id)));
       list.innerHTML = config.providers.map((provider, index) => `
         <div class="ai-provider-card" data-provider-id="${provider.id}">
-          <div class="ai-provider-card-top"><div class="ai-provider-card-main"><div class="ai-provider-card-name"></div><div class="ai-provider-card-url"></div></div><span class="ai-provider-status ${secretStates[index] ? '' : 'missing'}">${provider.transport === 'opencode' ? 'OpenCode 已认证' : (secretStates[index] ? '密钥已保存' : '未保存密钥')}</span></div>
+          <div class="ai-provider-card-top"><div class="ai-provider-card-main"><div class="ai-provider-card-name"></div><div class="ai-provider-card-url"></div></div><span class="ai-provider-status ${secretStates[index] ? '' : 'missing'}">${isOpenCodeProvider(provider) ? '使用 OpenCode 认证' : (secretStates[index] ? '密钥已保存' : '未保存密钥')}</span></div>
           <div class="ai-provider-models"></div>
-          <div class="ai-provider-actions">${provider.transport === 'opencode' ? '<button type="button" data-sync>同步模型</button>' : '<button type="button" data-edit>编辑</button>'}<button type="button" class="danger" data-delete>删除</button></div>
+          <div class="ai-provider-actions">${isOpenCodeProvider(provider) ? '<button type="button" data-sync>同步模型</button>' : '<button type="button" data-edit>编辑</button>'}<button type="button" class="danger" data-delete>删除</button></div>
         </div>`).join('');
       config.providers.forEach(provider => {
         const card = list.querySelector(`[data-provider-id="${CSS.escape(provider.id)}"]`);
@@ -395,7 +401,7 @@
     function editProvider(id) {
       editingId = id;
       const provider = config?.providers.find(item => item.id === id);
-      if (provider?.transport === 'opencode') {
+      if (isOpenCodeProvider(provider)) {
         notify('OpenCode 供应商由本机 OpenCode 托管，请使用“同步模型”更新');
         return;
       }
@@ -441,7 +447,7 @@
       const provider = config.providers.find(item => item.id === id);
       if (!global.confirm(`确认删除供应商“${provider?.name || id}”？`)) return;
       config.providers = config.providers.filter(item => item.id !== id);
-      if (provider?.transport !== 'opencode') await api.removeProviderSecret(id);
+      if (!isOpenCodeProvider(provider)) await api.removeProviderSecret(id);
       await api.saveConfig(config);
       editingId = '';
       await loadConfig();
@@ -471,5 +477,5 @@
     };
   }
 
-  global.AIProviderManager = { create, parseModels, mergeOpenCodeProviders };
+  global.AIProviderManager = { create, parseModels, mergeOpenCodeProviders, isOpenCodeProvider };
 })(window);

@@ -27,8 +27,10 @@ const StatusBar = {
         if (!state.settings) return;
         const selection = state.settings.textSelection;
         const provider = findProvider(selection.providerId);
-        const secret = provider ? await getProviderSecret(provider.id) : '';
-        $('statusText').nextElementSibling.innerHTML = secret
+        const secret = provider && !isOpenCodeProvider(provider) ? await getProviderSecret(provider.id) : '';
+        $('statusText').nextElementSibling.innerHTML = provider && isOpenCodeProvider(provider)
+            ? `使用 OpenCode 认证 · ${escapeHtml(provider.name)} / ${escapeHtml(selection.modelId)}`
+            : secret
             ? `已配置 · ${escapeHtml(provider.name)} / ${escapeHtml(selection.modelId)}`
             : `当前文本供应商未配置 API Key · <span class="linkish" id="openSettingsLinkInner">设置</span>`;
         $('openSettingsLinkInner')?.addEventListener('click', openSettings);
@@ -47,8 +49,18 @@ function modelsFor(providerId, capability) {
     return (findProvider(providerId)?.models || []).filter(model => model.capabilities?.includes(capability));
 }
 
+function usesMultimodalScreenshot() {
+    return state.settings?.screenshotMode === 'multimodal';
+}
+
 function normalizeBaseUrl(baseUrl) {
     return window.ProviderUtils.normalizeBaseUrl(baseUrl);
+}
+
+function isOpenCodeProvider(provider) {
+    return provider?.transport === 'opencode'
+        || provider?.source === 'opencode'
+        || /^opencode:\/\//i.test(String(provider?.baseUrl || '').trim());
 }
 
 async function getProviderSecret(providerId) {
@@ -62,6 +74,20 @@ async function getProviderSecret(providerId) {
 async function callOpenAI(selection, messages, options = {}) {
     const provider = findProvider(selection.providerId);
     if (!provider) throw new Error('所选供应商不存在，请重新配置');
+    if (isOpenCodeProvider(provider)) {
+        const requestId = `screen-trans-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const result = await window.services.aiComplete({
+            requestId,
+            capability: messages.some(message => Array.isArray(message.content) && message.content.some(part => part?.type === 'image_url')) ? 'vision' : 'text',
+            selection,
+            messages,
+            stream: false,
+            temperature: options.temperature ?? 0.2,
+            maxTokens: options.maxTokens ?? 4096,
+            timeoutMs: options.timeout || 45000
+        });
+        return String(result?.text || '').trim();
+    }
     const apiKey = await getProviderSecret(provider.id);
     if (!apiKey) throw new Error(`请先为“${provider.name}”配置 API Key`);
     const baseUrl = normalizeBaseUrl(provider.baseUrl);
@@ -119,10 +145,13 @@ function setMode(mode) {
     $('copySourceBtn').style.display = 'inline-flex';
     $('copySourceBtn').textContent = isOcr ? '复制 OCR 文本' : '复制原文';
     $('copySourceBtn').disabled = isOcr && !state.ocrText.trim();
-    $('ocrTranslateBtn').disabled = !state.ocrText.trim();
+    $('ocrTranslateBtn').textContent = usesMultimodalScreenshot() ? '多模态翻译' : '翻译识别结果';
+    $('ocrTranslateBtn').disabled = usesMultimodalScreenshot() ? !state.screenshotDataUrl : !state.ocrText.trim();
     $('sourceText').placeholder = isOcr ? 'OCR 识别结果会显示在这里，可校对后复制或翻译。' : '请复制文本到剪贴板，应用将自动读取并翻译。';
     $('sourceTag').textContent = isOcr ? '待识别截图' : '剪贴板内容 / 输入';
-    $('sourceHint').textContent = isOcr ? '先识别文字，可复制 OCR 原文或按需继续翻译' : '当前模式：文本翻译 · 中英自动互译';
+    $('sourceHint').textContent = isOcr
+        ? (usesMultimodalScreenshot() ? '多模态模型可一次读取截图并完成翻译，也可仅识别文字' : '先识别文字，可复制 OCR 原文或按需继续翻译')
+        : '当前模式：文本翻译 · 中英自动互译';
 }
 
 function resetResult() {
@@ -138,7 +167,7 @@ function resetOcrText() {
     $('sourceText').value = '';
     $('sourceTag').textContent = '待识别截图';
     $('copySourceBtn').disabled = true;
-    $('ocrTranslateBtn').disabled = true;
+    $('ocrTranslateBtn').disabled = usesMultimodalScreenshot() ? !state.screenshotDataUrl : true;
 }
 
 async function selectScreenshot(options = {}) {
@@ -164,7 +193,7 @@ async function selectScreenshot(options = {}) {
         state.screenshotBase64 = dataUrl.split(',')[1] || '';
         $('screenshotPreview').src = dataUrl;
         $('promptPreview').src = dataUrl;
-        $('promptDescription').textContent = `已选择 ${result.width} × ${result.height} 区域，可仅识别文字或识别后翻译`;
+        $('promptDescription').textContent = `已选择 ${result.width} × ${result.height} 区域，可仅识别文字或按当前模式翻译`;
         resetOcrText();
         resetResult();
         if (entryFlow) {
@@ -194,8 +223,7 @@ async function confirmPromptOcr() {
 
 async function confirmPromptTranslation() {
     await leavePromptMode();
-    const ocrText = await recognizeScreenshot();
-    if (ocrText) await translateRecognizedText();
+    await translateScreenshot();
 }
 
 async function cancelPrompt() {
@@ -237,7 +265,8 @@ async function recognizeScreenshot() {
     $('targetTag').textContent = 'OCR 识别中…';
     StatusBar.set('正在识别截图文字…', true);
     try {
-        const ocrText = await callOpenAI(state.settings.ocrSelection, [{
+        const selection = usesMultimodalScreenshot() ? state.settings.multimodalSelection : state.settings.ocrSelection;
+        const ocrText = await callOpenAI(selection, [{
             role: 'user',
             content: [
                 { type: 'image_url', image_url: { url: state.screenshotDataUrl } },
@@ -263,6 +292,44 @@ async function recognizeScreenshot() {
         $('promptOcrBtn').disabled = false;
         $('promptTranslateBtn').disabled = false;
     }
+}
+
+async function translateScreenshotWithMultimodal() {
+    if (!state.screenshotDataUrl) return StatusBar.set('请先点击“选择截图”完成框选');
+    resetResult();
+    $('targetTag').textContent = '多模态翻译中…';
+    StatusBar.set('多模态模型正在识别并翻译截图…', true);
+    try {
+        const response = await callOpenAI(state.settings.multimodalSelection, [{
+            role: 'user',
+            content: [
+                { type: 'image_url', image_url: { url: state.screenshotDataUrl } },
+                {
+                    type: 'text',
+                    text: '识别图片中的全部文字并自动判断主要语言：中文翻译为自然英文，英文翻译为自然中文。严格只返回 JSON：{"sourceText":"保持原始顺序和换行的识别文本","translatedText":"对应译文"}。不要添加 Markdown 或解释。'
+                }
+            ]
+        }], { temperature: 0, maxTokens: 8192, timeout: 90000 });
+        // 严格拆分原文与译文，避免模型自由发挥导致两栏内容混在一起。
+        const result = window.ProviderUtils.parseMultimodalTranslation(response);
+        state.ocrText = result.sourceText;
+        $('sourceText').value = result.sourceText;
+        $('sourceTag').textContent = '多模态识别完成';
+        $('copySourceBtn').disabled = false;
+        $('targetText').value = result.translatedText;
+        $('targetTag').textContent = '翻译完成';
+        StatusBar.set('多模态截图翻译完成');
+    } catch (error) {
+        $('targetTag').textContent = '翻译失败';
+        $('targetText').value = `翻译失败：${error.message}`;
+        StatusBar.set(`多模态截图翻译失败：${error.message}`);
+    }
+}
+
+async function translateScreenshot() {
+    if (usesMultimodalScreenshot()) return translateScreenshotWithMultimodal();
+    const ocrText = $('sourceText').value.trim() || await recognizeScreenshot();
+    if (ocrText) await translateRecognizedText();
 }
 
 /**
@@ -303,14 +370,15 @@ function copyTextFrom(elementId, successMessage) {
 function captureEditorValues() {
     const provider = findProvider(state.editorProviderId);
     if (!provider) return;
+    if (isOpenCodeProvider(provider)) return;
     provider.name = $('providerNameInput').value.trim() || provider.id;
     provider.baseUrl = $('baseUrlInput').value.trim();
     const textModels = $('textModelsInput').value.split(/\r?\n/).map(value => value.trim()).filter(Boolean);
     const visionModels = $('visionModelsInput').value.split(/\r?\n/).map(value => value.trim()).filter(Boolean);
-    provider.models = [
-        ...textModels.map(id => ({ id, label: id, capabilities: ['text'] })),
-        ...visionModels.map(id => ({ id, label: id, capabilities: ['vision'] }))
-    ];
+    const modelCapabilities = new Map();
+    textModels.forEach(id => modelCapabilities.set(id, new Set([...(modelCapabilities.get(id) || []), 'text'])));
+    visionModels.forEach(id => modelCapabilities.set(id, new Set([...(modelCapabilities.get(id) || []), 'vision'])));
+    provider.models = [...modelCapabilities.entries()].map(([id, capabilities]) => ({ id, label: id, capabilities: [...capabilities] }));
     if ($('apiKeyInput').value) state.pendingSecrets[provider.id] = $('apiKeyInput').value;
 }
 
@@ -322,9 +390,13 @@ function fillProviderEditor(providerId) {
     $('providerNameInput').value = provider.name;
     $('baseUrlInput').value = provider.baseUrl;
     $('apiKeyInput').value = state.pendingSecrets[provider.id] || '';
-    $('apiKeyInput').placeholder = '留空表示保持已保存的密钥';
+    const managedByOpenCode = isOpenCodeProvider(provider);
+    $('apiKeyInput').placeholder = managedByOpenCode ? '使用 OpenCode 已有认证，无需填写密钥' : '留空表示保持已保存的密钥';
     $('textModelsInput').value = provider.models.filter(model => model.capabilities?.includes('text')).map(model => model.id).join('\n');
     $('visionModelsInput').value = provider.models.filter(model => model.capabilities?.includes('vision')).map(model => model.id).join('\n');
+    ['providerNameInput', 'baseUrlInput', 'apiKeyInput', 'textModelsInput', 'visionModelsInput', 'fetchModelsBtn'].forEach(id => {
+        $(id).disabled = managedByOpenCode;
+    });
 }
 
 function fillSelect(select, items, selectedValue) {
@@ -336,20 +408,75 @@ function refreshSettingsSelectors() {
     fillSelect($('providerEditorSelect'), state.settings.providers, state.editorProviderId || state.settings.providers[0]?.id);
     fillSelect($('textProviderSelect'), state.settings.providers, state.settings.textSelection.providerId);
     fillSelect($('ocrProviderSelect'), state.settings.providers, state.settings.ocrSelection.providerId);
+    fillSelect($('multimodalProviderSelect'), state.settings.providers, state.settings.multimodalSelection.providerId);
     refreshModelSelectors();
 }
 
 function refreshModelSelectors() {
     fillSelect($('textModelSelect'), modelsFor($('textProviderSelect').value, 'text'), state.settings.textSelection.modelId);
     fillSelect($('ocrModelSelect'), modelsFor($('ocrProviderSelect').value, 'vision'), state.settings.ocrSelection.modelId);
+    fillSelect($('multimodalModelSelect'), modelsFor($('multimodalProviderSelect').value, 'vision'), state.settings.multimodalSelection.modelId);
+}
+
+function refreshScreenshotModeSettings() {
+    const multimodal = $('screenshotModeSelect').value === 'multimodal';
+    $('stagedScreenshotSettings').hidden = multimodal;
+    $('multimodalScreenshotSettings').hidden = !multimodal;
+}
+
+/**
+ * OpenAI OAuth 等托管模型的能力来自本机 OpenCode 动态目录。打开设置时刷新一次，
+ * 修正旧缓存中把图片输入模型误记为纯文本的问题，同时保留用户当前选择。
+ */
+async function refreshManagedModelCatalog() {
+    if (!state.settings.providers.some(isOpenCodeProvider)) return;
+    const imported = await window.services.listOpenCodeModels();
+    const bySourceId = new Map((Array.isArray(imported) ? imported : []).map(provider => [String(provider.id), provider]));
+    let changed = false;
+    state.settings.providers = state.settings.providers.map(provider => {
+        if (!isOpenCodeProvider(provider)) return provider;
+        const routeMatch = /^opencode:\/\/([^/?#]+)/i.exec(String(provider.baseUrl || ''));
+        const sourceProviderId = String(provider.sourceProviderId || routeMatch?.[1] || provider.id.replace(/^opencode:/i, ''));
+        const fresh = bySourceId.get(sourceProviderId);
+        if (!fresh) return provider;
+        const next = {
+            ...provider,
+            name: fresh.name || provider.name,
+            sourceProviderId,
+            transport: 'opencode',
+            source: 'opencode',
+            managed: true,
+            models: (fresh.models || []).map(model => ({ ...model, sourceModelId: model.sourceModelId || model.id }))
+        };
+        if (JSON.stringify(provider.models || []) !== JSON.stringify(next.models)) changed = true;
+        return next;
+    });
+    if (changed) {
+        const saved = await window.services.saveSettings(state.settings);
+        state.settings = saved.settings;
+    }
 }
 
 async function openSettings() {
     state.settings = await window.services.getSettings();
     state.editorProviderId = state.settings.providers[0]?.id || '';
     refreshSettingsSelectors();
+    $('screenshotModeSelect').value = state.settings.screenshotMode === 'multimodal' ? 'multimodal' : 'staged';
+    refreshScreenshotModeSettings();
     fillProviderEditor(state.editorProviderId);
     $('settingsBackdrop').classList.add('visible');
+    if (state.settings.providers.some(isOpenCodeProvider)) {
+        StatusBar.set('正在刷新 OpenAI 认证模型能力…', true);
+        try {
+            await refreshManagedModelCatalog();
+            refreshSettingsSelectors();
+            fillProviderEditor(state.editorProviderId);
+            StatusBar.set('认证模型目录已刷新');
+        } catch (error) {
+            console.warn('刷新认证模型目录失败:', error);
+            StatusBar.set(`认证模型刷新失败，已保留现有目录：${error.message}`);
+        }
+    }
 }
 
 function closeSettings() { $('settingsBackdrop').classList.remove('visible'); }
@@ -359,16 +486,22 @@ async function saveSettings() {
     const selectedTextModelId = $('textModelSelect').value;
     const selectedOcrProviderId = $('ocrProviderSelect').value;
     const selectedOcrModelId = $('ocrModelSelect').value;
+    const selectedMultimodalProviderId = $('multimodalProviderSelect').value;
+    const selectedMultimodalModelId = $('multimodalModelSelect').value;
     captureEditorValues();
     state.settings.textSelection = { providerId: selectedTextProviderId, modelId: selectedTextModelId || modelsFor(selectedTextProviderId, 'text')[0]?.id || '' };
     state.settings.ocrSelection = { providerId: selectedOcrProviderId, modelId: selectedOcrModelId || modelsFor(selectedOcrProviderId, 'vision')[0]?.id || '' };
+    state.settings.screenshotMode = $('screenshotModeSelect').value === 'multimodal' ? 'multimodal' : 'staged';
+    state.settings.multimodalSelection = { providerId: selectedMultimodalProviderId, modelId: selectedMultimodalModelId || modelsFor(selectedMultimodalProviderId, 'vision')[0]?.id || '' };
     if (!state.settings.textSelection.modelId) return StatusBar.set('文本供应商至少需要一个文本模型');
-    if (!state.settings.ocrSelection.modelId) return StatusBar.set('OCR 供应商至少需要一个视觉模型');
+    if (state.settings.screenshotMode === 'staged' && !state.settings.ocrSelection.modelId) return StatusBar.set('分步处理至少需要一个 OCR 视觉模型');
+    if (state.settings.screenshotMode === 'multimodal' && !state.settings.multimodalSelection.modelId) return StatusBar.set('多模态直译至少需要一个视觉模型');
     const saveResult = await window.services.saveSettings(state.settings, state.pendingSecrets);
     state.settings = saveResult.settings;
     Object.assign(state.secretCache, state.pendingSecrets);
     state.pendingSecrets = {};
     closeSettings();
+    setMode(state.currentMode);
     await StatusBar.refresh();
     StatusBar.set(saveResult.encryptionAvailable ? '设置已保存' : '设置已保存；当前系统无法使用安全存储，密钥已降级为本机明文保存');
 }
@@ -390,6 +523,7 @@ async function deleteProvider() {
     const fallback = state.settings.providers[0];
     if (state.settings.textSelection.providerId === id) state.settings.textSelection = { providerId: fallback.id, modelId: modelsFor(fallback.id, 'text')[0]?.id || '' };
     if (state.settings.ocrSelection.providerId === id) state.settings.ocrSelection = { providerId: fallback.id, modelId: modelsFor(fallback.id, 'vision')[0]?.id || '' };
+    if (state.settings.multimodalSelection.providerId === id) state.settings.multimodalSelection = { providerId: fallback.id, modelId: modelsFor(fallback.id, 'vision')[0]?.id || '' };
     refreshSettingsSelectors();
     fillProviderEditor(fallback.id);
 }
@@ -398,6 +532,7 @@ async function fetchModels() {
     captureEditorValues();
     const provider = findProvider(state.editorProviderId);
     try {
+        if (isOpenCodeProvider(provider)) throw new Error('OpenCode 供应商请在统一供应商目录中同步模型');
         const apiKey = await getProviderSecret(provider.id);
         if (!apiKey) throw new Error('请先输入并保存或暂存该供应商的 API Key');
         const response = await fetch(`${normalizeBaseUrl(provider.baseUrl)}/models`, { headers: { Authorization: `Bearer ${apiKey}` } });
@@ -441,7 +576,7 @@ async function init() {
     $('translateBtn').addEventListener('click', translateText);
     $('captureBtn').addEventListener('click', selectScreenshot);
     $('ocrBtn').addEventListener('click', recognizeScreenshot);
-    $('ocrTranslateBtn').addEventListener('click', translateRecognizedText);
+    $('ocrTranslateBtn').addEventListener('click', translateScreenshot);
     $('copySourceBtn').addEventListener('click', () => copyTextFrom('sourceText', state.currentMode === 'ocr' ? 'OCR 文本已复制' : '原文已复制'));
     $('copyTargetBtn').addEventListener('click', () => copyTextFrom('targetText', '译文已复制'));
     $('settingsBtn').addEventListener('click', openSettings);
@@ -457,6 +592,8 @@ async function init() {
     $('visionModelsInput').addEventListener('change', () => { captureEditorValues(); refreshModelSelectors(); });
     $('textProviderSelect').addEventListener('change', refreshModelSelectors);
     $('ocrProviderSelect').addEventListener('change', refreshModelSelectors);
+    $('multimodalProviderSelect').addEventListener('change', refreshModelSelectors);
+    $('screenshotModeSelect').addEventListener('change', refreshScreenshotModeSettings);
     $('closeBtn').addEventListener('click', () => window.services.closeWindow());
     $('promptRetakeBtn').addEventListener('click', () => selectScreenshot({ entryFlow: true }));
     $('promptCancelBtn').addEventListener('click', cancelPrompt);
