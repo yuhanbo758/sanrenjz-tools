@@ -24,6 +24,8 @@
 - 模型能力白名单支持 `text`、`vision`、`audio` 三种；`parseModels/serializeModels` 可往返保留多模态组合；视觉插件按 `includes('vision')` 过滤可选模型，含 `audio` 仅作附加元信息标记，运行时目前不消费音频输入构建。
 - 共享供应商设置支持从本机 OpenCode 动态导入全部“已连接”供应商与模型；主进程按需启动仅监听 `127.0.0.1` 的 OpenCode Server，由 OpenCode 继续持有并刷新 API Key/OAuth（含 OpenAI Codex 认证），渲染层只接收不含凭据的模型目录。模型采样禁用 OpenCode 工具权限并在完成或失败后删除临时会话（2026-09-20 已通过目录实测、逻辑测试和 Electron 三尺寸冒烟；未执行真实计费模型采样）。
 - OpenCode 1.18.31 的 `/provider` 当前把 OpenAI OAuth 模型输入能力放在 `model.capabilities.input` 对象中，旧目录则可能使用 `model.modalities.input` 数组；导入器必须兼容两种结构，否则 GPT-5.6 Luna/Luna Fast 会被误标为纯文本并从视觉模型下拉消失（2026-09-20 已通过真实本机目录读取确认两者为 `text,vision`，未发起计费模型调用）。
+- `app/software/sanrenjz-tools-account-manager/` 是由 Python/Tkinter 账号管理器迁移的新插件，运行时不需要 Python；使用 `better-sqlite3` 直接读写 SQLite，并根据 `pragma_table_xinfo` 动态生成不同表的列头、查询字段和新增表单。查询支持指定列和 `__all__` 整表跨列策略，数据库对象仅存在于 preload 后端，查询值参数绑定，表名与字段名从实时 schema 校验后引用（2026-09-21 已通过密码片段跨列查询、动态双表、类型写入和 Electron 三尺寸测试）。
+- 余汉波AI助手总指挥会在每次发送前动态扫描当前安装目录的 `plugin.json`：普通本地工具有可靠匹配时优先打开并传 `autoRun:false`；无可靠本地能力时才匹配 AI 插件，用户明确说“用 AI/交给 AI”时跳过普通工具。路由包含同分歧义保护，示例“将图片改成 ICO，调用插件”会打开“图片优化器”的格式转换（2026-09-21 已通过真实插件目录单测和 Electron IPC 冒烟）。
 
 ## 开发环境与约束
 
@@ -42,6 +44,8 @@
 | 插件协议与逻辑测试 | `npm run test:plugins` | 2026-07-15 | 校验 20 个套件、10 个 AI 插件、旧入口、AI Mock 和临时文件流程 |
 | Electron 三尺寸冒烟 | `npm run test:plugins:electron` | 2026-07-15 | 每个新增插件验证 900×650、1180×760、最大化三种尺寸 |
 | 插件界面截图 | `npm run test:plugins:gallery` | 2026-07-15 | 输出到 `dist/plugin-ui-gallery-v2/`，用于人工检查布局 |
+| 密码管理器交互回归 | `npm run test:password-plugin` | 2026-09-21 | 验证异步删除、整库重置、安全渲染、API 密钥清理和 CSV 覆盖导入 |
+| SQLite 数据表管理器回归 | `npm run test:account-plugin` | 2026-09-21 | 验证不同表动态列名、指定列/整表跨列查询、类型写入、查询防护、敏感列遮罩和三尺寸布局 |
 | 图标缩略图检查 | `npm run test:plugins:icons` | 2026-07-14 | 输出到 `dist/plugin-icon-gallery/`，检查 30 个图标的语义与辨识度 |
 | 重建插件图标 | `node scripts/regenerate-tabler-icons.js` 后运行 `npm run generate:icons` | 2026-07-14 | 先更新官方 Tabler SVG，再生成 PNG 和多尺寸 ICO |
 
@@ -52,18 +56,21 @@
 - 图标必须与插件业务语义对应，不得用编号、文字或同一图形换色充当不同插件图标。
 - 超级面板图标下方的功能标题最多 4 个汉字（汉字按 2 字节、其他字符按 1 字节，上限 8 字节）：新增动作必须直接使用能表达功能的短名，不能以供应商、模型或插件品牌名代替，也不能依赖页面硬截断；完整标题与描述通过悬浮提示展示。
 - 本地优先、无需登录；除局域网传输和用户主动配置的 AI 请求外，默认不上传用户数据。
+- 总指挥必须先判断已安装插件能否直接完成任务；能完成就打开对应本地功能，只有本地工具不能处理或用户明确要求 AI 时才使用生成式 AI。
 
 ## 关键决策与原因
 
 - 将 50 个候选功能收敛为 20 个工具套件并新增 10 个 AI 插件，删除与 Windows 自带能力高度重复的系统工具；原因是降低碎片化和维护成本，同时保留 44 个有价值的旧功能入口。
 - AI 插件共享供应商、密钥、流式请求、取消和超时能力，但不共享页面结构；原因是安全逻辑需要集中维护，而用户明确要求每个插件保持独立设计。
 - AI 供应商配置采用一个共享目录而不是每个插件独立维护；原因是供应商和密钥应一次配置、多处复用，同时每次请求仍需显式传递当前模型选择，避免切换配置时互相覆盖。
+- 总指挥能力目录以当前安装插件的 `plugin.json` 为事实源，不维护一份固定的普通工具清单；原因是程序小店插件会增删升级，本地能力必须随安装状态变化。少量同义词只用于弥补自然语言与功能名称不同序，不替代插件清单。
 - 30 个插件图标参考 Icon-Icons 的 Tabler 图标包，但从 Tabler 官方 MIT 源获取并在每个插件保存来源与许可证；原因是保证授权清晰且可追溯。
 
 ## 已知陷阱与可靠处理方式
 
 - 不能只检查插件源码是否存在；新增插件完成后必须运行 Electron 冒烟测试，验证真实 BrowserWindow 加载和三种窗口尺寸。
 - 插件 preload 中裸调用 `contextBridge.exposeInMainWorld` 在 `contextIsolation: false` 的插件窗口必然抛错并记录 "Unable to load preload script"；必须 try/catch 并回退挂载到 `window`（2026-08-15 已在余汉波AI助手修复，老插件末尾遗留一处裸调用是历史报错根因）。
+- 密码管理器删除单条账号或重置整库时不得连续使用同步存储 IPC；同步磁盘写入会阻塞交互，多键清理应使用异步删除通道、忙碌态和防重入，并在删除后同步搜索派生缓存（2026-09-21 已通过定向 Electron 交互回归）。
 - `main.js` 的 `plugin-secret-get` 返回 `{ value, encryptionAvailable }` 对象；渲染层必须解包 `.value` 后再拼请求头，否则服务端收到 `Bearer [object Object]` 并报鉴权失败（2026-08-15 已在共享 AI Runtime 修复并通过 mock 测试）。
 - 超级面板选区采集曾把“捕获到的选中图片”随剪贴板快照恢复一起清掉；2026-08-15 起 `captureSelectedTextForPanel` 检测到选中图片时改写回该图片，图片类插件需在 `plugin-enter` 时自行读取剪贴板（AI 图片理解已接入，并支持拖放/Ctrl+V）。
 - 文件修改、批量重命名、Hosts 等破坏性能力必须先预览、备份、二次确认，并明确反馈失败；测试只能使用临时目录。
@@ -72,6 +79,7 @@
 - 主进程复用已加载的插件窗口时，不能无条件等待新的 `dom-ready`；总指挥派发统一通过 `waitForPluginWindowReady()` 检查真实加载状态，并对加载失败和 10 秒超时显式报错。派发卡片再次打开目标插件时必须传 `autoRun:false`，避免重复调用付费模型（2026-09-03 已通过 Node 回归与 Electron 定向冒烟）。
 - `tool-runtime.saveResult()` 会自行打开保存对话框；页面不得先调用 `chooseSavePath()` 再调用它。只有由具体任务直接写入 `options.output` 时才先选择路径。
 - `createToolRuntime()` 会按 `allowedTools` 拒绝跨套件工具 ID；页面需要的小型展示逻辑应本地实现，不能随意调用其他套件的 `runTask`。
+- `better-sqlite3` 是 Electron 原生模块，普通 Node 24 ABI 产物不能直接供 Electron 25 使用；依赖安装后必须由 `electron-builder install-app-deps` 按 Electron ABI 重建，并在打包配置中同时保留和解包 `better-sqlite3`、`bindings`、`file-uri-to-path`。
 
 ## 待确认或可能过期的信息
 
@@ -100,3 +108,6 @@
 | 2026-09-20 | 修复 OpenAI OAuth 模型能力导入：兼容 OpenCode 新版 `capabilities.input` 与旧版 `modalities.input`，使 GPT-5.6 Luna/Luna Fast 正确进入视觉模型目录 | `tests/opencode-runtime.test.js`、真实本机 `/provider` 目录、`npm run test:plugins`、`npm run test:plugins:electron` |
 | 2026-09-20 | OpenCode 上游首请求可能偶发 `unknown certificate verification error`；仅对明确的临时 TLS/网络错误以新会话最多尝试 3 次，不关闭证书校验，模型不支持等业务错误不得重试 | `tests/opencode-runtime.test.js`、开发版 AI 文档阅读器 `gpt-5.6-luna-fast` 连续 3 次真实调用 |
 | 2026-09-20 | 内置插件启动同步由“同名只保留本地”改为版本优先更新：高版本覆盖、低版本不降级、同版本按更新时间决定；替换使用临时副本与可恢复备份并保留本地独有插件 | `tests/plugin-store.test.js`、`npm run test:plugins`、`npm run test:plugins:electron` |
+| 2026-09-21 | 修复密码管理器同步删除导致界面卡死，并覆盖整库重置、派生缓存、导入列错位与安全渲染 | `npm run test:password-plugin`、`npm run test:plugins`、`npm run test:plugins:electron` |
+| 2026-09-21 | 新增无需 Python 的 SQLite 数据表管理器、指定列/整表查询策略及 Electron 原生驱动约束 | `npm run postinstall`、`npm run test:account-plugin`、`npm run test:plugins`、`npm run test:plugins:electron` |
+| 2026-09-21 | 总指挥改为动态检索已安装插件、本地工具优先、明确 AI 意图覆盖，并增加低置信度歧义保护 | `tests/commander-router.test.js`、`npm run test:plugins`、`npm run test:plugins:electron` |

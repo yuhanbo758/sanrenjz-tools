@@ -45,22 +45,31 @@ async function inspectCommanderDelegation(){
   commanderDispatches.length=0;
   const uiState=await win.webContents.executeJavaScript(`(async()=>{
     const input=document.getElementById('promptInput');
+    input.value='我需要将图片改成ico，调用插件';
+    await sendMessage();
+    const localCard=document.querySelector('.delegate-card');
+    const localStatus=localCard?.querySelector(':scope>div:nth-child(2)')?.textContent||'';
+    document.getElementById('chatContainer').innerHTML='';
     input.value='会议总结：项目已完成验收，下周开始上线准备。';
     await sendMessage();
     const openButton=document.querySelector('.delegate-card .delegate-actions button:nth-child(2)');
     if(!openButton)throw new Error('未生成总指挥派发卡片');
     openButton.click();
     await new Promise(resolve=>setTimeout(resolve,50));
-    return{buttonText:openButton.textContent,status:document.querySelector('.delegate-card>div:nth-child(2)')?.textContent||''};
+    return{localStatus,buttonText:openButton.textContent,status:document.querySelector('.delegate-card>div:nth-child(2)')?.textContent||''};
   })()`);
   win.destroy();
 
-  assert.strictEqual(commanderDispatches.length,2,'总指挥首次派发和再次打开应各产生一次 IPC');
-  assert.strictEqual(commanderDispatches[0].action.feature.code,'plugin-market-ai-meeting');
-  assert.strictEqual(commanderDispatches[0].action.feature.args.autoRun,true,'首次派发必须自动执行会议总结');
-  assert.strictEqual(commanderDispatches[1].action.feature.args.autoRun,false,'再次打开不得重复调用模型');
-  assert.ok(commanderDispatches[0].action.pluginPath.endsWith(path.join('app','software','sanrenjz-tools-ai-meeting')));
-  assert.ok(commanderDispatches[0].clipboardText.includes('会议总结'));
+  assert.strictEqual(commanderDispatches.length,3,'本地工具、AI 首次派发和再次打开应各产生一次 IPC');
+  assert.strictEqual(commanderDispatches[0].action.feature.code,'plugin-market-image-converter');
+  assert.strictEqual(commanderDispatches[0].action.feature.args.autoRun,false,'普通本地工具只打开功能，不自动执行');
+  assert.ok(commanderDispatches[0].action.pluginPath.endsWith(path.join('app','software','sanrenjz-tools-image-optimizer')));
+  assert.strictEqual(commanderDispatches[1].action.feature.code,'plugin-market-ai-meeting');
+  assert.strictEqual(commanderDispatches[1].action.feature.args.autoRun,true,'首次派发必须自动执行会议总结');
+  assert.strictEqual(commanderDispatches[2].action.feature.args.autoRun,false,'再次打开不得重复调用模型');
+  assert.ok(commanderDispatches[1].action.pluginPath.endsWith(path.join('app','software','sanrenjz-tools-ai-meeting')));
+  assert.ok(commanderDispatches[1].clipboardText.includes('会议总结'));
+  assert.ok(uiState.localStatus.includes('格式转换'));
   assert.strictEqual(uiState.buttonText,'打开插件');
   assert.ok(uiState.status.includes('未重复调用模型'));
 }

@@ -640,7 +640,7 @@
             font-weight: 600;
         }
 
-        /* 总指挥派发卡片：显示任务已移交哪个 AI 插件 */
+        /* 总指挥派发卡片：显示本地工具打开或 AI 任务移交状态 */
         .delegate-card {
             max-width: 80%;
             margin: 8px 0;
@@ -748,7 +748,7 @@
             <label>总指挥模式</label>
             <div style="display:flex;align-items:center;gap:8px;">
                 <input type="checkbox" id="commanderEnabled" checked>
-                <span style="font-size:13px;color:#6b7280;">发送内容命中其他 AI 插件任务（如"会议总结"、"代码审查"）时，自动移交给对应插件处理</span>
+                <span style="font-size:13px;color:#6b7280;">优先检索并打开能完成任务的本地插件；本地工具无法处理或明确要求 AI 时，再交给 AI 插件或本助手</span>
             </div>
         </div>
 
@@ -874,6 +874,7 @@
     </div>
 
     <script src="../../plugin_runtime/ai-provider-manager.js"></script>
+    <script src="../../plugin_runtime/commander-router.js"></script>
     <script>
         // 聊天历史数组
         let chatHistory = [];
@@ -882,38 +883,14 @@
         let lastAtPosition = -1;
         let currentFile = null; // 当前选择的文件
 
-        // 总指挥路由表：关键词命中后移交对应 AI 插件处理。
-        // keywords 使用保守措辞避免误路由；trigger 为目标插件"开始处理"按钮的选择器；
-        // autoRun=false 的插件只填入内容，由用户在其界面继续操作（如文档问答需要追问）。
-        const DELEGATE_TARGETS = [
-            { id: 'meeting',   name: 'AI 会议纪要',   folder: 'sanrenjz-tools-ai-meeting',     feature: 'plugin-market-ai-meeting',     trigger: '#genBtn',     keywords: ['会议总结', '会议纪要', '会议记录', '整理会议', '开会纪要'] },
-            { id: 'writing',   name: 'AI 写作工作室', folder: 'sanrenjz-tools-ai-writing',     feature: 'plugin-market-ai-writing',     trigger: '#genBtn',     keywords: ['润色', '改写一下', '帮我改写', '扩写', '缩写', '生成标题', '起个标题'] },
-            { id: 'review',    name: 'AI 代码审查',   folder: 'sanrenjz-tools-ai-code-review', feature: 'plugin-market-ai-code-review', trigger: '#reviewBtn',  keywords: ['代码审查', '审查代码', '代码评审', 'code review', '检查代码'] },
-            { id: 'git',       name: 'AI Git 助手',   folder: 'sanrenjz-tools-ai-git',         feature: 'plugin-market-ai-git',         trigger: '#genBtn',     keywords: ['提交信息', 'commit message', 'git commit', '生成提交说明'] },
-            { id: 'regex',     name: 'AI 正则工坊',   folder: 'sanrenjz-tools-ai-regex',       feature: 'plugin-market-ai-regex',       trigger: '#genBtn',     keywords: ['正则表达式', '写个正则', '写一段正则', '正则匹配'] },
-            { id: 'sql',       name: 'AI SQL 助手',   folder: 'sanrenjz-tools-ai-sql',         feature: 'plugin-market-ai-sql',         trigger: '#genBtn',     keywords: ['写sql', '写 sql', 'sql语句', 'sql 语句', '生成sql', '生成 sql', '查询语句'] },
-            { id: 'prompt',    name: 'AI 提示词工坊', folder: 'sanrenjz-tools-ai-prompt',      feature: 'plugin-market-ai-prompt',      trigger: '#optBtn',     keywords: ['优化提示词', '提示词优化', '写个提示词', '生成提示词'] },
-            { id: 'learning',  name: 'AI 学习助手',   folder: 'sanrenjz-tools-ai-learning',    feature: 'plugin-market-ai-learning',    trigger: '#genBtn',     keywords: ['制定学习计划', '学习计划', '费曼学习', '出几道题', '出练习题'] },
-            { id: 'document',  name: 'AI 文档速读',   folder: 'sanrenjz-tools-ai-document',    feature: 'plugin-market-ai-document',    trigger: null,          keywords: ['总结文档', '文档总结', '读一下文档', '文档速读'] }
-        ];
+        const DELEGATE_TARGETS = CommanderRouter.DEFAULT_AI_TARGETS;
 
-        // 意图检测：返回命中的目标插件（多目标命中时取关键词最长的一个，更具体者优先）
-        function detectDelegation(message) {
+        // 每次发送前读取当前插件目录，保证新安装插件无需重启助手即可参与能力匹配。
+        async function detectDelegation(message) {
             const settings = window.services.getSettings();
             if (settings.commanderEnabled === false) return null;
-            const text = String(message || '').toLowerCase();
-            if (!text) return null;
-            let best = null;
-            let bestKeywordLength = 0;
-            for (const target of DELEGATE_TARGETS) {
-                for (const keyword of target.keywords) {
-                    if (text.includes(keyword.toLowerCase()) && keyword.length > bestKeywordLength) {
-                        best = target;
-                        bestKeywordLength = keyword.length;
-                    }
-                }
-            }
-            return best;
+            const installedPlugins = await window.services.listInstalledPluginCapabilities();
+            return CommanderRouter.detectCommanderRoute(message, installedPlugins, DELEGATE_TARGETS);
         }
 
         // 渲染派发卡片：显示移交目标与状态；失败或需要时可一键改由本助手直接回答
@@ -922,7 +899,9 @@
             card.className = 'delegate-card';
             const title = document.createElement('div');
             title.className = 'delegate-title';
-            title.textContent = '总指挥：正在移交给「' + target.name + '」处理…';
+            title.textContent = target.kind === 'local'
+                ? '总指挥：正在打开本地插件「' + target.name + '」…'
+                : '总指挥：正在移交给「' + target.name + '」处理…';
             const status = document.createElement('div');
             const actions = document.createElement('div');
             actions.className = 'delegate-actions';
@@ -961,12 +940,20 @@
             return {
                 done(result) {
                     if (result && result.success) {
-                        title.textContent = '总指挥：已移交给「' + target.name + '」处理';
-                        status.textContent = '内容已填入并自动开始，请在该插件窗口查看结果。';
+                        if (target.kind === 'local') {
+                            title.textContent = '总指挥：已打开本地插件「' + target.name + '」';
+                            status.textContent = '已定位到「' + (target.featureName || '匹配功能') + '」，请在插件窗口中继续操作。';
+                        } else if (target.autoRun === false) {
+                            title.textContent = '总指挥：已打开「' + target.name + '」';
+                            status.textContent = '内容已填入，请在插件窗口中确认后继续。';
+                        } else {
+                            title.textContent = '总指挥：已移交给「' + target.name + '」处理';
+                            status.textContent = '内容已填入并自动开始，请在该插件窗口查看结果。';
+                        }
                         reopenBtn.style.display = '';
                     } else {
                         card.classList.add('error');
-                        title.textContent = '总指挥：移交给「' + target.name + '」失败';
+                        title.textContent = '总指挥：打开「' + target.name + '」失败';
                         status.textContent = (result && result.error) ? result.error : '未知错误，可改由本助手回答。';
                     }
                 }
@@ -1499,15 +1486,20 @@
             // 检查是否有消息或文件
             if (!message && !currentFile) return;
 
-            // 总指挥路由：无附件且命中关键词时，移交对应 AI 插件处理
+            // 总指挥路由：无附件时先检索本地工具，再按需移交 AI 插件。
             if (!forceLocal && !presetMessage && !currentFile) {
-                const route = detectDelegation(message);
+                const route = await detectDelegation(message);
                 if (route) {
                     addMessage(message, true);
                     input.value = '';
                     input.style.height = 'auto';
                     const card = addDispatchCard(route, message);
-                    const result = await window.services.delegateToPlugin(route.folder, route.feature, message);
+                    const result = await window.services.delegateToPlugin(
+                        route.folder,
+                        route.feature,
+                        message,
+                        { autoRun: route.autoRun !== false }
+                    );
                     card.done(result);
                     return;
                 }

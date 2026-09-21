@@ -1,7 +1,7 @@
 {
   "pluginName": "密码管理器",
   "description": "安全的密码存储和管理工具，支持完全自定义分类管理、数据导入导出、密码生成、搜索和锁屏保护功能。侧边栏底部按钮已优化布局。",
-  "version": "1.6.3",
+  "version": "1.6.4",
   "author": "余汉波",
   "category": "网络安全",
   "main": "index.html",
@@ -24,4 +24,4 @@
     "autoHideMenuBar": true,
     "menuBarVisible": false
   }
-} 
+}

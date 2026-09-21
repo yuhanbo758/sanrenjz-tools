@@ -42,6 +42,15 @@ class AppStorage {
         }
     }
 
+    // 删除账号或整库清理时使用异步 IPC，避免同步磁盘写入阻塞插件窗口。
+    setAsync(key, value) {
+        return ipcRenderer.invoke('plugin-storage-set-async', this.pluginName, key, value);
+    }
+
+    removeAsync(key) {
+        return ipcRenderer.invoke('plugin-storage-remove-async', this.pluginName, key);
+    }
+
     // 获取分类数据
     getCategoryData(category) {
         const data = this.get(`category_${category}`);
@@ -79,31 +88,43 @@ class AppStorage {
         return this.set('customCategories', JSON.stringify(categories));
     }
 
-    // 清空所有数据
-    clearAllData() {
-        try {
-            // 删除开屏密码
-            this.removeLockPassword();
-            
-            // 获取所有分类（包括自定义分类）
-            const allCategories = [...defaultCategories, ...this.getCustomCategories()];
-            
-            // 清空所有分类的数据
-            allCategories.forEach(category => {
-                this.remove(`category_${category}`);
-            });
-            
-            // 清空自定义分类
-            this.remove('customCategories');
-            
-            // 清空默认分类设置
-            this.remove('defaultCategories');
-            
-            return true;
-        } catch (error) {
-            console.error('清空数据失败:', error);
-            return false;
+    async clearAllDataAsync() {
+        const allCategories = [...new Set([...defaultCategories, ...this.getCustomCategories()])];
+        const keys = [
+            ...allCategories.map(category => `category_${category}`),
+            'customCategories',
+            'defaultCategories',
+            'categoryOrder',
+            'uiState',
+            // 最后删除开屏密码；中途失败时用户仍能重新进入并备份尚未清除的数据。
+            'lockPassword'
+        ];
+
+        for (const key of keys) {
+            const success = await this.removeAsync(key);
+            if (!success) {
+                throw new Error(`删除存储项失败：${key}`);
+            }
         }
+        return true;
+    }
+
+    // 覆盖导入只清理账号记录，不删除当前开屏密码和派生密钥。
+    async clearPasswordData() {
+        const allCategories = [...new Set([...defaultCategories, ...this.getCustomCategories()])];
+        const keys = [
+            ...allCategories.map(category => `category_${category}`),
+            'customCategories',
+            'categoryOrder',
+            'uiState'
+        ];
+        for (const key of keys) {
+            const success = await this.removeAsync(key);
+            if (!success) {
+                throw new Error(`删除存储项失败：${key}`);
+            }
+        }
+        return true;
     }
 }
 
@@ -247,7 +268,7 @@ class PasswordDatabase {
             return `v2:${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted.toString('hex')}`;
         } catch (error) {
             console.error('密码加密失败:', error);
-            return password;
+            throw error;
         }
     }
 
@@ -295,19 +316,23 @@ class PasswordDatabase {
     addPassword(password) {
         try {
             const existingData = appStorage.getCategoryData(password.category) || [];
-            password.id = Date.now().toString();
-            password.createdAt = new Date().toISOString();
-            password.updatedAt = new Date().toISOString();
+            const plainItem = {
+                ...password,
+                id: `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            const storedItem = { ...plainItem };
             
             // 加密密码和API密钥
-            password.password = this.encryptPassword(password.password);
-            if (password.apiKey) {
-                password.apiKey = this.encryptPassword(password.apiKey);
+            storedItem.password = this.encryptPassword(plainItem.password);
+            if (plainItem.apiKey) {
+                storedItem.apiKey = this.encryptPassword(plainItem.apiKey);
             }
             
-            existingData.push(password);
-            appStorage.setCategoryData(password.category, existingData);
-            return password;
+            existingData.push(storedItem);
+            appStorage.setCategoryData(plainItem.category, existingData);
+            return plainItem;
         } catch (error) {
             console.error('添加密码失败:', error);
             throw error;
@@ -357,7 +382,11 @@ class PasswordDatabase {
             if (sourceCategory === updatedItem.category) {
                 sourceData[index] = updatedItem;
                 appStorage.setCategoryData(sourceCategory, sourceData);
-                return updatedItem;
+                return {
+                    ...updatedItem,
+                    password: updatedPassword.password,
+                    apiKey: updatedPassword.apiKey || ''
+                };
             }
 
             // 分类已改变：从原分类删除并追加到新分类
@@ -368,7 +397,11 @@ class PasswordDatabase {
             targetData.push(updatedItem);
             appStorage.setCategoryData(updatedItem.category, targetData);
 
-            return updatedItem;
+            return {
+                ...updatedItem,
+                password: updatedPassword.password,
+                apiKey: updatedPassword.apiKey || ''
+            };
         } catch (error) {
             console.error('更新密码失败:', error);
             throw error;
@@ -403,11 +436,17 @@ class PasswordDatabase {
     }
 
     // 删除密码
-    deletePassword(passwordId, category) {
+    async deletePassword(passwordId, category) {
         try {
             const existingData = appStorage.getCategoryData(category) || [];
             const filteredData = existingData.filter(p => p.id !== passwordId);
-            appStorage.setCategoryData(category, filteredData);
+            if (filteredData.length === existingData.length) {
+                throw new Error('密码项不存在或已被删除');
+            }
+            const success = await appStorage.setAsync(`category_${category}`, JSON.stringify(filteredData));
+            if (!success) {
+                throw new Error('保存删除结果失败');
+            }
             return true;
         } catch (error) {
             console.error('删除密码失败:', error);
@@ -846,14 +885,37 @@ function removeActivityListeners() {
 /**
  * 重置开屏密码
  */
-function resetLockPassword() {
+let isResettingVault = false;
+
+async function resetLockPassword() {
+    if (isResettingVault) return;
     if (confirm('⚠️ 确定要重置开屏密码吗？\n\n警告：这将删除所有保存的密码数据，且无法恢复！\n\n请确认您已经备份了重要的密码信息。')) {
-        const success = appStorage.clearAllData();
-        if (success) {
+        const button = document.getElementById('resetLockPasswordButton');
+        isResettingVault = true;
+        if (button) {
+            button.disabled = true;
+            button.textContent = '正在清空…';
+        }
+        try {
+            await appStorage.clearAllDataAsync();
+            encryptionKey = null;
+            passwords = [];
+            categories = [];
+            currentPassword = null;
+            searchResults = [];
+            currentSearchCategory = null;
+            searchMode = false;
             showSetupScreen();
             showNotification('密码已重置，所有数据已清空，请设置新密码');
-        } else {
-            showNotification('重置失败，请重试', 'error');
+        } catch (error) {
+            console.error('重置密码失败:', error);
+            showNotification(`重置失败：${error.message}`, 'error');
+        } finally {
+            isResettingVault = false;
+            if (button) {
+                button.disabled = false;
+                button.textContent = '重置密码';
+            }
         }
     }
 }
@@ -969,17 +1031,6 @@ function confirmAddCategory() {
         loadCategories();
         updateCategorySelect();
 
-        // 修复：搜索模式下删除分类后，同步清理过期的搜索结果，
-        // 否则列表仍会显示已随分类删除的条目，且分类筛选可能指向不存在的分类
-        if (searchMode) {
-            searchResults = searchResults.filter(p => p.category !== categoryName);
-            if (currentSearchCategory === categoryName) {
-                currentSearchCategory = null;
-            }
-            updateSearchHeader();
-            renderCurrentPasswords();
-        }
-        
         // 如果分类管理界面是打开的，刷新它
         const categoryModal = document.getElementById('categoryModal');
         if (categoryModal && categoryModal.classList.contains('show')) {
@@ -1038,6 +1089,16 @@ function deleteCategory(categoryName) {
 
         categories = [...defaultCategories, ...appStorage.getCustomCategories()];
         saveCategoryOrder();
+
+        // 删除分类会连带删除其中账号，必须同步清理搜索派生数据。
+        if (searchMode) {
+            searchResults = searchResults.filter(item => item.category !== categoryName);
+            if (currentSearchCategory === categoryName) {
+                currentSearchCategory = null;
+            }
+            updateSearchHeader();
+            renderCurrentPasswords();
+        }
         
         // 如果当前分类被删除，切换到第一个可用分类
         if (currentCategory === categoryName) {
@@ -1092,21 +1153,33 @@ function renderCategoryManager() {
         
         const categoryElement = document.createElement('div');
         categoryElement.className = 'category-manager-item';
-        categoryElement.innerHTML = `
-            <div class="category-manager-info">
-                <div class="category-manager-name">
-                    ${category}
-                    ${isDefault ? '<span class="default-badge">默认</span>' : '<span class="custom-badge">自定义</span>'}
-                </div>
-                <div class="category-manager-count">${count} 个密码</div>
-            </div>
-            <div class="category-manager-actions">
-                ${canDelete ? 
-                    `<button class="btn btn-danger btn-small" onclick="deleteCategory('${category}')">删除</button>` : 
-                    `<button class="btn btn-danger btn-small" disabled title="至少需要保留一个分类">删除</button>`
-                }
-            </div>
-        `;
+        const info = document.createElement('div');
+        info.className = 'category-manager-info';
+        const name = document.createElement('div');
+        name.className = 'category-manager-name';
+        name.append(document.createTextNode(category));
+        const badge = document.createElement('span');
+        badge.className = isDefault ? 'default-badge' : 'custom-badge';
+        badge.textContent = isDefault ? '默认' : '自定义';
+        name.appendChild(badge);
+        const countElement = document.createElement('div');
+        countElement.className = 'category-manager-count';
+        countElement.textContent = `${count} 个密码`;
+        info.append(name, countElement);
+
+        const actions = document.createElement('div');
+        actions.className = 'category-manager-actions';
+        const deleteButton = document.createElement('button');
+        deleteButton.className = 'btn btn-danger btn-small';
+        deleteButton.textContent = '删除';
+        deleteButton.disabled = !canDelete;
+        if (canDelete) {
+            deleteButton.addEventListener('click', () => deleteCategory(category));
+        } else {
+            deleteButton.title = '至少需要保留一个分类';
+        }
+        actions.appendChild(deleteButton);
+        categoryElement.append(info, actions);
         
         categoryManagerList.appendChild(categoryElement);
     });
@@ -1141,10 +1214,13 @@ function renderCategories() {
 
         const categoryElement = document.createElement('div');
         categoryElement.className = `category-item ${isActive ? 'active' : ''}`;
-        categoryElement.innerHTML = `
-            <span class="category-name">${category}</span>
-            <span class="category-count">${count}</span>
-        `;
+        const categoryName = document.createElement('span');
+        categoryName.className = 'category-name';
+        categoryName.textContent = category;
+        const categoryCount = document.createElement('span');
+        categoryCount.className = 'category-count';
+        categoryCount.textContent = String(count);
+        categoryElement.append(categoryName, categoryCount);
         categoryElement.setAttribute('draggable', 'true');
         categoryElement.dataset.category = category;
         
@@ -1303,17 +1379,28 @@ function renderPasswords(passwordList) {
     passwordList.forEach(password => {
         const passwordElement = document.createElement('div');
         passwordElement.className = `password-item ${currentPassword && currentPassword.id === password.id ? 'active' : ''}`;
-        passwordElement.innerHTML = `
-            <div class="password-icon">${password.title.charAt(0).toUpperCase()}</div>
-            <div class="password-info">
-                <div class="password-title">${password.title}</div>
-                <div class="password-username">${password.username || '无用户名'}</div>
-            </div>
-            <div class="password-actions">
-                <!-- 函数级注释：复制密码按钮调用 copyPasswordToClipboard，开启敏感内容的剪贴板自动清除 -->
-                <button class="action-btn copy-btn" onclick="copyPasswordToClipboard('${password.password}')" title="复制密码">📋</button>
-            </div>
-        `;
+        const icon = document.createElement('div');
+        icon.className = 'password-icon';
+        icon.textContent = String(password.title || '?').charAt(0).toUpperCase();
+        const info = document.createElement('div');
+        info.className = 'password-info';
+        const title = document.createElement('div');
+        title.className = 'password-title';
+        title.textContent = password.title || '未命名条目';
+        const username = document.createElement('div');
+        username.className = 'password-username';
+        username.textContent = password.username || '无用户名';
+        info.append(title, username);
+        const actions = document.createElement('div');
+        actions.className = 'password-actions';
+        const copyButton = document.createElement('button');
+        copyButton.className = 'action-btn copy-btn';
+        copyButton.type = 'button';
+        copyButton.title = '复制密码';
+        copyButton.textContent = '📋';
+        copyButton.addEventListener('click', () => copyPasswordToClipboard(password.password));
+        actions.appendChild(copyButton);
+        passwordElement.append(icon, info, actions);
 
         // 启用密码条目拖拽到左侧分类以变更分类
         passwordElement.setAttribute('draggable', 'true');
@@ -1349,6 +1436,11 @@ function addNewPassword() {
     document.getElementById('passwordTitle').value = '';
     document.getElementById('passwordUsername').value = '';
     document.getElementById('passwordValue').value = '';
+    const apiKeyInput = document.getElementById('apiKeyValue');
+    if (apiKeyInput) {
+        apiKeyInput.value = '';
+        updateApiKeyStrengthIndicator();
+    }
     document.getElementById('passwordUrl').value = '';
     document.getElementById('passwordNotes').value = '';
     document.getElementById('passwordCategory').value = currentCategory;
@@ -1487,17 +1579,24 @@ function saveCurrentPassword() {
 /**
  * 删除当前密码
  */
-function deleteCurrentPassword() {
-    if (!currentPassword) return;
+let isDeletingPassword = false;
+
+async function deleteCurrentPassword() {
+    if (!currentPassword || isDeletingPassword) return;
     
     if (confirm('确定要删除这个密码记录吗？')) {
+        const deleteButton = document.getElementById('deletePasswordButton');
+        isDeletingPassword = true;
+        if (deleteButton) {
+            deleteButton.disabled = true;
+            deleteButton.textContent = '删除中…';
+        }
         try {
             // 先记录待删除条目的关键信息，clearPasswordDetail 会把 currentPassword 置空
             const deletedId = currentPassword.id;
             const deletedCategory = currentPassword.category;
 
-            db.deletePassword(deletedId, deletedCategory);
-            clearPasswordDetail();
+            await db.deletePassword(deletedId, deletedCategory);
 
             if (searchMode) {
                 // 修复：搜索模式下必须同步移除已删除条目，否则会出现“幽灵条目”，
@@ -1521,9 +1620,16 @@ function deleteCurrentPassword() {
                 loadPasswords(currentCategory);
                 renderCategories(); // 更新分类计数
             }
+            clearPasswordDetail();
             showNotification('密码已删除');
         } catch (error) {
             showNotification('删除失败：' + error.message, 'error');
+        } finally {
+            isDeletingPassword = false;
+            if (deleteButton) {
+                deleteButton.disabled = false;
+                deleteButton.textContent = '删除';
+            }
         }
     }
 }
@@ -1830,8 +1936,8 @@ function runInternalTests() {
     try {
         console.group('密码管理器插件自检');
         const weak = evaluateApiKeyStrength('123456');
-        const medium = evaluateApiKeyStrength('1234567890abcdef');
-        const strong = evaluateApiKeyStrength('A1b2C3d4E5f6!@#');
+        const medium = evaluateApiKeyStrength('12345678Abcdefgh');
+        const strong = evaluateApiKeyStrength('A1b2C3d4E5f6G7h8I9j0!@#$');
         console.assert(weak.level === 'weak', '弱密钥评估结果异常');
         console.assert(medium.level === 'medium' || medium.level === 'strong', '中等密钥评估结果异常');
         console.assert(strong.level === 'strong', '强密钥评估结果异常');
@@ -2280,7 +2386,7 @@ function importData() {
     const skipDuplicates = document.getElementById('skipDuplicates').checked;
     
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = async function(e) {
         try {
             const content = e.target.result;
             const extension = file.name.split('.').pop().toLowerCase();
@@ -2294,12 +2400,12 @@ function importData() {
             let importResult;
             switch (extension) {
                 case 'json':
-                    importResult = importFromDatabase(content, mergeImport, skipDuplicates);
+                    importResult = await importFromDatabase(content, mergeImport, skipDuplicates);
                     break;
                 case 'db':
                     // 对于.db扩展名，尝试作为JSON解析（兼容本应用导出的格式）
                     try {
-                        importResult = importFromDatabase(content, mergeImport, skipDuplicates);
+                        importResult = await importFromDatabase(content, mergeImport, skipDuplicates);
                     } catch (error) {
                         if (error.message.includes('Unexpected token')) {
                             showNotification('该.db文件似乎是SQLite数据库格式，当前不支持。请导出为JSON、CSV或TXT格式后重试。', 'error');
@@ -2309,10 +2415,10 @@ function importData() {
                     }
                     break;
                 case 'csv':
-                    importResult = importFromCSV(content, mergeImport, skipDuplicates);
+                    importResult = await importFromCSV(content, mergeImport, skipDuplicates);
                     break;
                 case 'txt':
-                    importResult = importFromTXT(content, mergeImport, skipDuplicates);
+                    importResult = await importFromTXT(content, mergeImport, skipDuplicates);
                     break;
                 default:
                     showNotification('不支持的文件格式。支持格式：JSON、CSV、TXT', 'error');
@@ -2367,15 +2473,12 @@ function importData() {
 /**
  * 从数据库格式导入
  */
-function importFromDatabase(content, mergeImport, skipDuplicates) {
+async function importFromDatabase(content, mergeImport, skipDuplicates) {
     try {
         const importData = JSON.parse(content);
         
         if (!mergeImport) {
-            // 清空现有数据
-            appStorage.clearAllData();
-            // 重新初始化
-            db.initDatabase();
+            await resetPasswordDataForImport();
         }
         
         let imported = 0;
@@ -2383,16 +2486,9 @@ function importFromDatabase(content, mergeImport, skipDuplicates) {
         
         // 导入分类
         if (importData.customCategories) {
-            const existingCustomCategories = appStorage.getCustomCategories();
-            const newCustomCategories = [...existingCustomCategories];
-            
             importData.customCategories.forEach(category => {
-                if (!categories.includes(category)) {
-                    newCustomCategories.push(category);
-                }
+                ensureCategoryExists(category);
             });
-            
-            appStorage.setCustomCategories(newCustomCategories);
         }
         
         // 导入密码数据
@@ -2405,11 +2501,7 @@ function importFromDatabase(content, mergeImport, skipDuplicates) {
                 
                 try {
                     // 确保分类存在
-                    if (!categories.includes(item.category)) {
-                        const customCategories = appStorage.getCustomCategories();
-                        customCategories.push(item.category);
-                        appStorage.setCustomCategories(customCategories);
-                    }
+                    item.category = ensureCategoryExists(item.category);
                     
                     db.addPassword(item);
                     imported++;
@@ -2429,12 +2521,10 @@ function importFromDatabase(content, mergeImport, skipDuplicates) {
 /**
  * 从CSV格式导入
  */
-function importFromCSV(content, mergeImport, skipDuplicates) {
+async function importFromCSV(content, mergeImport, skipDuplicates) {
     try {
         if (!mergeImport) {
-            // 清空现有数据
-            appStorage.clearAllData();
-            db.initDatabase();
+            await resetPasswordDataForImport();
         }
         
         const lines = content.split('\n');
@@ -2449,15 +2539,18 @@ function importFromCSV(content, mergeImport, skipDuplicates) {
             const fields = parseCSVLine(line);
             if (fields.length < 8) continue;
             
+            // 兼容旧版 8 列 CSV；当前版本第 4 列为 API 密钥，共 9 列。
+            const hasApiKeyColumn = fields.length >= 9;
             const item = {
                 title: fields[0],
                 username: fields[1],
                 password: fields[2],
-                url: fields[3],
-                category: fields[4],
-                notes: fields[5],
-                createdAt: fields[6] || new Date().toISOString(),
-                updatedAt: fields[7] || new Date().toISOString()
+                apiKey: hasApiKeyColumn ? fields[3] : '',
+                url: fields[hasApiKeyColumn ? 4 : 3],
+                category: fields[hasApiKeyColumn ? 5 : 4],
+                notes: fields[hasApiKeyColumn ? 6 : 5],
+                createdAt: fields[hasApiKeyColumn ? 7 : 6] || new Date().toISOString(),
+                updatedAt: fields[hasApiKeyColumn ? 8 : 7] || new Date().toISOString()
             };
             
             if (skipDuplicates && isDuplicate(item)) {
@@ -2467,11 +2560,7 @@ function importFromCSV(content, mergeImport, skipDuplicates) {
             
             try {
                 // 确保分类存在
-                if (!categories.includes(item.category)) {
-                    const customCategories = appStorage.getCustomCategories();
-                    customCategories.push(item.category);
-                    appStorage.setCustomCategories(customCategories);
-                }
+                item.category = ensureCategoryExists(item.category);
                 
                 db.addPassword(item);
                 imported++;
@@ -2496,12 +2585,10 @@ function importFromCSV(content, mergeImport, skipDuplicates) {
  * 1. 原有格式：记录分隔的格式
  * 2. 新格式：【标题】用户名：xxx 密码：xxx 说明：xxx
  */
-function importFromTXT(content, mergeImport, skipDuplicates) {
+async function importFromTXT(content, mergeImport, skipDuplicates) {
     try {
         if (!mergeImport) {
-            // 清空现有数据
-            appStorage.clearAllData();
-            db.initDatabase();
+            await resetPasswordDataForImport();
         }
         
         let imported = 0;
@@ -2526,6 +2613,7 @@ function importFromTXT(content, mergeImport, skipDuplicates) {
                     if (trimmed.startsWith('标题: ')) item.title = trimmed.substring(3);
                     else if (trimmed.startsWith('用户名: ')) item.username = trimmed.substring(4);
                     else if (trimmed.startsWith('密码: ')) item.password = trimmed.substring(3);
+                    else if (trimmed.startsWith('API密钥: ')) item.apiKey = trimmed.substring(7);
                     else if (trimmed.startsWith('网址: ')) item.url = trimmed.substring(3);
                     else if (trimmed.startsWith('分类: ')) item.category = trimmed.substring(3);
                     else if (trimmed.startsWith('备注: ')) item.notes = trimmed.substring(3);
@@ -2542,11 +2630,7 @@ function importFromTXT(content, mergeImport, skipDuplicates) {
                 
                 try {
                     // 确保分类存在
-                    if (!categories.includes(item.category)) {
-                        const customCategories = appStorage.getCustomCategories();
-                        customCategories.push(item.category);
-                        appStorage.setCustomCategories(customCategories);
-                    }
+                    item.category = ensureCategoryExists(item.category);
                     
                     db.addPassword(item);
                     imported++;
@@ -2561,6 +2645,33 @@ function importFromTXT(content, mergeImport, skipDuplicates) {
     } catch (error) {
         return { success: false, error: error.message };
     }
+}
+
+/**
+ * 覆盖导入只替换账号记录，保留当前开屏密码和加密盐。
+ */
+async function resetPasswordDataForImport() {
+    await appStorage.clearPasswordData();
+    db.initDatabase();
+    categories = [...defaultCategories, ...appStorage.getCustomCategories()];
+}
+
+/**
+ * 确保导入记录的分类存在，并同步当前内存分类列表，避免重复添加或导入后不可见。
+ */
+function ensureCategoryExists(category) {
+    const normalized = String(category || '').trim() || defaultCategories[0] || '重要';
+    if (!defaultCategories.includes(normalized)) {
+        const customCategories = appStorage.getCustomCategories();
+        if (!customCategories.includes(normalized)) {
+            customCategories.push(normalized);
+            appStorage.setCustomCategories(customCategories);
+        }
+    }
+    if (!categories.includes(normalized)) {
+        categories.push(normalized);
+    }
+    return normalized;
 }
 
 /**
@@ -2654,13 +2765,7 @@ function parseNewTxtFormat(content, skipDuplicates) {
             
             try {
                 // 确保分类存在
-                if (!categories.includes(item.category)) {
-                    const customCategories = appStorage.getCustomCategories();
-                    if (!customCategories.includes(item.category)) {
-                        customCategories.push(item.category);
-                        appStorage.setCustomCategories(customCategories);
-                    }
-                }
+                item.category = ensureCategoryExists(item.category);
                 
                 db.addPassword(item);
                 imported++;

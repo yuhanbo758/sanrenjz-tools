@@ -1,12 +1,15 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 // 暴露安全的API给渲染进程
-contextBridge.exposeInMainWorld('electronAPI', {
+const electronAPI = {
     // 插件存储API
     storage: {
         set: (pluginName, key, value) => ipcRenderer.sendSync('plugin-storage-set', pluginName, key, value),
         get: (pluginName, key) => ipcRenderer.sendSync('plugin-storage-get', pluginName, key),
-        remove: (pluginName, key) => ipcRenderer.sendSync('plugin-storage-remove', pluginName, key)
+        remove: (pluginName, key) => ipcRenderer.sendSync('plugin-storage-remove', pluginName, key),
+        setAsync: (pluginName, key, value) => ipcRenderer.invoke('plugin-storage-set-async', pluginName, key, value),
+        getAsync: (pluginName, key) => ipcRenderer.invoke('plugin-storage-get-async', pluginName, key),
+        removeAsync: (pluginName, key) => ipcRenderer.invoke('plugin-storage-remove-async', pluginName, key)
     },
     
     // 窗口控制API
@@ -43,7 +46,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
             }
         }
     }
-});
+};
+
+// 当前插件窗口仍兼容 contextIsolation=false；此时 contextBridge 不可用，需直接挂载窄 API。
+try {
+    contextBridge.exposeInMainWorld('electronAPI', electronAPI);
+} catch (error) {
+    window.electronAPI = electronAPI;
+}
 
 // 预加载日志
 console.log('密码管理器预加载脚本已加载');

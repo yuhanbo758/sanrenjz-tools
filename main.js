@@ -4460,6 +4460,21 @@ ipcMain.handle('plugin-storage-set-async', (event, pluginName, key, value) => {
     }
 });
 
+ipcMain.handle('plugin-storage-remove-async', (event, pluginName, key) => {
+    try {
+        if (pluginManager) {
+            const result = pluginManager.removePluginStorageItem(pluginName, key);
+            if (pluginName === '余汉波文本片段助手' && key === 'snippets-settings') invalidateTextSnippetCache('settings-removed');
+            else invalidateSearchCatalog(`storage-remove:${pluginName}:${key}`);
+            return result;
+        }
+        return false;
+    } catch (error) {
+        console.error('插件存储删除失败(Async):', error);
+        return false;
+    }
+});
+
 ipcMain.handle('get-clipboard-context', () => {
     const { clipboard } = require('electron');
     const image = clipboard.readImage();

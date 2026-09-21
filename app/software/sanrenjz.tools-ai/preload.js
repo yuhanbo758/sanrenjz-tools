@@ -2,6 +2,7 @@ const fs = require('fs')
 const path = require('path')
 const { contextBridge, ipcRenderer, clipboard } = require('electron');
 const { createAiRuntime } = require('../../plugin_runtime/ai-runtime');
+const { listInstalledPluginCapabilities } = require('../../plugin_runtime/commander-plugin-catalog');
 const AI_SHARED_NAME = 'AI 共享配置中心';
 
 // 插件配置
@@ -416,12 +417,16 @@ window.services = {
         window.services.showNotification('已复制到剪贴板');
     },
 
-    // 总指挥：把任务移交给其他 AI 插件处理
+    // 总指挥读取当前真实插件目录，程序小店新增或升级插件后无需维护硬编码清单。
+    listInstalledPluginCapabilities: () => listInstalledPluginCapabilities(path.resolve(__dirname, '..')),
+
+    // 总指挥：打开匹配的本地工具或把任务移交给 AI 插件处理。
     // 复用主进程 execute-super-panel-action 的插件调用通道：
     // 主进程会把 clipboardText 包装成 {type:'over', payload} 传给目标插件的 enter(action)，
     // feature.args 会作为 featureArgs 一并透传，目标插件据此可实现"自动执行"
     delegateToPlugin: async (pluginFolder, featureCode, text, options = {}) => {
         try {
+            const delegationOptions = options && typeof options === 'object' ? options : {};
             // __dirname 即本插件目录，先回到插件根目录再进入目标插件（开发态与打包态路径一致）
             const targetPath = path.resolve(__dirname, '..', pluginFolder);
             if (!fs.existsSync(path.join(targetPath, 'plugin.json'))) {
@@ -433,7 +438,7 @@ window.services = {
                     pluginPath: targetPath,
                     // 首次派发默认自动执行；仅重新打开结果窗口时显式关闭 autoRun，
                     // 避免重复调用模型并产生额外费用。
-                    feature: { code: featureCode, args: { autoRun: options.autoRun !== false } }
+                    feature: { code: featureCode, args: { autoRun: delegationOptions.autoRun !== false } }
                 },
                 clipboardText: String(text || '')
             });

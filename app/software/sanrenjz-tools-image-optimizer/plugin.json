@@ -1,7 +1,7 @@
 {
   "pluginName": "图片优化器",
-  "description": "批量调整质量、格式和尺寸，并即时比较体积。",
-  "version": "2.0.0",
+  "description": "组合调整图片尺寸、质量和格式，支持 PNG、JPEG、WebP、BMP、ICO。",
+  "version": "2.1.0",
   "author": "三人聚智",
   "category": "效率工具",
   "main": "index.html",

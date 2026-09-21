@@ -23,11 +23,11 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
 .head h1{margin:0;font-size:17px;font-weight:700}
 .head p{margin:0;color:var(--muted);font-size:12px}
 .spacer{flex:1}
-.tabs{display:flex;gap:6px;padding:10px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
-.tab{border:0;background:transparent;color:var(--muted);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;transition:.15s;display:flex;align-items:center;gap:7px}
-.tab svg{width:15px;height:15px}
-.tab:hover{background:var(--surface-2)}.tab.active{background:var(--accent);color:#fff}
-.body{flex:1;min-height:0;display:grid;grid-template-columns:1fr 320px;gap:0;overflow:hidden}
+.workflow{display:flex;align-items:center;gap:10px;padding:9px 24px;background:var(--surface);border-bottom:1px solid var(--border);color:var(--muted);font-size:12px;flex:none}
+.workflow-step{display:flex;align-items:center;gap:7px;font-weight:600}
+.workflow-step b{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);font:700 11px var(--mono)}
+.workflow-arrow{color:var(--border);font-size:16px}
+.body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:0;overflow:hidden}
 .stage{display:flex;flex-direction:column;min-height:0;overflow:hidden;padding:16px}
 .drop-zone{flex:1;min-height:0;border:2px dashed var(--border);border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:pointer;transition:.15s;color:var(--faint);position:relative;overflow:hidden}
 .drop-zone:hover{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
@@ -38,11 +38,15 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
 .stage-info{flex:none;display:flex;gap:18px;padding:10px 4px;font:12px var(--mono);color:var(--muted)}
 .stage-info .v{color:var(--ink);font-weight:600}
 .side{background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;min-height:0;overflow:auto}
-.side-h{padding:16px 20px;border-bottom:1px solid var(--border);flex:none}
+.side-h{padding:12px 16px;border-bottom:1px solid var(--border);flex:none}
 .side-h h2{margin:0 0 4px;font-size:15px;font-weight:700}
 .side-h p{margin:0;font-size:12px;color:var(--muted)}
-.opts{padding:18px 20px;flex:none}
-.opt{margin-bottom:18px}
+.opts{padding:10px 12px;flex:1;min-height:0;overflow:auto}
+.setting-section{padding:10px;border:1px solid var(--border);border-radius:11px;background:#fff;margin-bottom:8px;transition:.2s}
+.setting-section.attention{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.section-title{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px;font-weight:700;color:var(--ink)}
+.section-title span{width:23px;height:23px;border-radius:7px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font:700 11px var(--mono)}
+.opt{margin-bottom:10px}.opt:last-child{margin-bottom:0}
 .opt label{display:block;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px}
 .inp{width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font:14px var(--mono);color:var(--ink);outline:none}
 .inp:focus{border-color:var(--accent-line)}
@@ -53,15 +57,16 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
 .size-row{display:flex;gap:8px;align-items:center}
 .size-row .inp{flex:1;text-align:center}
 .size-row .x{color:var(--faint)}
-.actions{padding:0 20px 20px;margin-top:auto;display:flex;flex-direction:column;gap:10px;flex:none}
+.check-row{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;cursor:pointer}
+.check-row input{accent-color:var(--accent)}
+.format-note{padding:8px 10px;border-radius:8px;background:var(--accent-soft);color:var(--muted);font-size:12px;line-height:1.5}
+.actions{padding:0 12px 12px;margin-top:auto;display:flex;flex-direction:column;gap:10px;flex:none}
 .btn{border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:8px;padding:10px 16px;font-size:13px;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;justify-content:center;gap:6px}
 .btn:hover{border-color:var(--accent-line)}
 .btn svg{width:14px;height:14px}
 .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;border-color:transparent}
 .btn.primary:hover{filter:brightness(1.08)}
 .btn:disabled{opacity:.5}
-.panel{display:none;flex-direction:column;gap:0;flex:1;min-height:0}
-.panel.active{display:flex}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#2d0f1f;color:#fff;padding:10px 22px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:50}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 ::-webkit-scrollbar{width:8px;height:8px}
@@ -73,20 +78,20 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
 <main class="app">
   <div class="head">
     <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg></div>
-    <div><h1>图片优化器</h1><p>批量调整质量、格式和尺寸，并即时比较体积</p></div>
+    <div><h1>图片优化器</h1><p>一次完成格式转换、尺寸调整与体积优化</p></div>
     <div class="spacer"></div>
   </div>
-  <div class="tabs">
-    <button class="tab active" data-tool="image-compressor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14l3-3 4 4 5-5 4 4"/><path d="M4 20h16"/></svg>压缩</button>
-    <button class="tab" data-tool="image-converter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h10M4 7l3-3M4 7l3 3M20 17h-10M20 17l-3-3M20 17l-3 3"/></svg>格式转换</button>
-    <button class="tab" data-tool="image-resizer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>缩放</button>
+  <div class="workflow" aria-label="处理流程">
+    <div class="workflow-step"><b>1</b>选择图片</div><span class="workflow-arrow">›</span>
+    <div class="workflow-step"><b>2</b>组合设置</div><span class="workflow-arrow">›</span>
+    <div class="workflow-step"><b>3</b>处理并保存</div>
   </div>
   <div class="body">
     <div class="stage">
       <div class="drop-zone" id="dropZone">
         <svg class="dz" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg>
         <div style="font-weight:600;color:var(--ink)">点击选择图片</div>
-        <div style="font-size:12px">支持 PNG / JPG / WEBP / BMP</div>
+        <div style="font-size:12px">支持 PNG / JPG / WEBP / BMP / GIF / ICO</div>
       </div>
       <div class="stage-info">
         <span>尺寸: <span class="v" id="infoSize">-</span></span>
@@ -95,29 +100,35 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
       </div>
     </div>
     <aside class="side">
-      <div class="side-h"><h2 id="optTitle">压缩</h2><p id="optDesc">调整 JPEG 质量以减小体积</p></div>
+      <div class="side-h"><h2>优化设置</h2><p>各项设置可自由组合，无需切换功能</p></div>
       <div class="opts">
-        <div class="panel active" data-panel="image-compressor">
-          <div class="opt"><label>JPEG 质量</label>
-            <div class="slider-row"><input type="range" class="slider" id="compQuality" min="10" max="100" value="80"><span class="slider-val" id="compQVal">80</span></div>
-          </div>
-        </div>
-        <div class="panel" data-panel="image-converter">
+        <section class="setting-section" id="formatSection">
+          <div class="section-title"><span>01</span>格式转换</div>
           <div class="opt"><label>目标格式</label>
-            <select class="sel" id="convFmt"><option value="png">PNG (无损)</option><option value="jpg">JPEG (有损)</option></select>
+            <select class="sel" id="outputFmt">
+              <option value="png">PNG（无损、透明）</option>
+              <option value="jpg">JPEG（照片、小体积）</option>
+              <option value="webp">WebP（高压缩率）</option>
+              <option value="bmp">BMP（无压缩）</option>
+              <option value="ico">ICO（图标、透明）</option>
+            </select>
           </div>
-          <div class="opt" id="convQWrap" style="display:none"><label>JPEG 质量</label>
-            <div class="slider-row"><input type="range" class="slider" id="convQuality" min="10" max="100" value="88"><span class="slider-val" id="convQVal">88</span></div>
+          <div class="format-note" id="formatNote">PNG 保留透明通道，适合界面素材和无损图片。</div>
+        </section>
+        <section class="setting-section" id="sizeSection">
+          <div class="section-title"><span>02</span>尺寸调整</div>
+          <div class="opt"><label>输出尺寸 (px)</label>
+            <div class="size-row"><input class="inp" id="targetW" type="number" min="1" max="8192" placeholder="原宽"><span class="x">×</span><input class="inp" id="targetH" type="number" min="1" max="8192" placeholder="原高"></div>
+            <label class="check-row" style="margin-top:9px"><input type="checkbox" id="keepRatio" checked>只填写一边时按原比例计算另一边</label>
           </div>
-        </div>
-        <div class="panel" data-panel="image-resizer">
-          <div class="opt"><label>宽度 (px)</label>
-            <div class="size-row"><input class="inp" id="rsW" type="number" placeholder="留空=按比例"><span class="x">×</span><input class="inp" id="rsH" type="number" placeholder="留空=按比例"></div>
+        </section>
+        <section class="setting-section" id="qualitySection">
+          <div class="section-title"><span>03</span>质量压缩</div>
+          <div class="opt" id="qualityWrap"><label>输出质量</label>
+            <div class="slider-row"><input type="range" class="slider" id="outputQuality" min="10" max="100" value="88"><span class="slider-val" id="qualityVal">88</span></div>
           </div>
-          <div class="opt"><label>JPEG 质量</label>
-            <div class="slider-row"><input type="range" class="slider" id="rsQuality" min="10" max="100" value="88"><span class="slider-val" id="rsQVal">88</span></div>
-          </div>
-        </div>
+          <div class="format-note" id="losslessNote" style="display:none">当前格式为无损输出，不需要设置质量。</div>
+        </section>
       </div>
       <div class="actions">
         <button class="btn primary" id="processBtn" disabled>处理并保存</button>
@@ -126,31 +137,56 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
   </div>
 </main>
 <div class="toast" id="toast"></div>
+<script src="image-codecs.js"></script>
 <script>
-const api=window.pluginAPI;const $=s=>document.querySelector(s);const $$=s=>document.querySelectorAll(s);
-let current='image-compressor';let imgFile='';
-const titles={compressor:{t:'压缩',d:'调整 JPEG 质量以减小体积'},converter:{t:'格式转换',d:'在 PNG 与 JPEG 之间转换'},resizer:{t:'缩放',d:'调整图片尺寸'}};
-$$('.tab').forEach(t=>t.onclick=()=>{current=t.dataset.tool;const k=current.split('-')[1];$$('.tab').forEach(x=>x.classList.toggle('active',x===t));$$('[data-panel]').forEach(p=>p.classList.toggle('active',p.dataset.panel===current));$('#optTitle').textContent=titles[k].t;$('#optDesc').textContent=titles[k].d;$('#convQWrap').style.display=k==='converter'&&$('#convFmt').value==='jpg'?'block':'none';});
-['compQuality','convQuality','rsQuality'].forEach(id=>{$('#'+id).oninput=e=>$('#'+id.replace('quality','QVal').replace('Quality','QVal')).textContent=e.target.value;});
-$('#convFmt').onchange=e=>$('#convQWrap').style.display=e.target.value==='jpg'?'block':'none';
-$('#dropZone').onclick=()=>{const sel=api.selectFiles({multiple:false,filters:[{name:'图片',extensions:['png','jpg','jpeg','webp','bmp']}]});const f=Array.isArray(sel)?sel[0]:sel;if(f)loadImage(f);};
-function loadImage(f){imgFile=f;const dz=$('#dropZone');dz.classList.add('has-img');dz.innerHTML=`<img class="preview-img" src="${api.readFileDataUrl(f)}">`;const nm=f.split(/[\\\/]/).pop();const ext=nm.split('.').pop().toLowerCase();$('#infoName').textContent=nm;$('#infoFmt').textContent=ext;const img=new Image();img.onload=()=>{$('#infoSize').textContent=img.width+'×'+img.height;};img.src=api.readFileDataUrl(f);$('#processBtn').disabled=false;}
-function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1800);}
+const api=window.pluginAPI;const codecs=window.ImageOptimizerCodecs;const $=s=>document.querySelector(s);
+let imgFile='';let sourceImage=null;
+const formatNotes={png:'PNG 保留透明通道，适合界面素材和无损图片。',jpg:'JPEG 不支持透明通道，透明区域会填充为白色。',webp:'WebP 支持透明通道，通常比 PNG 或 JPEG 体积更小。',bmp:'BMP 以 32 位像素保存，兼容传统图像软件但文件较大。',ico:'ICO 使用标准 PNG 图标容器，保留透明通道，宽高不能超过 256 像素。'};
+$('#outputQuality').oninput=e=>$('#qualityVal').textContent=e.target.value;
+$('#outputFmt').onchange=updateFormatUi;
+function updateFormatUi(){const format=$('#outputFmt').value;const hasQuality=['jpg','webp'].includes(format);$('#qualityWrap').style.display=hasQuality?'block':'none';$('#losslessNote').style.display=hasQuality?'none':'block';$('#formatNote').textContent=formatNotes[format];if(format==='ico'&&sourceImage&&!$('#targetW').value&&!$('#targetH').value){$('#targetW').value=Math.min(256,sourceImage.naturalWidth);$('#targetH').value='';}}
+function focusToolSection(toolId){
+  const config={
+    'image-compressor':{section:'#qualitySection',control:'#outputQuality',prepare:()=>{if(!['jpg','webp'].includes($('#outputFmt').value)){$('#outputFmt').value='jpg';updateFormatUi();}}},
+    'image-converter':{section:'#formatSection',control:'#outputFmt'},
+    'image-resizer':{section:'#sizeSection',control:'#targetW'}
+  }[toolId];
+  if(!config)return;if(config.prepare)config.prepare();const section=$(config.section);const optionsPanel=section.closest('.opts');section.classList.add('attention');$(config.control).focus({preventScroll:true});optionsPanel.scrollTo({top:Math.max(0,section.offsetTop-optionsPanel.offsetTop-8),behavior:'smooth'});setTimeout(()=>section.classList.remove('attention'),1200);
+}
+$('#dropZone').onclick=()=>{const sel=api.selectFiles({multiple:false,filters:[{name:'图片',extensions:['png','jpg','jpeg','webp','bmp','gif','ico']}]});const f=Array.isArray(sel)?sel[0]:sel;if(f)loadImage(f);};
+$('#dropZone').ondragover=e=>{e.preventDefault();e.dataTransfer.dropEffect='copy';};
+$('#dropZone').ondrop=e=>{e.preventDefault();const f=e.dataTransfer.files&&e.dataTransfer.files[0];if(f&&/\.(png|jpe?g|webp|bmp|gif|ico)$/i.test(f.path||f.name))loadImage(f.path);else toast('请选择支持的图片文件');};
+function loadImage(f){
+  const dataUrl=api.readFileDataUrl(f);const img=new Image();
+  img.onload=()=>{imgFile=f;sourceImage=img;const dz=$('#dropZone');dz.classList.add('has-img');dz.innerHTML='';const preview=img.cloneNode();preview.className='preview-img';dz.appendChild(preview);const nm=f.split(/[\\\/]/).pop();$('#infoName').textContent=nm;$('#infoFmt').textContent=(nm.split('.').pop()||'').toLowerCase();$('#infoSize').textContent=img.naturalWidth+'×'+img.naturalHeight;$('#targetW').placeholder=String(img.naturalWidth);$('#targetH').placeholder=String(img.naturalHeight);$('#processBtn').disabled=false;updateFormatUi();};
+  img.onerror=()=>toast('无法读取所选图片');img.src=dataUrl;
+}
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2400);}
+function canvasBytes(canvas,mime,quality){return new Promise((resolve,reject)=>canvas.toBlob(async blob=>{if(!blob)return reject(new Error('浏览器不支持生成该格式'));if(blob.type!==mime)return reject(new Error(`格式编码失败：期望 ${mime}，实际得到 ${blob.type||'未知格式'}`));resolve(new Uint8Array(await blob.arrayBuffer()));},mime,quality));}
+async function renderOutput(format,width,height,quality){
+  const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;const ctx=canvas.getContext('2d',{alpha:format!=='jpg'});
+  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+  if(format==='jpg'){ctx.fillStyle='#fff';ctx.fillRect(0,0,width,height);}
+  ctx.drawImage(sourceImage,0,0,width,height);
+  if(format==='bmp')return codecs.encodeBmp(ctx.getImageData(0,0,width,height));
+  if(format==='ico'){const png=await canvasBytes(canvas,'image/png');return codecs.encodeIco(png,width,height);}
+  return canvasBytes(canvas,format==='jpg'?'image/jpeg':'image/'+format,quality/100);
+}
 $('#processBtn').onclick=async()=>{
-  if(!imgFile){toast('请先选择图片');return;}
-  const k=current.split('-')[1];let ext='png',quality=88;
-  if(k==='compressor'){ext='jpg';quality=+$('#compQuality').value;}
-  else if(k==='converter'){ext=$('#convFmt').value;quality=ext==='jpg'?+$('#convQuality').value:88;}
-  else if(k==='resizer'){ext='jpg';quality=+$('#rsQuality').value;}
-  const baseName=imgFile.replace(/\.[^.]+$/,'');
-  const out=api.chooseSavePath({title:'保存图片',defaultPath:baseName.split(/[\\\/]/).pop()+'-optimized.'+ext,filters:[{name:'图片',extensions:[ext]}]});
-  if(!out)return;
-  const options={files:[imgFile],output:out,quality};
-  if(k==='resizer'){const w=+$('#rsW').value,h=+$('#rsH').value;if(w)options.width=w;if(h)options.height=h;}
-  const res=await api.runTask({toolId:current,input:'',options,execute:true});
-  if(res.ok){const r=res.result;if(r.output){const kb=(r.bytes/1024).toFixed(1);toast('已保存，'+kb+' KB');loadImage(r.output);}}
-  else toast(res.error);
+  if(!sourceImage){toast('请先选择图片');return;}
+  const button=$('#processBtn');button.disabled=true;button.textContent='处理中…';
+  try{
+    const format=$('#outputFmt').value;const size=codecs.resolveDimensions(sourceImage.naturalWidth,sourceImage.naturalHeight,$('#targetW').value,$('#targetH').value,$('#keepRatio').checked);
+    if(format==='ico'&&(size.width>256||size.height>256))throw new Error('ICO 输出尺寸不能超过 256×256');
+    const ext=format==='jpg'?'jpg':format;const sourceName=imgFile.split(/[\\\/]/).pop().replace(/\.[^.]+$/,'');
+    const out=api.chooseSavePath({title:'保存图片',defaultPath:sourceName+'-'+size.width+'x'+size.height+'.'+ext,filters:[{name:format.toUpperCase()+' 图片',extensions:[ext]}]});
+    if(!out)return;
+    const bytes=await renderOutput(format,size.width,size.height,+$('#outputQuality').value);const result=await api.writeImageFile(out,bytes,format);
+    toast('已转换为 '+result.format.toUpperCase()+' · '+size.width+'×'+size.height+' · '+(result.bytes/1024).toFixed(1)+' KB');
+  }catch(error){toast(error&&error.message?error.message:String(error));}
+  finally{button.disabled=false;button.textContent='处理并保存';}
 };
-window.addEventListener('plugin-enter',e=>{const f=e.detail?.action?.payload||e.detail?.action?.clipboardText||e.detail?.payload||e.detail?.clipboardText||'';if(f&&/\.(png|jpe?g|webp|bmp)$/i.test(f))loadImage(f);});
+window.addEventListener('plugin-enter',e=>{const detail=e.detail||{};focusToolSection(detail.toolId);const f=detail.action?.payload||detail.action?.clipboardText||detail.payload||detail.clipboardText||'';if(f&&/\.(png|jpe?g|webp|bmp|gif|ico)$/i.test(f))loadImage(f);});
+updateFormatUi();
 </script>
 </body></html>

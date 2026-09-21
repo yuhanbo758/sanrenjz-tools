@@ -1132,7 +1132,7 @@
             <button class="lock-btn" onclick="unlockApp()">解锁</button>
             
             <div class="lock-footer">
-                <button onclick="resetLockPassword()">重置密码</button>
+                <button id="resetLockPasswordButton" onclick="resetLockPassword()">重置密码</button>
             </div>
         </div>
     </div>
@@ -1215,7 +1215,7 @@
                         <div class="detail-title" id="detailTitle">密码详情</div>
                         <div class="detail-actions">
                             <button class="btn btn-secondary" onclick="showPasswordGenerator()">生成密码</button>
-                            <button class="btn btn-danger" onclick="deleteCurrentPassword()">删除</button>
+                            <button id="deletePasswordButton" class="btn btn-danger" onclick="deleteCurrentPassword()">删除</button>
                             <button class="btn btn-primary" onclick="saveCurrentPassword()">保存</button>
                         </div>
                     </div>

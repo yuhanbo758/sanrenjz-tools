@@ -1,7 +1,7 @@
 {
   "pluginName": "余汉波AI助手",
-  "description": "AI对话助手与总指挥，可自动调用其他AI插件完成任务",
-  "version": "1.6.0",
+  "description": "工具优先的智能总指挥，自动检索本地插件，必要时再调用 AI",
+  "version": "1.7.0",
   "author": "余汉波",
   "category": "效率工具",
   "main": "index.html",
