@@ -5,9 +5,9 @@
     <title>AI 助手</title>
     <style>
         :root {
-            --primary-color: #007AFF;
-            --primary-hover: #0056b3;
-            --bg-color: #f0f2f5;
+            --primary-color: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg-color: #f4f7fb;
             --chat-bg: #ffffff;
             --user-msg-bg: #007AFF;
             --user-msg-text: #ffffff;
@@ -15,7 +15,7 @@
             --ai-msg-text: #333333;
             --border-color: #e5e7eb;
             --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-md: 0 18px 48px rgba(15, 23, 42, 0.16);
         }
 
         * {
@@ -36,7 +36,7 @@
 
         /* Header Styles */
         .header {
-            padding: 12px 20px;
+            padding: 12px 18px;
             background: #fff;
             border-bottom: 1px solid var(--border-color);
             display: flex;
@@ -48,7 +48,8 @@
 
         .left-buttons, .right-buttons {
             display: flex;
-            gap: 10px;
+            gap: 8px;
+            flex-wrap: wrap;
         }
 
         .middle-select {
@@ -95,21 +96,39 @@
         .chat-container {
             flex: 1;
             overflow-y: auto;
-            padding: 20px;
+            padding: 24px clamp(16px, 5vw, 64px);
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 16px;
             scroll-behavior: smooth;
         }
 
+        .chat-empty {
+            margin: auto;
+            width: min(100%, 620px);
+            padding: 32px;
+            border: 1px solid #dbe5f3;
+            border-radius: 20px;
+            background: #fff;
+            box-shadow: 0 12px 40px rgba(37, 99, 235, 0.06);
+        }
+        .chat-empty h2 { color: #0f172a; font-size: 23px; margin-bottom: 8px; }
+        .chat-empty p { color: #64748b; line-height: 1.7; margin-bottom: 18px; }
+        .chat-suggestions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .chat-suggestions button {
+            border: 1px solid #bfdbfe; border-radius: 999px; padding: 8px 12px;
+            color: #1d4ed8; background: #eff6ff; cursor: pointer;
+        }
+        .chat-suggestions button:hover { background: #dbeafe; }
+
         .message {
-            padding: 16px;
+            padding: 14px 16px 28px;
             border-radius: 12px;
             position: relative;
-            max-width: 85%;
+            max-width: min(85%, 760px);
             line-height: 1.6;
             font-size: 15px;
-            box-shadow: var(--shadow-sm);
+            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
         }
 
         .user-message {
@@ -128,25 +147,34 @@
             border-bottom-left-radius: 4px;
         }
 
-        /* Copy Button */
-        .copy-button {
+        .message-body { overflow-wrap: anywhere; }
+        .message-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 2px;
             position: absolute;
-            top: 8px;
             right: 8px;
-            padding: 4px 8px;
-            background: rgba(255, 255, 255, 0.9);
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
+            bottom: 5px;
+        }
+        .message-actions button {
+            width: 23px;
+            height: 23px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2px;
+            background: transparent;
+            border: 0;
+            border-radius: 5px;
             cursor: pointer;
-            opacity: 0;
-            transition: opacity 0.2s;
-            font-size: 12px;
-            color: #666;
+            color: #64748b;
+            opacity: .78;
         }
-
-        .message:hover .copy-button {
-            opacity: 1;
-        }
+        .message-actions svg { width: 15px; height: 15px; }
+        .message-actions button:hover, .message-actions button:focus-visible { background: #eff6ff; color: #1d4ed8; opacity: 1; }
+        .user-message .message-actions button { color: #fff; }
+        .user-message .message-actions button:hover, .user-message .message-actions button:focus-visible { background: rgba(255,255,255,.2); color: #fff; }
+        .message-actions .withdraw-button:hover { color: #b91c1c; }
 
         /* Code Block */
         .code-block {
@@ -196,7 +224,7 @@
 
         /* Input Area */
         .input-area {
-            padding: 20px;
+            padding: 16px clamp(16px, 5vw, 64px) 20px;
             background: #fff;
             border-top: 1px solid var(--border-color);
         }
@@ -328,11 +356,11 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%) scale(0.95);
-            width: 500px;
-            max-height: 85vh;
+            width: min(600px, calc(100vw - 28px));
+            max-height: min(88vh, 820px);
             background: white;
             padding: 24px;
-            border-radius: 12px;
+            border-radius: 16px;
             box-shadow: var(--shadow-md);
             display: none;
             z-index: 1000;
@@ -369,6 +397,18 @@
         .settings-item {
             margin-bottom: 20px;
         }
+
+        .settings-section {
+            padding: 16px;
+            margin: 14px 0;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            background: #f8fafc;
+        }
+        .settings-section h4 { margin-bottom: 12px; color: #0f172a; font-size: 15px; }
+        .settings-help { font-size: 12px; line-height: 1.6; color: #64748b; margin-top: 6px; }
+        .settings-inline { display: flex; align-items: center; gap: 10px; }
+        .settings-inline input[type="checkbox"] { width: auto; flex: 0 0 auto; }
 
         .settings-item label {
             display: block;
@@ -555,23 +595,39 @@
         }
         
         /* History Modal */
+        .history-toolbar { display: flex; gap: 10px; margin-bottom: 8px; }
+        .history-toolbar input {
+            flex: 1; min-width: 0; padding: 9px 11px; border: 1px solid var(--border-color);
+            border-radius: 8px; font: inherit;
+        }
+        .history-toolbar input:focus { outline: 2px solid #bfdbfe; border-color: var(--primary-color); }
+        .history-hint { margin: 0 0 10px; color: #64748b; font-size: 12px; line-height: 1.5; }
+        .history-count { margin: 0 0 9px; color: #64748b; font-size: 12px; }
         .history-list {
-            max-height: 60vh;
+            max-height: 50vh;
             overflow-y: auto;
         }
+        .history-empty { padding: 28px; text-align: center; color: #64748b; line-height: 1.6; }
         
         .history-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
             padding: 12px;
             border: 1px solid var(--border-color);
-            border-radius: 6px;
+            border-radius: 8px;
             margin-bottom: 8px;
-            cursor: pointer;
             transition: background 0.2s;
         }
         
         .history-item:hover {
             background: #f9fafb;
         }
+        .history-open { flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; text-align: left; cursor: pointer; }
+        .history-open:focus-visible, .history-delete:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+        .history-delete { flex: none; padding: 6px 10px; border: 1px solid #fecaca; border-radius: 6px; background: #fff; color: #b91c1c; cursor: pointer; }
+        .history-delete:hover { background: #fef2f2; }
+        .history-toolbar button:disabled, .history-delete:disabled { opacity: .5; cursor: not-allowed; }
         
         .history-item-header {
             display: flex;
@@ -599,6 +655,7 @@
         .ai-message pre code { background: transparent; padding: 0; }
         .ai-message a { color: var(--primary-color); text-decoration: none; }
         .ai-message a:hover { text-decoration: underline; }
+        .ai-message .message-body h3 { border: 0; padding: 0; }
 
         /* 共享供应商目录抽屉（内容由 ai-provider-manager.js 渲染） */
         .provider-drawer {
@@ -678,6 +735,14 @@
             font-size: 12px;
             cursor: pointer;
         }
+
+        @media (max-width: 760px) {
+            .header { align-items: stretch; gap: 10px; flex-wrap: wrap; }
+            .middle-select { order: 3; max-width: none; width: 100%; }
+            .chat-container { padding: 14px; }
+            .message, .delegate-card { max-width: 96%; }
+            .settings-panel, .modal-content { padding: 18px; }
+        }
     </style>
 </head>
 <body>
@@ -692,7 +757,7 @@
             </select>
         </div>
         <div class="right-buttons">
-            <button onclick="saveChatToFile()" class="header-button">保存对话</button>
+            <button onclick="saveChatToFile()" class="header-button" title="手动导出当前对话为 Markdown，不影响历史缓存">保存对话</button>
             <button onclick="toggleProviderDrawer(true)" class="header-button">供应商</button>
             <button onclick="toggleSettings()" class="header-button">设置</button>
         </div>
@@ -737,23 +802,39 @@
     <div class="overlay" id="overlay"></div>
 
     <div class="settings-panel" id="settingsPanel">
-        <h3>设置</h3>
+        <h3>助手设置</h3>
+        <p class="settings-help">历史记录会自动缓存在插件本地；只有点击「保存对话」才会向设置的导出目录写入 Markdown。模型生成回复与总指挥选择插件分别配置。</p>
         
         <div class="settings-item">
             <label>默认模型</label>
             <select id="defaultModel"></select>
         </div>
 
-        <div class="settings-item">
-            <label>总指挥模式</label>
-            <div style="display:flex;align-items:center;gap:8px;">
+        <div class="settings-section">
+            <h4>插件总指挥</h4>
+            <div class="settings-inline">
                 <input type="checkbox" id="commanderEnabled" checked>
-                <span style="font-size:13px;color:#6b7280;">优先检索并打开能完成任务的本地插件；本地工具无法处理或明确要求 AI 时，再交给 AI 插件或本助手</span>
+                <label for="commanderEnabled" style="margin:0;">启用自动查找已安装插件（选择 Jev 时自动启用）</label>
+            </div>
+            <p class="settings-help">未启用 Jev 时按插件名称、功能和命令词本地匹配；启用后每条提问先由 Jev 在已安装插件和当前 LLM 之间选择。</p>
+            <div class="settings-item" style="margin:12px 0 0;">
+                <label for="jevProvider">每条提问的路由判断</label>
+                <select id="jevProvider" onchange="updateJevSettingsVisibility()">
+                    <option value="off">关闭（只用本地规则）</option>
+                    <option value="openrouter">Jev · OpenRouter</option>
+                    <option value="typesafe">Jev · TypeSafe 官方</option>
+                </select>
+                <p class="settings-help">启用后每条提问都先提交给 Jev。它只看文字和附件名称/类型，不读取附件内容；选中已安装插件就打开，选“回复”或判断不可靠时交给当前 LLM。提问与插件能力摘要会发送给所选供应商。</p>
+            </div>
+            <div class="settings-item" id="jevKeyRow" style="display:none;margin:12px 0 0;">
+                <label for="jevApiKey">判断专用 API Key</label>
+                <input type="password" id="jevApiKey" placeholder="留空则保持已保存密钥">
+                <p class="settings-help" id="jevKeyStatus"></p>
             </div>
         </div>
 
         <div class="settings-item">
-            <label>聊天记录保存路径</label>
+            <label>Markdown 导出目录（可选）</label>
             <div style="display: flex; gap: 10px;">
                 <input type="text" id="savePath" readonly placeholder="请选择保存路径">
                 <button onclick="selectSavePath()" class="settings-button">选择</button>
@@ -768,7 +849,7 @@
             </div>
         </div>
 
-        <h3>共享 AI 供应商</h3>
+        <h3>模型与供应商</h3>
         <div class="settings-item">
             <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.6;">
                 共享供应商与模型由统一目录管理（所有 AI 插件共用），点击顶部「供应商」按钮可新增、编辑并测试。
@@ -862,12 +943,19 @@
     <!-- History Modal -->
     <div class="modal" id="historyModal">
         <div class="overlay" style="display: block; z-index: 1050;" onclick="closeHistoryModal()"></div>
-        <div class="modal-content show" style="z-index: 1051; width: 600px;">
+        <div class="modal-content show" style="z-index: 1051; width: min(680px, calc(100vw - 28px));">
             <h3>聊天历史</h3>
+            <div class="history-toolbar">
+                <input id="historySearch" type="search" placeholder="搜索标题或对话内容" aria-label="搜索历史记录" oninput="renderHistoryList()">
+                <button id="clearHistoryButton" type="button" class="history-delete" onclick="clearAllHistory()">清空历史</button>
+            </div>
+            <p class="history-hint">这里仅管理插件缓存；“保存对话”会单独导出到设置中的 Markdown 目录，删除缓存不会删除导出文件。</p>
+            <div id="historyCount" class="history-count"></div>
             <div class="history-list" id="historyList">
                 <!-- 动态填充 -->
             </div>
             <div class="settings-buttons">
+                <button onclick="importExportedChat()" class="settings-button">打开导出的 Markdown</button>
                 <button onclick="closeHistoryModal()" class="settings-button">关闭</button>
             </div>
         </div>
@@ -882,19 +970,47 @@
         let promptsList = [];
         let lastAtPosition = -1;
         let currentFile = null; // 当前选择的文件
+        let currentConversationId = `conversation-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        let activeResponse = null;
+        let historyRecords = [];
+        let historyBusy = false;
 
         const DELEGATE_TARGETS = CommanderRouter.DEFAULT_AI_TARGETS;
 
-        // 每次发送前读取当前插件目录，保证新安装插件无需重启助手即可参与能力匹配。
+        // 每次发送前读取当前插件目录；启用 Jev 时每条提问先经过 Jev，不让本地关键词规则短路。
         async function detectDelegation(message) {
             const settings = window.services.getSettings();
-            if (settings.commanderEnabled === false) return null;
+            const jevEnabled = ['openrouter', 'typesafe'].includes(settings.jevProvider);
+            if (!jevEnabled && settings.commanderEnabled === false) return { route: null };
             const installedPlugins = await window.services.listInstalledPluginCapabilities();
-            return CommanderRouter.detectCommanderRoute(message, installedPlugins, DELEGATE_TARGETS);
+            if (jevEnabled) {
+                try {
+                    const route = await window.services.decideCommanderRoute(message, installedPlugins, DELEGATE_TARGETS, settings.jevProvider);
+                    return { route, notice: !route && /(?:打开|调用|启动).{0,30}插件/.test(message)
+                        ? 'Jev 未选出可打开的已安装插件，本轮交由当前 LLM 回复。' : '' };
+                } catch (error) {
+                    console.warn('Jev 判断不可用：', error);
+                    return { route: null, notice: `Jev 判断失败（${error.message}），本轮未打开插件，改由当前 LLM 回复。` };
+                }
+            }
+            return { route: CommanderRouter.detectCommanderRoute(message, installedPlugins, DELEGATE_TARGETS) };
+        }
+
+        function addRoutingNotice(text) {
+            if (!text) return;
+            document.querySelector('.chat-empty')?.remove();
+            const notice = document.createElement('div');
+            notice.className = 'delegate-card';
+            notice.style.background = '#f8fafc';
+            notice.style.borderColor = '#cbd5e1';
+            notice.style.color = '#475569';
+            notice.textContent = text;
+            document.getElementById('chatContainer').appendChild(notice);
         }
 
         // 渲染派发卡片：显示移交目标与状态；失败或需要时可一键改由本助手直接回答
         function addDispatchCard(target, message) {
+            document.querySelector('.chat-empty')?.remove();
             const card = document.createElement('div');
             card.className = 'delegate-card';
             const title = document.createElement('div');
@@ -992,6 +1108,7 @@
             await providerManager.ready.catch(() => {});
             await loadSettings();
             await updateModelSelectors();
+            showEmptyState();
             // 聚焦输入框
             document.getElementById('promptInput').focus();
             
@@ -1008,6 +1125,7 @@
          */
         window.services.addSystemMessage = (content) => {
             const container = document.getElementById('chatContainer');
+            document.querySelector('.chat-empty')?.remove();
             const wrapper = document.createElement('div');
             wrapper.className = 'system-message';
 
@@ -1093,6 +1211,8 @@
             document.getElementById('savePath').value = settings.savePath || '';
             document.getElementById('promptsPath').value = settings.promptsPath || '';
             document.getElementById('commanderEnabled').checked = settings.commanderEnabled !== false;
+            document.getElementById('jevProvider').value = settings.jevProvider || 'off';
+            await updateJevSettingsVisibility();
             
             // 更新UI
             updateModelList();
@@ -1104,6 +1224,22 @@
             const settings = window.services.getSettings();
             const defaultModelSelect = document.getElementById('defaultModel');
             const defaultOption = defaultModelSelect.options[defaultModelSelect.selectedIndex];
+            const jevProvider = document.getElementById('jevProvider').value;
+            const jevKey = document.getElementById('jevApiKey').value.trim();
+            try {
+                if (jevProvider !== 'off') {
+                    const existingKey = await window.services.hasDecisionKey(jevProvider);
+                    const legacyOpenRouterKey = jevProvider === 'openrouter' && document.getElementById('openrouterKey').value.trim();
+                    if (!jevKey && !existingKey && !legacyOpenRouterKey) {
+                        window.services.showNotification('请先填写所选 Jev 供应商的 API Key');
+                        return;
+                    }
+                    if (jevKey) await window.services.saveDecisionKey(jevProvider, jevKey);
+                }
+            } catch (error) {
+                window.services.showNotification('保存 Jev 密钥失败: ' + error.message);
+                return;
+            }
             const newSettings = {
                 ...settings,
                 openrouterApiKey: document.getElementById('openrouterKey').value,
@@ -1113,16 +1249,32 @@
                 defaultModel: defaultModelSelect.value,
                 defaultModelProvider: defaultOption ? (defaultOption.dataset.provider || '') : '',
                 promptsPath: document.getElementById('promptsPath').value,
-                commanderEnabled: document.getElementById('commanderEnabled').checked,
+                commanderEnabled: jevProvider !== 'off' || document.getElementById('commanderEnabled').checked,
+                jevProvider,
             };
 
             if (window.services.saveSettings(newSettings)) {
+                document.getElementById('jevApiKey').value = '';
                 window.services.showNotification('设置已保存');
                 toggleSettings();
                 updateModelSelectors();
             } else {
                 window.services.showNotification('保存设置失败');
             }
+        }
+
+        async function updateJevSettingsVisibility() {
+            const provider = document.getElementById('jevProvider').value;
+            const commanderToggle = document.getElementById('commanderEnabled');
+            if (provider !== 'off') commanderToggle.checked = true;
+            commanderToggle.disabled = provider !== 'off';
+            document.getElementById('jevKeyRow').style.display = provider === 'off' ? 'none' : 'block';
+            const status = document.getElementById('jevKeyStatus');
+            if (provider === 'off') return;
+            const saved = await window.services.hasDecisionKey(provider).catch(() => false);
+            status.textContent = saved ? '已安全保存当前供应商密钥；留空不会清除。'
+                : provider === 'openrouter' ? '可填写专用密钥；留空时沿用下方旧版 OpenRouter Key。'
+                : '请填写 TypeSafe 官方 API Key；密钥通过应用安全存储保存。';
         }
 
         // 路径选择
@@ -1480,16 +1632,32 @@
         // 发送消息逻辑
         // forceLocal=true 时跳过总指挥路由，直接由本助手回答（派发卡片的回退入口）
         async function sendMessage(forceLocal = false, presetMessage = null, skipUserBubble = false) {
+            if (activeResponse) {
+                window.services.showNotification('请等待当前回复完成，或撤回当前提问');
+                return;
+            }
             const input = document.getElementById('promptInput');
             const message = presetMessage !== null ? String(presetMessage).trim() : input.value.trim();
             
             // 检查是否有消息或文件
             if (!message && !currentFile) return;
 
-            // 总指挥路由：无附件时先检索本地工具，再按需移交 AI 插件。
-            if (!forceLocal && !presetMessage && !currentFile) {
-                const route = await detectDelegation(message);
-                if (route) {
+            // Jev 对每条提问都作判断；附件只传文件名和类型供路由，不能假装已把文件交给目标插件。
+            let routingNotice = '';
+            if (!forceLocal && !presetMessage) {
+                const routeText = currentFile
+                    ? `${message || '处理这个附件'}\n[附件名称：${currentFile.name}；附件类型：${currentFile.type}]`
+                    : message;
+                const decision = await detectDelegation(routeText);
+                if (decision.notice) {
+                    routingNotice = decision.notice;
+                    addRoutingNotice(routingNotice);
+                }
+                const route = decision.route;
+                if (route && currentFile) {
+                    routingNotice = `Jev 选中了「${route.name}」，但当前插件调用通道不能转交附件；本轮交由当前 LLM 处理，未打开该插件。`;
+                    addRoutingNotice(routingNotice);
+                } else if (route) {
                     addMessage(message, true);
                     input.value = '';
                     input.style.height = 'auto';
@@ -1498,7 +1666,7 @@
                         route.folder,
                         route.feature,
                         message,
-                        { autoRun: route.autoRun !== false }
+                        { autoRun: route.autoRun === true }
                     );
                     card.done(result);
                     return;
@@ -1523,13 +1691,23 @@
                 });
             }
 
+            // 当前提问由 callAPI 单独附加；历史上下文必须在显示本轮用户气泡前截取，避免重复发送。
+            const conversationHistory = chatHistory.filter(msg =>
+                ['user', 'assistant', 'system'].includes(msg.role)
+            ).map(msg => ({ role: msg.role, content: msg.content }));
+            if (routingNotice) conversationHistory.push({ role: 'system', content: routingNotice });
+            if (skipUserBubble && conversationHistory.at(-1)?.role === 'user'
+                && conversationHistory.at(-1).content === message) conversationHistory.pop();
+
             // 添加用户消息
             let displayContent = message;
             if (currentFile) {
                 displayContent += `\n\n[附件: ${document.getElementById('fileName').textContent}]`;
             }
             // 回退路径（skipUserBubble）中用户消息已在派发前展示，不再重复
-            if (!skipUserBubble) addMessage(displayContent, true);
+            const userMessage = skipUserBubble
+                ? chatHistory.findLast(item => item.role === 'user' && item.content === displayContent)
+                : addMessage(displayContent, true);
             
             // 清理输入和文件
             input.value = '';
@@ -1540,9 +1718,14 @@
             // 添加AI思考占位符
             const aiMessageDiv = document.createElement('div');
             aiMessageDiv.className = 'message ai-message';
-            aiMessageDiv.innerHTML = '<span>正在思考...</span>';
+            const aiBody = document.createElement('div');
+            aiBody.className = 'message-body';
+            aiBody.textContent = '正在思考...';
+            aiMessageDiv.appendChild(aiBody);
             document.getElementById('chatContainer').appendChild(aiMessageDiv);
             aiMessageDiv.scrollIntoView({ behavior: 'smooth' });
+            const responseState = { userId: userMessage?.id, reader: null, cancelled: false, element: aiMessageDiv };
+            activeResponse = responseState;
 
             try {
                 const modelSelect = document.getElementById('currentModel');
@@ -1554,21 +1737,20 @@
                     isCustom: selectedOption.dataset.isCustom === 'true'
                 };
 
-                const conversationHistory = chatHistory.filter(msg => 
-                    ['user', 'assistant', 'system'].includes(msg.role)
-                ).map(msg => ({ role: msg.role, content: msg.content }));
-
                 // 发送请求，包含文件
                 const responseStream = await window.services.callAPI(message, modelConfig, conversationHistory, fileToSend);
-                
+                if (responseState.cancelled) return;
+
                 let responseBuffer = '';
                 const reader = responseStream.getReader();
+                responseState.reader = reader;
 
                 while (true) {
                     const {done, value} = await reader.read();
+                    if (responseState.cancelled) return;
                     if (done) break;
                     responseBuffer += value;
-                    aiMessageDiv.innerHTML = formatResponse(responseBuffer);
+                    aiBody.innerHTML = formatResponse(responseBuffer);
                     const container = document.getElementById('chatContainer');
                     if (container.scrollHeight - container.scrollTop - container.clientHeight < 100) {
                          aiMessageDiv.scrollIntoView({ behavior: 'smooth' });
@@ -1576,49 +1758,106 @@
                 }
 
                 // 记录助手消息
-                chatHistory.push({
+                const assistantMessage = {
+                    id: createMessageId(),
                     role: 'assistant',
                     content: responseBuffer,
-                    timestamp: new Date()
-                });
-                
-                addCopyButton(aiMessageDiv, responseBuffer);
+                    timestamp: new Date().toISOString()
+                };
+                chatHistory.push(assistantMessage);
+                aiMessageDiv.dataset.messageId = assistantMessage.id;
+                addMessageActions(aiMessageDiv, assistantMessage);
+                persistConversation();
 
             } catch (error) {
+                if (responseState.cancelled) return;
                 console.error(error);
-                aiMessageDiv.innerHTML = `<span style="color: #dc2626;">请求失败: ${error.message}</span>`;
+                aiBody.textContent = `请求失败: ${error.message}`;
+                aiBody.style.color = '#dc2626';
+            } finally {
+                if (activeResponse === responseState) activeResponse = null;
             }
+        }
+
+        function createMessageId() {
+            return `message-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        }
+
+        function persistConversation() {
+            const firstUser = chatHistory.find(item => item.role === 'user');
+            window.services.saveConversation({
+                id: currentConversationId,
+                title: (firstUser?.content || '新对话').replace(/\s+/g, ' ').slice(0, 54),
+                updatedAt: new Date().toISOString(),
+                messages: chatHistory.map(item => ({ ...item, timestamp: new Date(item.timestamp).toISOString() }))
+            });
         }
 
         function addMessage(content, isUser) {
             const message = {
+                id: createMessageId(),
                 role: isUser ? 'user' : 'assistant',
                 content: content,
-                timestamp: new Date()
+                timestamp: new Date().toISOString()
             };
             chatHistory.push(message);
-
-            const div = document.createElement('div');
-            div.className = `message ${isUser ? 'user-message' : 'ai-message'}`;
-            
-            if (isUser) {
-                div.textContent = content;
-            } else {
-                div.innerHTML = formatResponse(content);
-            }
-            
-            if (!isUser) addCopyButton(div, content);
-            
-            document.getElementById('chatContainer').appendChild(div);
-            div.scrollIntoView({ behavior: 'smooth' });
+            renderMessage(message);
+            persistConversation();
+            return message;
         }
 
-        function addCopyButton(container, text) {
-            const button = document.createElement('button');
-            button.className = 'copy-button';
-            button.textContent = '复制';
-            button.onclick = () => window.services.copyToClipboard(text);
-            container.appendChild(button);
+        function renderMessage(message) {
+            document.querySelector('.chat-empty')?.remove();
+            const div = document.createElement('div');
+            div.className = `message ${message.role === 'user' ? 'user-message' : 'ai-message'}`;
+            div.dataset.messageId = message.id;
+            const body = document.createElement('div');
+            body.className = 'message-body';
+            if (message.role === 'user') {
+                body.textContent = message.content;
+            } else {
+                body.innerHTML = formatResponse(message.content);
+            }
+            div.appendChild(body);
+            addMessageActions(div, message);
+            document.getElementById('chatContainer').appendChild(div);
+            div.scrollIntoView({ behavior: 'smooth' });
+            return div;
+        }
+
+        function addMessageActions(container, message) {
+            const actions = document.createElement('div');
+            actions.className = 'message-actions';
+            const copy = document.createElement('button');
+            copy.type = 'button';
+            copy.setAttribute('aria-label', '复制消息');
+            copy.title = '复制';
+            copy.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"></path></svg>';
+            copy.onclick = () => window.services.copyToClipboard(message.content);
+            const withdraw = document.createElement('button');
+            withdraw.type = 'button';
+            withdraw.className = 'withdraw-button';
+            withdraw.setAttribute('aria-label', '撤回消息');
+            withdraw.title = '从本地聊天记录和后续上下文移除；已发送的请求无法撤销';
+            withdraw.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"></path><path d="M4 9h10a6 6 0 0 1 0 12h-2"></path></svg>';
+            withdraw.onclick = () => withdrawMessage(message.id);
+            actions.append(copy, withdraw);
+            container.appendChild(actions);
+        }
+
+        function withdrawMessage(messageId) {
+            const index = chatHistory.findIndex(item => item.id === messageId);
+            if (index < 0) return;
+            if (activeResponse?.userId === messageId) {
+                activeResponse.cancelled = true;
+                activeResponse.reader?.cancel().catch(() => {});
+                activeResponse.element.remove();
+            }
+            chatHistory.splice(index, 1);
+            const bubble = Array.from(document.querySelectorAll('.message[data-message-id]'))
+                .find(item => item.dataset.messageId === messageId);
+            bubble?.remove();
+            persistConversation();
         }
 
         // 输入框处理
@@ -1778,9 +2017,41 @@
         }
         
         function newChat() {
+            if (activeResponse) {
+                activeResponse.cancelled = true;
+                activeResponse.reader?.cancel().catch(() => {});
+                activeResponse = null;
+            }
             chatHistory = [];
+            currentConversationId = `conversation-${Date.now()}-${Math.random().toString(36).slice(2)}`;
             document.getElementById('chatContainer').innerHTML = '';
             clearFile();
+            showEmptyState();
+        }
+
+        function showEmptyState() {
+            const container = document.getElementById('chatContainer');
+            if (container.children.length) return;
+            const empty = document.createElement('div');
+            empty.className = 'chat-empty';
+            const title = document.createElement('h2');
+            title.textContent = '余汉波 AI 助手';
+            const hint = document.createElement('p');
+            hint.textContent = '说出目标即可。总指挥会先查已安装的本地插件；没有可靠匹配时，再交给 AI 插件或由本助手回复。';
+            const suggestions = document.createElement('div');
+            suggestions.className = 'chat-suggestions';
+            for (const example of ['将图片改成 ICO，调用插件', '会议总结：', '解释插件选择规则']) {
+                const button = document.createElement('button');
+                button.textContent = example;
+                button.onclick = () => {
+                    const input = document.getElementById('promptInput');
+                    input.value = example;
+                    input.focus();
+                };
+                suggestions.appendChild(button);
+            }
+            empty.append(title, hint, suggestions);
+            container.appendChild(empty);
         }
 
         /**
@@ -1837,54 +2108,153 @@
         async function showChatHistory() {
             const modal = document.getElementById('historyModal');
             const list = document.getElementById('historyList');
-            list.innerHTML = '<div style="padding:20px;text-align:center;">加载中...</div>';
+            list.innerHTML = '<div class="history-empty">加载中...</div>';
+            document.getElementById('historySearch').value = '';
             modal.style.display = 'block';
             try {
-                const files = await window.services.getChatHistory();
-                list.innerHTML = '';
-                if (files.length === 0) {
-                    list.innerHTML = '<div style="padding:20px;text-align:center;color:#666;">暂无历史记录</div>';
-                    return;
-                }
-                files.forEach(file => {
-                    const div = document.createElement('div');
-                    div.className = 'history-item';
-                    div.innerHTML = `
-                        <div class="history-item-header">
-                            <span>${file.date}</span>
-                            <span>${file.name}</span>
-                        </div>
-                        <div class="history-item-content">${file.preview}</div>
-                    `;
-                    div.onclick = () => loadChatHistory(file.path);
-                    list.appendChild(div);
-                });
+                // 历史列表只读取插件缓存；Markdown 导出是独立文件，不混入可清理的缓存列表。
+                historyRecords = window.services.getConversations()
+                    .filter(item => item?.id && item.messages?.length)
+                    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+                renderHistoryList();
             } catch (e) {
-                list.innerHTML = '<div style="padding:20px;text-align:center;color:red;">加载失败</div>';
+                list.innerHTML = '<div class="history-empty">加载失败，请重试。</div>';
+            }
+        }
+
+        function renderHistoryList() {
+            const list = document.getElementById('historyList');
+            const term = document.getElementById('historySearch').value.trim().normalize('NFKC').toLocaleLowerCase();
+            const entries = historyRecords.filter(item => !term || [item.title,
+                ...(item.messages || []).map(message => message.content)].some(value =>
+                String(value || '').normalize('NFKC').toLocaleLowerCase().includes(term)));
+            document.getElementById('historyCount').textContent = term
+                ? `找到 ${entries.length} 条，共 ${historyRecords.length} 条` : `共 ${historyRecords.length} 条`;
+            document.getElementById('clearHistoryButton').disabled = historyBusy || !historyRecords.length;
+            list.replaceChildren();
+            if (!entries.length) {
+                const empty = document.createElement('div');
+                empty.className = 'history-empty';
+                empty.textContent = historyRecords.length ? '没有匹配的历史记录。'
+                    : '暂无聊天记录。开始对话后会自动保存到插件缓存，无需设置导出目录。';
+                list.appendChild(empty);
+                return;
+            }
+            entries.forEach(entry => {
+                    const row = document.createElement('div');
+                    row.className = 'history-item';
+                    row.dataset.conversationId = entry.id;
+                    const open = document.createElement('button');
+                    open.type = 'button';
+                    open.className = 'history-open';
+                    open.disabled = historyBusy;
+                    const head = document.createElement('div');
+                    head.className = 'history-item-header';
+                    const date = document.createElement('span');
+                    const updatedAt = new Date(entry.updatedAt);
+                    date.textContent = Number.isNaN(updatedAt.getTime()) ? '时间未知' : updatedAt.toLocaleString();
+                    const source = document.createElement('span');
+                    source.textContent = '插件缓存';
+                    head.append(date, source);
+                    const title = document.createElement('div');
+                    title.style.fontWeight = '600';
+                    title.textContent = entry.title || '未命名对话';
+                    const preview = document.createElement('div');
+                    preview.className = 'history-item-content';
+                    preview.textContent = entry.messages.find(message => message.role === 'user')?.content || '';
+                    open.append(head, title, preview);
+                    open.onclick = () => restoreConversation(entry);
+                    const remove = document.createElement('button');
+                    remove.type = 'button';
+                    remove.className = 'history-delete';
+                    remove.textContent = '删除';
+                    remove.title = '仅删除插件缓存，不删除已导出的 Markdown 文件';
+                    remove.setAttribute('aria-label', `删除对话：${title.textContent}`);
+                    remove.disabled = historyBusy;
+                    remove.onclick = () => deleteHistoryConversation(entry);
+                    row.append(open, remove);
+                    list.appendChild(row);
+            });
+        }
+
+        async function deleteHistoryConversation(conversation) {
+            if (historyBusy || !conversation?.id) return;
+            if (activeResponse) return window.services.showNotification('请等待当前回复完成，或先撤回当前提问');
+            if (!window.confirm(`确定删除历史对话“${conversation.title || '未命名对话'}”吗？已导出的 Markdown 文件不会被删除。`)) return;
+            historyBusy = true;
+            renderHistoryList();
+            try {
+                if (!await window.services.deleteConversation(conversation.id)) throw new Error('插件缓存写入失败');
+                if (currentConversationId === conversation.id) newChat();
+                historyRecords = historyRecords.filter(item => item.id !== conversation.id);
+            } catch (error) {
+                window.services.showNotification('删除历史记录失败: ' + error.message);
+            } finally {
+                historyBusy = false;
+                renderHistoryList();
+            }
+        }
+
+        async function clearAllHistory() {
+            if (historyBusy || !historyRecords.length) return;
+            if (activeResponse) return window.services.showNotification('请等待当前回复完成，或先撤回当前提问');
+            if (!window.confirm(`确定清空全部 ${historyRecords.length} 条插件缓存历史吗？已导出的 Markdown 文件不会被删除。`)) return;
+            historyBusy = true;
+            renderHistoryList();
+            try {
+                if (!await window.services.clearConversations()) throw new Error('插件缓存清理失败');
+                newChat();
+                historyRecords = [];
+            } catch (error) {
+                window.services.showNotification('清空历史记录失败: ' + error.message);
+            } finally {
+                historyBusy = false;
+                renderHistoryList();
             }
         }
         
         function closeHistoryModal() {
             document.getElementById('historyModal').style.display = 'none';
         }
+
+        async function importExportedChat() {
+            if (!window.services.getSettings().savePath) {
+                window.services.showNotification('请先在设置中选择 Markdown 导出目录');
+                return;
+            }
+            const filePath = window.services.chooseChatExport();
+            if (filePath) await loadChatHistory(filePath);
+        }
         
         async function loadChatHistory(path) {
             try {
                 const content = await window.services.loadChatFile(path);
-                newChat();
-                const parts = content.split('---');
-                parts.forEach(part => {
-                    const match = part.match(/### (.*?) \((.*?)\)\s+([\s\S]*)/);
-                    if (match) {
-                        const roleStr = match[1];
-                        const content = match[3].trim();
-                        addMessage(content, roleStr === '用户');
-                    }
-                });
-                closeHistoryModal();
+                const messages = [];
+                for (const part of content.split(/^---\s*$/m)) {
+                    const match = part.trim().match(/^### (用户|AI|系统) \(([^)]*)\)\s*\n([\s\S]*)$/);
+                    if (!match) continue;
+                    const parsedTime = new Date(match[2]);
+                    messages.push({ id: createMessageId(), role: match[1] === '用户' ? 'user'
+                        : match[1] === 'AI' ? 'assistant' : 'system',
+                        content: match[3].trim(), timestamp: Number.isNaN(parsedTime.getTime())
+                            ? new Date().toISOString() : parsedTime.toISOString() });
+                }
+                if (!messages.length) throw new Error('文件中没有可识别的聊天消息');
+                restoreConversation({ id: `conversation-${Date.now()}`, messages });
             } catch (e) {
                 window.services.showNotification('加载失败: ' + e.message);
             }
+        }
+
+        function restoreConversation(conversation) {
+            newChat();
+            currentConversationId = conversation.id;
+            chatHistory = (conversation.messages || []).map(item => ({ ...item, id: item.id || createMessageId() }));
+            chatHistory.forEach(item => {
+                if (item.role === 'system') window.services.addSystemMessage(item.content);
+                else if (item.role === 'user' || item.role === 'assistant') renderMessage(item);
+            });
+            closeHistoryModal();
         }
         
         async function saveChatToFile() {
@@ -1894,7 +2264,7 @@
             }
             const content = chatHistory.map(msg => {
                 const roleName = msg.role === 'user' ? '用户' : (msg.role === 'assistant' ? 'AI' : '系统');
-                return `### ${roleName} (${msg.timestamp.toLocaleString()})\n\n${msg.content}\n\n---\n`;
+                return `### ${roleName} (${new Date(msg.timestamp).toLocaleString()})\n\n${msg.content}\n\n---\n`;
             }).join('\n');
             await window.services.saveChatHistory(content);
         }

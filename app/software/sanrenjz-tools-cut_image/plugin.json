@@ -1,7 +1,7 @@
 {
   "pluginName": "图片裁剪工具",
-  "description": "专业的图片裁剪和编辑工具，支持拖拽上传、智能裁剪、文字添加、多格式导出等功能",
-  "version": "1.0.0",
+  "description": "图片裁剪与编辑，支持窗口拖入、剪贴板粘贴、翻转旋转、文字和多格式导出",
+  "version": "1.1.0",
   "author": "三人聚智",
   "category": "效率工具",
   "main": "index.html",
@@ -11,7 +11,7 @@
     {
       "code": "image-crop",
       "explain": "图片裁剪",
-      "description": "快速裁剪图片，支持多种尺寸预设和文字添加",
+      "description": "拖入或粘贴图片，按比例裁剪、旋转翻转并添加文字",
       "cmds": ["图片裁剪", "裁剪图片", "图片编辑", "封面制作", "图片处理"],
       "icon": "logo.ico",
       "platform": ["win32", "darwin", "linux"],

@@ -1,1 +1,28 @@
-const {contextBridge,ipcRenderer}=require('electron');const {createAiRuntime}=require('../../plugin_runtime/ai-runtime');let emit=()=>{};const api=createAiRuntime("AI Git 助手",chunk=>emit(chunk));api.onChunk=listener=>{emit=listener;return()=>{emit=()=>{}}};const {execFile}=require('child_process');api.readGit=(cwd,args=['diff'])=>new Promise((resolve,reject)=>execFile('git',args,{cwd,windowsHide:true,maxBuffer:5e6},(e,out,err)=>e?reject(new Error(err||e.message)):resolve(out)));api.pickDirectory=()=>{const value=ipcRenderer.sendSync('show-open-dialog',{title:'选择 Git 项目',properties:['openDirectory']})||[];return value[0]||''};try{contextBridge.exposeInMainWorld('aiAPI',api)}catch(_){window.aiAPI=api}function enter(action){window.dispatchEvent(new CustomEvent('plugin-enter',{detail:action||{}}))}window.exports={'plugin-market-ai-git':{mode:'none',args:{enter,search:(_a,_w,setList)=>setList([]),select:()=>{}}}};
+const { contextBridge, ipcRenderer } = require('electron');
+const { createAiRuntime } = require('../../plugin_runtime/ai-runtime');
+const { inspectRepository, readRepository } = require('./git-service');
+
+let emit = () => {};
+const api = createAiRuntime('AI Git 助手', chunk => emit(chunk));
+api.onChunk = listener => { emit = listener; return () => { emit = () => {}; }; };
+api.inspectRepository = inspectRepository;
+api.readRepository = readRepository;
+api.pickDirectory = async () => {
+  const value = await ipcRenderer.invoke('show-open-dialog', { title: '选择 Git 项目', properties: ['openDirectory'] });
+  return (Array.isArray(value) ? value[0] : value?.filePaths?.[0]) || '';
+};
+
+try { contextBridge.exposeInMainWorld('aiAPI', api); } catch (_) { window.aiAPI = api; }
+function entry(mode) {
+  return { mode: 'none', args: {
+    enter: action => window.dispatchEvent(new CustomEvent('plugin-enter', { detail: { ...action, requestedMode: mode } })),
+    search: (_a, _w, setList) => setList([]), select: () => {}
+  } };
+}
+window.exports = {
+  'plugin-market-ai-git': entry('提交说明'),
+  'plugin-market-ai-git-changelog': entry('变更日志'),
+  'plugin-market-ai-git-release': entry('Release Notes'),
+  'plugin-market-ai-git-pr': entry('PR 描述'),
+  'plugin-market-ai-git-risk': entry('变更风险')
+};

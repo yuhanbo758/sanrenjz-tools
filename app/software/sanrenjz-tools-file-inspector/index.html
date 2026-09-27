@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN" data-layout="explorer-tree">
 <head>
 <meta charset="utf-8">
@@ -17,7 +17,7 @@
 html,body{height:100%;overflow:hidden}
 body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans)}
 .app{height:calc(100vh - 32px);display:flex;flex-direction:column;min-height:0}
-.head{display:flex;align-items:center;gap:14px;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
+.head{display:none}
 .icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;flex:none}
 .icon svg{width:18px;height:18px;color:#fff}
 .head h1{margin:0;font-size:17px;font-weight:700}
@@ -57,6 +57,13 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
 .bar.ok .d{background:var(--ok)}.bar.err .d{background:var(--err)}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a2e28;color:#fff;padding:10px 22px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:50}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.drop-overlay{display:none;position:fixed;inset:32px 0 0;background:rgba(47,111,98,.13);border:3px dashed var(--accent);z-index:40;align-items:center;justify-content:center;color:var(--accent);font-size:22px;font-weight:700;pointer-events:none}
+.drop-overlay.show{display:flex}
+.checks{display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.checks label{display:inline-flex;align-items:center;gap:4px}
+.result-actions{margin-left:auto;display:flex;align-items:center;gap:8px}
+.hint{font-size:12px;color:var(--muted)}
+button:disabled{opacity:.55;cursor:default}
 ::-webkit-scrollbar{width:8px;height:8px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:#c0d4ca;border-radius:4px}
@@ -64,11 +71,6 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
 </head>
 <body>
 <main class="app">
-  <div class="head">
-    <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h6l2 2h10v14a2 2 0 0 1-2 2H3z"/><path d="M7 10h10M7 14h6"/></svg></div>
-    <div><h1>文件检查工作台</h1><p>搜索内容、比较目录并生成结构树</p></div>
-    <div class="spacer"></div>
-  </div>
   <div class="tabs">
     <button class="tab active" data-tool="file-content-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>内容搜索</button>
     <button class="tab" data-tool="folder-compare"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>目录比较</button>
@@ -78,73 +80,33 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
     <div class="panel active" data-panel="file-content-search">
       <div class="ctrl">
         <button class="btn" id="fsPick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V5"/></svg>目录</button>
-        <span class="path-box" id="fsDir">未选择目录</span>
+        <span class="path-box" id="fsDir">未选择文件或目录，可拖入窗口</span>
       </div>
       <div class="ctrl">
         <input class="inp" id="fsQuery" placeholder="搜索内容…" style="flex:1;min-width:200px">
         <input class="inp" id="fsExt" placeholder="扩展名 txt,md,js" style="width:180px">
         <button class="btn primary" id="fsRun">搜索</button>
       </div>
+      <div class="ctrl checks"><label><input type="checkbox" id="fsCase"> 区分大小写</label><label><input type="checkbox" id="fsRegex"> 正则表达式</label><label>单文件上限 <input class="inp" id="fsMax" type="number" min="1" max="100" value="5" style="width:65px"> MB</label><span class="hint">拖入多个文件或一个目录；结果最多 5000 条</span></div>
       <div class="result empty" id="fsResult">选择目录并输入搜索内容后开始</div>
-      <div class="bar" id="fsBar"><span class="d"></span><span>等待搜索</span></div>
+      <div class="bar" id="fsBar"><span class="d"></span><span>等待搜索</span><div class="result-actions"><button class="btn" id="fsExport" disabled>导出 CSV</button></div></div>
     </div>
     <div class="panel" data-panel="folder-compare">
       <div class="ctrl"><button class="btn" id="fcPickA">目录 A</button><span class="path-box" id="fcDirA">未选择</span></div>
       <div class="ctrl"><button class="btn" id="fcPickB">目录 B</button><span class="path-box" id="fcDirB">未选择</span></div>
-      <div class="ctrl"><label style="font-size:12px;color:var(--muted)"><input type="checkbox" id="fcHash" checked> 按内容哈希比较</label><button class="btn primary" id="fcRun">比较</button></div>
+      <div class="ctrl"><label style="font-size:12px;color:var(--muted)"><input type="checkbox" id="fcHash" checked> 按内容哈希比较</label><button class="btn primary" id="fcRun">比较</button><select class="sel" id="fcFilter"><option value="all">全部状态</option><option value="不同">不同</option><option value="仅左侧">仅左侧</option><option value="仅右侧">仅右侧</option><option value="相同">相同</option></select><input class="inp" id="fcPathFilter" placeholder="筛选相对路径" style="flex:1;min-width:150px"></div>
       <div class="result empty" id="fcResult">选择两个目录后比较</div>
-      <div class="bar" id="fcBar"><span class="d"></span><span>等待比较</span></div>
+      <div class="bar" id="fcBar"><span class="d"></span><span>等待比较</span><div class="result-actions"><button class="btn" id="fcExport" disabled>导出 CSV</button></div></div>
     </div>
     <div class="panel" data-panel="directory-tree">
       <div class="ctrl"><button class="btn" id="dtPick">选择目录</button><span class="path-box" id="dtDir">未选择</span></div>
-      <div class="ctrl"><label style="font-size:12px;color:var(--muted)">格式</label><select class="sel" id="dtFmt"><option value="text">缩进文本</option><option value="markdown">Markdown 列表</option><option value="json">JSON</option></select><button class="btn primary" id="dtRun">生成</button><button class="btn" id="dtCopy">复制</button></div>
+      <div class="ctrl"><label style="font-size:12px;color:var(--muted)">格式</label><select class="sel" id="dtFmt"><option value="text">路径文本</option><option value="markdown">Markdown 列表</option><option value="json">JSON（含大小）</option></select><input class="inp" id="dtExt" placeholder="扩展名筛选（可选）" style="width:190px"><label class="checks">最大深度 <input class="inp" id="dtDepth" type="number" min="1" max="100" value="100" style="width:65px"></label><label class="checks"><input type="checkbox" id="dtSize"> 显示大小</label><button class="btn primary" id="dtRun">生成</button><button class="btn" id="dtCopy">复制</button><button class="btn" id="dtSave" disabled>保存</button></div>
       <div class="result empty" id="dtResult">选择目录后生成结构树</div>
       <div class="bar" id="dtBar"><span class="d"></span><span>等待生成</span></div>
     </div>
   </div>
 </main>
+<div class="drop-overlay" id="dropOverlay">松开以添加到当前功能</div>
 <div class="toast" id="toast"></div>
-<script>
-const api=window.pluginAPI;const $=s=>document.querySelector(s);const $$=s=>document.querySelectorAll(s);
-let current='file-content-search';
-function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
-function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1800);}
-function setBar(sel,msg,st){const b=$(sel);b.className='bar'+(st==='ok'?' ok':st==='err'?' err':'');b.querySelector('span:last-child').textContent=msg;}
-$$('.tab').forEach(t=>t.onclick=()=>{current=t.dataset.tool;$$('.tab').forEach(x=>x.classList.toggle('active',x===t));$$('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===current));});
-let fsDir='',fcA='',fcB='',dtDir='';
-$('#fsPick').onclick=()=>{fsDir=api.selectDirectory('选择搜索目录');if(fsDir)$('#fsDir').textContent=fsDir;};
-$('#fsRun').onclick=async()=>{
-  if(!fsDir){toast('请选择目录');return;}const q=$('#fsQuery').value.trim();if(!q){toast('请输入搜索内容');return;}
-  setBar('#fsBar','搜索中…','idle');$('#fsResult').className='result empty';$('#fsResult').textContent='搜索中…';
-  const res=await api.runTask({toolId:'file-content-search',input:q,options:{directory:fsDir,query:q,extensions:$('#fsExt').value,maxSizeMb:5},execute:false});
-  if(res.ok){const m=res.result;if(!m.length){$('#fsResult').className='result empty';$('#fsResult').textContent='未找到匹配';setBar('#fsBar','无匹配','ok');return;}
-    let html='';m.forEach(r=>{const index=r.text.indexOf(q);const hl=index<0?esc(r.text):`${esc(r.text.slice(0,index))}<span class="hl">${esc(r.text.slice(index,index+q.length))}</span>${esc(r.text.slice(index+q.length))}`;html+=`<div class="match" data-path="${esc(r.path)}"><div class="mp">${esc(r.path.split(/[\\\/]/).pop())}:${r.line}</div><div class="ml">${hl}</div></div>`;});
-    $('#fsResult').className='result';$('#fsResult').innerHTML=html;setBar('#fsBar',`找到 ${m.length} 处匹配`,'ok');
-    $$('#fsResult .match').forEach(el=>el.onclick=()=>{api.showPath(el.dataset.path);});}
-  else setBar('#fsBar',res.error,'err');
-};
-$('#fcPickA').onclick=()=>{fcA=api.selectDirectory('选择目录 A');if(fcA)$('#fcDirA').textContent=fcA;};
-$('#fcPickB').onclick=()=>{fcB=api.selectDirectory('选择目录 B');if(fcB)$('#fcDirB').textContent=fcB;};
-$('#fcRun').onclick=async()=>{
-  if(!fcA||!fcB){toast('请选择两个目录');return;}
-  setBar('#fcBar','比较中…','idle');
-  const res=await api.runTask({toolId:'folder-compare',input:'',options:{directoryA:fcA,directoryB:fcB,hash:$('#fcHash').checked},execute:false});
-  if(res.ok){const items=res.result;const cnt={相同:0,不同:0,'仅左侧':0,'仅右侧':0};items.forEach(i=>cnt[i.status]=(cnt[i.status]||0)+1);
-    let html=`<div style="padding:10px 16px;font:12px var(--mono);color:var(--muted);border-bottom:1px solid var(--border)">相同 ${cnt['相同']||0} · 不同 ${cnt['不同']||0} · 仅左 ${cnt['仅左侧']||0} · 仅右 ${cnt['仅右侧']||0}</div>`;
-    html+='<table class="cmp-table"><thead><tr><th>相对路径</th><th>状态</th><th>左大小</th><th>右大小</th></tr></thead><tbody>';
-    items.forEach(i=>{const sc=i.status==='相同'?'st-same':i.status==='不同'?'st-diff':i.status==='仅左侧'?'st-left':'st-right';html+=`<tr><td>${esc(i.relativePath)}</td><td class="${sc}">${i.status}</td><td>${fmtSize(i.leftSize)}</td><td>${fmtSize(i.rightSize)}</td></tr>`;});
-    html+='</tbody></table>';$('#fcResult').className='result';$('#fcResult').innerHTML=html;setBar('#fcBar',`比较完成，共 ${items.length} 项`,'ok');}
-  else setBar('#fcBar',res.error,'err');
-};
-$('#dtPick').onclick=()=>{dtDir=api.selectDirectory('选择目录');if(dtDir)$('#dtDir').textContent=dtDir;};
-$('#dtRun').onclick=async()=>{
-  if(!dtDir){toast('请选择目录');return;}setBar('#dtBar','生成中…','idle');
-  const res=await api.runTask({toolId:'directory-tree',input:'',options:{directory:dtDir,format:$('#dtFmt').value},execute:false});
-  if(res.ok){const text=typeof res.result==='string'?res.result:JSON.stringify(res.result,null,2);$('#dtResult').className='result';$('#dtResult').innerHTML=`<div class="tree">${esc(text)}</div>`;setBar('#dtBar','生成完成','ok');}
-  else setBar('#dtBar',res.error,'err');
-};
-$('#dtCopy').onclick=()=>{const t=$('#dtResult .tree');if(t&&t.textContent){api.copyText(t.textContent);toast('已复制');}else toast('暂无内容');};
-function fmtSize(b){if(b==null)return'-';if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(1)+' MB';}
-window.addEventListener('plugin-enter',e=>{const id=e.detail?.toolId;if(id){$$('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tool===id));$$('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===id));current=id;}const q=e.detail?.action?.payload||e.detail?.action?.clipboardText||e.detail?.payload||e.detail?.clipboardText||'';if(q&&current==='file-content-search')$('#fsQuery').value=q;});
-</script>
+<script src="renderer.js"></script>
 </body></html>

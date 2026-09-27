@@ -1,7 +1,7 @@
 {
   "pluginName": "AI 学习卡片",
-  "description": "从文本或文档生成知识点、问答、术语表、测试题和 Anki CSV。",
-  "version": "1.0.0",
+  "description": "从文本或文档生成知识卡片、测试题、术语表、填空卡、总结与 Anki CSV，并在本地复习和管理历史。",
+  "version": "1.2.0",
   "author": "三人聚智",
   "category": "AI 工具",
   "main": "index.html",
@@ -11,13 +11,17 @@
     {
       "code": "plugin-market-ai-learning",
       "explain": "学习卡片",
-      "description": "从文本或文档生成知识点、问答、术语表、测试题和 Anki CSV。",
+      "description": "从文本或文档生成卡片、测试题、术语表、填空卡、总结、复习清单和 Anki CSV。",
       "cmds": [
         "AI 学习卡片",
         "知识卡片",
         "测试题",
         "术语表",
         "Anki CSV",
+        "填空卡",
+        "重点总结",
+        "复习清单",
+        "今日复习",
         {
           "type": "over",
           "label": "用AI 学习卡片处理",

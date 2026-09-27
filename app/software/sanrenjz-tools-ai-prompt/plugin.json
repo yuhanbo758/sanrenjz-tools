@@ -1,7 +1,7 @@
 {
   "pluginName": "AI 提示词工坊",
-  "description": "管理变量模板、优化提示词、比较版本和模型输出。",
-  "version": "1.0.0",
+  "description": "管理本地与文件夹提示词，通过 @ 插入、变量填充和 AI 优化生成副本。",
+  "version": "1.1.0",
   "author": "三人聚智",
   "category": "AI 工具",
   "main": "index.html",
@@ -11,12 +11,12 @@
     {
       "code": "plugin-market-ai-prompt",
       "explain": "提示优化",
-      "description": "管理变量模板、优化提示词、比较版本和模型输出。",
+      "description": "搜索提示词、@ 插入、填充变量并将 AI 优化结果另存为模板。",
       "cmds": [
         "AI 提示词工坊",
         "优化提示词",
-        "版本比较",
-        "多模型对比",
+        "提示词模板",
+        "提示词变量",
         {
           "type": "over",
           "label": "用AI 提示词工坊处理",

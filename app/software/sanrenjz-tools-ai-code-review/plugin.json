@@ -1,7 +1,8 @@
 {
   "pluginName": "AI 代码审查",
-  "description": "检查代码或 Git Diff，按严重程度输出问题，不改动文件。",
-  "version": "1.0.0",
+  "description": "审查代码与 Git Diff，检查安全风险，解释代码并给出测试与优化建议。",
+  "version": "1.1.1",
+  "updateDate": "2026-09-26",
   "author": "三人聚智",
   "category": "AI 工具",
   "main": "index.html",
@@ -11,12 +12,15 @@
     {
       "code": "plugin-market-ai-code-review",
       "explain": "代码审查",
-      "description": "检查代码或 Git Diff，按严重程度输出问题，不改动文件。",
+      "description": "审查代码与 Git Diff，检查安全风险，解释代码并给出测试与优化建议。",
       "cmds": [
         "AI 代码审查",
         "审查代码",
         "审查 Diff",
         "安全检查",
+        "解释代码",
+        "测试建议",
+        "优化建议",
         {
           "type": "over",
           "label": "用AI 代码审查处理",

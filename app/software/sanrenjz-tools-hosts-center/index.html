@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN" data-layout="host-map">
 <head>
 <meta charset="utf-8">
@@ -17,21 +17,17 @@
 html,body{height:100%;overflow:hidden}
 body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans)}
 .app{height:calc(100vh - 32px);display:flex;flex-direction:column;min-height:0}
-.head{display:flex;align-items:center;gap:14px;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
-.icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;flex:none}
-.icon svg{width:18px;height:18px;color:#fff}
-.head h1{margin:0;font-size:17px;font-weight:700}
-.head p{margin:0;color:var(--muted);font-size:12px}
-.spacer{flex:1}
-.warn-badge{display:flex;align-items:center;gap:6px;font:600 12px var(--sans);padding:6px 14px;border-radius:999px;background:rgba(217,119,6,.12);color:var(--warn)}
-.toolbar{display:flex;gap:8px;align-items:center;padding:12px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex:none;flex-wrap:wrap}
+.toolbar{display:flex;gap:8px;align-items:center;padding:9px 16px;background:var(--surface);border-bottom:1px solid var(--border);flex:none;flex-wrap:wrap;-webkit-app-region:no-drag}
 .btn{border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:6px}
 .btn:hover{border-color:var(--accent-line)}
+.btn:disabled{opacity:.48;cursor:not-allowed}
 .btn svg{width:14px;height:14px}
 .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;border-color:transparent}
 .btn.primary:hover{filter:brightness(1.08)}
 .btn.danger{color:var(--err);border-color:var(--err)}
 .path-info{font:12px var(--mono);color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.search{border:1px solid var(--border);border-radius:8px;padding:8px 10px;width:155px;min-width:90px;font:13px var(--sans);outline:none}
+.search:focus{border-color:var(--accent-2)}
 .body{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:0;overflow:hidden}
 .editor-card{display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--border)}
 .card-h{padding:10px 18px;border-bottom:1px solid var(--border);font:600 12px var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.05em;flex:none;display:flex;align-items:center;justify-content:space-between;background:var(--surface)}
@@ -44,6 +40,9 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
 .diff-del{color:#fb7185}
 .diff-same{color:#7a8a90}
 .empty-diff{color:#5a6b70;text-align:center;padding:40px}
+.issues{display:none;max-height:110px;overflow:auto;border-bottom:1px solid var(--border);padding:7px 14px;background:#fff8ed;font:12px/1.7 var(--sans)}
+.issues.show{display:block}.issue-error{color:var(--err)}.issue-warn{color:#9a5b08}
+.issue{display:block;cursor:pointer;border:0;background:none;text-align:left;padding:2px 0;font:inherit}
 .statusbar{flex:none;padding:10px 24px;border-top:1px solid var(--border);font:12px var(--mono);color:var(--muted);display:flex;align-items:center;gap:8px;background:var(--surface)}
 .statusbar .dot{width:7px;height:7px;border-radius:50%;background:var(--faint)}
 .statusbar.ok .dot{background:var(--ok)}.statusbar.err .dot{background:var(--err)}.statusbar.warn .dot{background:var(--warn)}
@@ -57,16 +56,15 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
 </head>
 <body>
 <main class="app">
-  <div class="head">
-    <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4M2 8h20"/></svg></div>
-    <div><h1>Hosts 配置中心</h1><p>配置组、差异预览、自动备份与权限反馈</p></div>
-    <div class="spacer"></div>
-    <div class="warn-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0z"/></svg>需管理员权限</div>
-  </div>
   <div class="toolbar">
     <button class="btn primary" id="loadBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>读取当前 Hosts</button>
     <button class="btn" id="diffBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M3 8l3-3 3 3M3 16l3 3 3-3M21 8l-3-3-3 3M21 16l-3 3-3-3"/></svg>预览差异</button>
     <button class="btn danger" id="writeBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>写入 Hosts</button>
+    <button class="btn" id="copyBtn">复制内容</button>
+    <button class="btn" id="clearBtn">清空编辑区</button>
+    <button class="btn" id="resetBtn">恢复已读取</button>
+    <input class="search" id="search" placeholder="查找域名 / IP" aria-label="查找域名或 IP">
+    <button class="btn" id="nextBtn">下一个</button>
     <span class="path-info" id="pathInfo">未读取</span>
   </div>
   <div class="body">
@@ -76,43 +74,12 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
     </div>
     <div class="diff-card">
       <div class="card-h">差异预览 <span style="font-size:10px;color:var(--faint)">绿色=新增 红色=删除</span></div>
+      <div class="issues" id="issues"></div>
       <div class="diff-out" id="diffOut"><div class="empty-diff">编辑后点击「预览差异」查看变更</div></div>
     </div>
   </div>
   <div class="statusbar" id="statusbar"><span class="dot"></span><span id="statusText">等待操作</span><span id="backupLink" style="display:none;margin-left:auto" class="backup-info"></span></div>
 </main>
 <div class="toast" id="toast"></div>
-<script>
-const api=window.pluginAPI;const $=s=>document.querySelector(s);const $$=s=>document.querySelectorAll(s);
-let originalContent='';let hostsPath='';
-function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
-function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2000);}
-function setStatus(msg,st){const b=$('#statusbar');b.className='statusbar'+(st?' '+st:'');$('#statusText').textContent=msg;}
-$('#editor').addEventListener('input',()=>{$('#editStat').textContent=$('#editor').value.split('\n').length+' 行';});
-$('#loadBtn').onclick=async()=>{
-  setStatus('读取中…','warn');
-  const res=await api.runTask({toolId:'hosts-manager',input:'',options:{},execute:false});
-  if(res.ok){originalContent=res.result.content;hostsPath=res.result.hostsPath;$('#editor').value=originalContent;$('#pathInfo').textContent=hostsPath;$('#editStat').textContent=originalContent.split('\n').length+' 行';setStatus('已加载当前 Hosts 文件','ok');}
-  else setStatus(res.error,'err');
-};
-$('#diffBtn').onclick=()=>{
-  const original=originalContent.split('\n'),current=$('#editor').value.split('\n');
-  const max=Math.max(original.length,current.length);
-  let html='';for(let i=0;i<max;i++){
-    if(original[i]===current[i]){html+=`<span class="diff-line diff-same">${esc(original[i]??'')||'&nbsp;'}</span>`;}
-    else{if(original[i]!==undefined)html+=`<span class="diff-line diff-del">- ${esc(original[i])||'&nbsp;'}</span>`;if(current[i]!==undefined)html+=`<span class="diff-line diff-add">+ ${esc(current[i])||'&nbsp;'}</span>`;}
-  }
-  if(original.join('\n')===current.join('\n')){html='<div class="empty-diff">无差异</div>';}
-  $('#diffOut').innerHTML=html;setStatus('差异预览完成','ok');
-};
-$('#writeBtn').onclick=async()=>{
-  const input=$('#editor').value;if(!input){toast('内容为空');return;}if(!hostsPath){toast('请先读取 Hosts');return;}
-  if(!confirm('确认写入 Hosts 文件？\n系统将自动创建备份。'))return;
-  setStatus('写入中…','warn');
-  const res=await api.runTask({toolId:'hosts-manager',input,options:{},execute:true});
-  if(res.ok){originalContent=input;setStatus('写入成功','ok');const bk=res.result.backup;if(bk){$('#backupLink').style.display='inline';$('#backupLink').textContent='备份：'+bk.split(/[\\\/]/).pop();$('#backupLink').onclick=()=>api.showPath(bk);}toast('Hosts 已更新');}
-  else{setStatus(res.error,'err');toast('写入失败：可能需要管理员权限');}
-};
-window.addEventListener('plugin-enter',e=>{const text=e.detail?.action?.payload||e.detail?.action?.clipboardText||e.detail?.payload||e.detail?.clipboardText||'';if(text)$('#editor').value=text;});
-</script>
+<script src="renderer.js"></script>
 </body></html>

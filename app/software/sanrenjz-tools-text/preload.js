@@ -12,41 +12,49 @@ const DEFAULT_SETTINGS = {
 
 // 用于存储所有文本片段的缓存
 let snippetsCache = [];
+const PLUGIN_NAME = '余汉波文本片段助手';
+const STATE_KEY = 'snippets-activity-v1';
+
+function getActivity() {
+    const value = ipcRenderer.sendSync('plugin-storage-get', PLUGIN_NAME, STATE_KEY) || {};
+    return {
+        favorites: Array.isArray(value.favorites) ? value.favorites : [],
+        recent: Array.isArray(value.recent) ? value.recent : []
+    };
+}
+
+function saveActivity(activity) {
+    if (!ipcRenderer.sendSync('plugin-storage-set', PLUGIN_NAME, STATE_KEY, activity)) {
+        throw new Error('片段使用记录保存失败');
+    }
+}
+
+function updateActivity(filePath, action) {
+    const activity = getActivity();
+    if (action === 'favorite') {
+        activity.favorites = activity.favorites.includes(filePath)
+            ? activity.favorites.filter(item => item !== filePath)
+            : [...activity.favorites, filePath];
+    } else if (action === 'used') {
+        activity.recent = [filePath, ...activity.recent.filter(item => item !== filePath)].slice(0, 30);
+    } else if (action === 'remove') {
+        activity.favorites = activity.favorites.filter(item => item !== filePath);
+        activity.recent = activity.recent.filter(item => item !== filePath);
+    }
+    saveActivity(activity);
+    return activity;
+}
 
 // 直接插入功能的主要实现
-function insertContent(content, insertMode = 'plain') {
-    console.log('准备插入内容:', content.substring(0, 30) + '...');
-    
+async function insertContent(content) {
     try {
-        // 1. 复制内容到剪贴板
-        const { clipboard } = require('electron');
-        if (insertMode === 'plain') {
-            clipboard.writeText(content);
-        } else if (insertMode === 'markdown') {
-            // 添加markdown格式的特殊处理
-            let formattedContent = content;
-            // 检查是否需要添加markdown语法
-            if (!/^#|^\*\*|^>\s|^```|^\-\s|^\d+\.\s/.test(content)) {
-                // 如果内容不包含markdown语法，自动添加一些基本格式
-                if (content.split('\n').length > 1) {
-                    // 多行内容，添加代码块
-                    formattedContent = '```\n' + content + '\n```';
-                }
-            }
-            clipboard.writeText(formattedContent);
-        } else {
-            clipboard.writeText(content);
-        }
-        
-        console.log('内容已复制到剪贴板');
-        
-        // 2. 不再进行自动粘贴或直接插入，仅复制后关闭插件
+        const result = await ipcRenderer.invoke('insert-content', {
+            title: '文本片段', content: String(content), contentType: 'text-snippet', directInsert: true
+        });
+        if (!result || !result.success) throw new Error(result && (result.error || result.message) || '插入失败');
         closePlugin();
-        
     } catch (error) {
-        console.error('插入过程中发生错误:', error);
-        showNotification('操作失败: ' + error.message, 'error');
-        closePlugin();
+        showNotification('自动插入失败，内容已保留在剪贴板：' + error.message, 'error');
     }
 }
 
@@ -171,7 +179,15 @@ function scanFolder() {
             
             for (const item of items) {
                 const fullPath = path.join(dir, item);
-                const stat = fs.statSync(fullPath);
+                let stat;
+                try {
+                    stat = fs.lstatSync(fullPath);
+                } catch (error) {
+                    console.warn(`跳过无法读取的路径: ${fullPath}`, error);
+                    continue;
+                }
+                // 不跟随符号链接，避免循环扫描或越过用户指定的目录。
+                if (stat.isSymbolicLink()) continue;
                 
                 if (stat.isFile() && path.extname(item).toLowerCase() === '.md') {
                     try {
@@ -183,6 +199,8 @@ function scanFolder() {
                             title: fileName,
                             path: fullPath,
                             content,
+                            modifiedAt: stat.mtimeMs,
+                            folder: dir,
                             preview: content.slice(0, 200) + (content.length > 200 ? '...' : '')
                         });
                     } catch (error) {
@@ -198,7 +216,7 @@ function scanFolder() {
         for (const folderPath of paths) {
             if (folderPath && fs.existsSync(folderPath)) {
                 console.log(`扫描路径: ${folderPath}`);
-                readDir(folderPath);
+                try { readDir(folderPath); } catch (error) { console.error(`扫描路径失败: ${folderPath}`, error); }
             } else {
                 console.log(`跳过无效路径: ${folderPath}`);
             }
@@ -219,7 +237,7 @@ function getSettings() {
     try {
         // 使用 IPC 同步调用获取插件存储数据
         const settings = ipcRenderer.sendSync('plugin-storage-get', '余汉波文本片段助手', 'snippets-settings');
-        return settings || DEFAULT_SETTINGS;
+        return { ...DEFAULT_SETTINGS, ...(settings || {}) };
     } catch (error) {
         console.error('获取设置失败:', error);
         return DEFAULT_SETTINGS;
@@ -268,6 +286,32 @@ function getDefaultSnippetsPath(settings) {
     return getFirstValidPath(settings);
 }
 
+function validateSnippetTitle(title) {
+    const value = String(title || '').trim();
+    if (!value || value === '.' || value === '..' || /[\\/:*?"<>|\x00-\x1f]/.test(value) || /[. ]$/.test(value)) {
+        throw new Error('标题不能为空，且不能包含文件名非法字符或以点、空格结尾');
+    }
+    if (value.length > 160) throw new Error('标题不能超过 160 个字符');
+    return value;
+}
+
+function findSnippetByPath(filePath) {
+    const snippet = snippetsCache.find(item => item.path === filePath);
+    if (!snippet) throw new Error('片段已不在当前列表中，请刷新后重试');
+    return snippet;
+}
+
+function assertUnchanged(snippet) {
+    if (fs.lstatSync(snippet.path).isSymbolicLink()) throw new Error('文件已变为符号链接，请刷新后重试');
+    const current = fs.readFileSync(snippet.path, 'utf8');
+    if (current !== snippet.content) throw new Error('文件已被其他程序修改，请刷新后重试');
+}
+
+function writeNewSnippet(filePath, content) {
+    // wx 保证已有同名文件绝不会被悄悄覆盖。
+    fs.writeFileSync(filePath, content, { encoding: 'utf8', flag: 'wx' });
+}
+
 // 导出主要功能
 window.exports = {
     // 浏览和管理文本片段
@@ -312,6 +356,9 @@ window.exports = {
             select: (action, itemData) => {
                 // 当选择某一项时，插入内容
                 const settings = getSettings();
+                if (itemData.path) {
+                    try { updateActivity(itemData.path, 'used'); } catch (error) { console.warn('最近使用记录保存失败:', error); }
+                }
                 if (settings.autoInsert) {
                     insertContent(itemData.content);
                 } else {
@@ -380,70 +427,64 @@ window.services = {
     },
     
     createSnippet: (title, content) => {
-        try {
-            const settings = getSettings();
-            // 使用默认路径，而不是第一个路径
-            const snippetsPath = getDefaultSnippetsPath(settings);
-            
-            if (!snippetsPath) {
-                throw new Error('未设置有效的文本片段文件夹路径');
-            }
-            
-            // 确保文件名有效
-            const safeTitle = title.replace(/[\\/:*?"<>|]/g, '_');
-            const filePath = path.join(snippetsPath, `${safeTitle}.md`);
-            
-            // 写入文件
-            fs.writeFileSync(filePath, content, 'utf8');
-            
-            // 更新缓存
-            scanFolder();
-            
-            return true;
-        } catch (error) {
-            console.error('创建片段失败:', error);
-            return false;
-        }
+        const snippetsPath = getDefaultSnippetsPath(getSettings());
+        if (!snippetsPath) throw new Error('请先在设置中选择有效的片段文件夹');
+        const filePath = path.join(snippetsPath, `${validateSnippetTitle(title)}.md`);
+        writeNewSnippet(filePath, String(content));
+        scanFolder();
+        return filePath;
     },
     
-    deleteSnippet: (fileName) => {
-        try {
-            const snippet = snippetsCache.find(s => s.fileName === fileName);
-            if (!snippet) {
-                throw new Error('找不到对应的片段');
-            }
-            
-            // 删除文件
-            fs.unlinkSync(snippet.path);
-            
-            // 更新缓存
-            scanFolder();
-            
-            return true;
-        } catch (error) {
-            console.error('删除片段失败:', error);
-            return false;
-        }
+    deleteSnippet: (filePath) => {
+        const snippet = findSnippetByPath(filePath);
+        assertUnchanged(snippet);
+        fs.unlinkSync(snippet.path);
+        try { updateActivity(snippet.path, 'remove'); } catch (error) { console.warn('片段活动记录清理失败:', error); }
+        scanFolder();
+        return true;
     },
     
-    editSnippet: (fileName, newContent) => {
-        try {
-            const snippet = snippetsCache.find(s => s.fileName === fileName);
-            if (!snippet) {
-                throw new Error('找不到对应的片段');
-            }
-            
-            // 更新文件内容
-            fs.writeFileSync(snippet.path, newContent, 'utf8');
-            
-            // 更新缓存
-            scanFolder();
-            
-            return true;
-        } catch (error) {
-            console.error('编辑片段失败:', error);
-            return false;
+    editSnippet: (filePath, title, newContent) => {
+        const snippet = findSnippetByPath(filePath);
+        assertUnchanged(snippet);
+        const nextPath = path.join(path.dirname(snippet.path), `${validateSnippetTitle(title)}.md`);
+        if (nextPath !== snippet.path) {
+            writeNewSnippet(nextPath, String(newContent));
+            try { fs.unlinkSync(snippet.path); } catch (error) { fs.unlinkSync(nextPath); throw error; }
+            const activity = getActivity();
+            activity.favorites = activity.favorites.map(item => item === snippet.path ? nextPath : item);
+            activity.recent = activity.recent.map(item => item === snippet.path ? nextPath : item);
+            try { saveActivity(activity); } catch (error) { console.warn('片段活动记录迁移失败:', error); }
+        } else {
+            fs.writeFileSync(snippet.path, String(newContent), 'utf8');
         }
+        scanFolder();
+        return nextPath;
+    },
+    copySnippet: (snippet) => {
+        require('electron').clipboard.writeText(String(snippet.content));
+        try { updateActivity(snippet.path, 'used'); } catch (error) { console.warn('最近使用记录保存失败:', error); }
+        return true;
+    },
+    getActivity,
+    toggleFavorite: (filePath) => {
+        findSnippetByPath(filePath);
+        return updateActivity(filePath, 'favorite');
+    },
+    getClipboardText: () => require('electron').clipboard.readText(),
+    duplicateSnippet: (filePath) => {
+        const snippet = findSnippetByPath(filePath);
+        assertUnchanged(snippet);
+        const folder = path.dirname(snippet.path);
+        let duplicatePath;
+        for (let index = 1; index <= 100; index++) {
+            const suffix = index === 1 ? ' 副本' : ` 副本 ${index}`;
+            duplicatePath = path.join(folder, `${validateSnippetTitle(snippet.title + suffix)}.md`);
+            if (!fs.existsSync(duplicatePath)) break;
+        }
+        writeNewSnippet(duplicatePath, snippet.content);
+        scanFolder();
+        return duplicatePath;
     },
     
     // 获取快速访问片段列表

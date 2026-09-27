@@ -7,6 +7,60 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { createAiRuntime } = require('../../plugin_runtime/ai-runtime');
+const sharedAi = createAiRuntime('AI语音输入法');
+
+async function getSharedSpeechModels() {
+    const config = await sharedAi.getConfig();
+    const items = [];
+    for (const provider of config.providers || []) {
+        for (const model of provider.models || []) {
+            const capabilities = model.capabilities || [];
+            if (capabilities.includes('text')) items.push({ kind: 'text', providerId: provider.id, modelId: model.id,
+                label: `${provider.name} / ${model.label || model.id}`,
+                selected: config.selections?.text?.providerId === provider.id && config.selections.text.modelId === model.id });
+            const managed = provider.transport === 'opencode' || /^opencode:\/\//i.test(provider.baseUrl || '');
+            if (capabilities.includes('audio') && !managed && (!model.apiStyle || model.apiStyle === 'openai')) {
+                items.push({ kind: 'audio', providerId: provider.id, modelId: model.id, label: `${provider.name} / ${model.label || model.id}` });
+            }
+        }
+    }
+    return items;
+}
+
+async function resolveSharedAudio(selection) {
+    const config = await sharedAi.getConfig();
+    const provider = (config.providers || []).find(item => item.id === selection?.providerId);
+    const model = (provider?.models || []).find(item => item.id === selection?.modelId);
+    if (!provider || !model || !(model.capabilities || []).includes('audio')) throw new Error('共享音频模型已失效，请刷新后重新选择');
+    if (provider.transport === 'opencode' || /^opencode:\/\//i.test(provider.baseUrl || '')) throw new Error('OpenCode 当前不传递音频附件，请使用直连音频模型');
+    if (model.apiStyle && model.apiStyle !== 'openai') throw new Error('该音频模型不是 OpenAI 兼容接口');
+    const apiKey = await sharedAi.getProviderSecret(provider.id);
+    if (!apiKey) throw new Error(`共享供应商“${provider.name}”尚未保存 API Key`);
+    return { baseUrl: provider.baseUrl, apiKey, model: model.id };
+}
+
+async function transcribeSharedAudio(options) {
+    const target = await resolveSharedAudio(options.selection);
+    if (/^(?:gpt-.*-transcribe(?:-.*)?|whisper-1)$/i.test(target.model)) {
+        const mimeType = String(options.mimeType || 'audio/webm');
+        const fileBuffer = base64ToBuffer(options.audioBase64);
+        if (!fileBuffer.length || fileBuffer.length > 25 * 1024 * 1024) throw new Error('音频文件须非空且不超过 25 MB');
+        const extension = mimeType.includes('wav') ? 'wav' : mimeType.includes('mp4') ? 'm4a'
+            : mimeType.includes('mpeg') ? 'mp3' : mimeType.includes('ogg') ? 'ogg' : 'webm';
+        const body = buildMultipartBody({ fields: { model: target.model }, fileFieldName: 'file',
+            fileName: `speech.${extension}`,
+            fileBuffer, fileContentType: mimeType });
+        const url = `${String(target.baseUrl).replace(/\/+$/, '').replace(/\/chat\/completions$/i, '')}/audio/transcriptions`;
+        const response = await fetchWithTimeout(url, { method: 'POST', headers: {
+            Authorization: `Bearer ${target.apiKey}`, 'Content-Type': body.contentType, 'Content-Length': String(body.body.length)
+        }, body: body.body }, 120000);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data?.error?.message || `语音识别 HTTP ${response.status}`);
+        return String(data?.text || '').trim();
+    }
+    return window.electronAPI.openaiCompatible.transcribe({ ...target, audioBase64: options.audioBase64, mimeType: options.mimeType, prompt: options.prompt });
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LAN Sync — pure Node.js implementation (no ws package)
@@ -440,6 +494,15 @@ function pushClipboardImage() {
 const PLUGIN_NAME = 'AI语音输入法';
 
 window.electronAPI = {
+    sharedAi: {
+        listModels: getSharedSpeechModels,
+        transcribe: transcribeSharedAudio,
+        processText: async ({ selection, text, prompt }) => {
+            const result = await sharedAi.complete({ selection, capability: 'text', stream: false,
+                messages: buildTextTransformationMessages(prompt, text) });
+            return result.text || '';
+        }
+    },
     storage: {
         get: (key) => ipcRenderer.sendSync('plugin-storage-get', PLUGIN_NAME, key),
         set: (key, value) => ipcRenderer.sendSync('plugin-storage-set', PLUGIN_NAME, key, value),

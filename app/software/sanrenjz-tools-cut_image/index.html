@@ -43,13 +43,15 @@
         }
         
         .toolbar {
-            height: 60px;
+            min-height: 60px;
             background: #fff;
             border-bottom: 1px solid #e9ecef;
             display: flex;
             align-items: center;
-            padding: 0 20px;
-            gap: 15px;
+            padding: 8px 20px;
+            gap: 8px;
+            flex-wrap: wrap;
+            flex-shrink: 0;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         
@@ -86,6 +88,19 @@
             background: #f8fff8;
             transform: scale(1.02);
         }
+
+        .canvas-area.dragover .upload-zone,
+        .canvas-area.dragover .canvas-container {
+            outline: 3px dashed #28a745;
+            outline-offset: -8px;
+        }
+
+        .image-info {
+            margin: 10px 0;
+            color: #495057;
+            font-size: 12px;
+            line-height: 1.5;
+        }
         
         .upload-icon {
             font-size: 48px;
@@ -104,10 +119,8 @@
             margin: auto;
             position: relative;
             display: none;
-            width: calc(100vw - 300px); /* 减去侧边栏宽度 */
-            height: calc(100vh - 80px); /* 减去工具栏高度 */
-            max-width: calc(100vw - 300px);
-            max-height: calc(100vh - 80px);
+            width: 100%;
+            height: 100%;
             overflow: hidden; /* 禁用滚动条 */
             align-items: center;
             justify-content: center;
@@ -612,14 +625,15 @@
                 <div class="resolution-control" style="margin-top: 15px;">
                     <label style="display: block; margin-bottom: 8px; font-weight: 600;">🔍 输出分辨率:</label>
                     <select id="resolutionScale" style="width: 100%; padding: 8px; border: 1px solid #dee2e6; border-radius: 4px; background: #fff;">
-                        <option value="1">1x (原始分辨率)</option>
+                        <option value="1">1x (当前画布尺寸)</option>
                         <option value="1.5">1.5x (150%)</option>
                         <option value="2" selected>2x (200%)</option>
                         <option value="3">3x (300%)</option>
                         <option value="4">4x (400%)</option>
                     </select>
-                    <small style="color: #6c757d; font-size: 12px; margin-top: 5px; display: block;">提高分辨率可获得更清晰的图片，适合高质量封面制作</small>
+                    <small style="color: #6c757d; font-size: 12px; margin-top: 5px; display: block;">按当前画布尺寸缩放导出；放大不会增加原图细节</small>
                 </div>
+                <div class="image-info" id="imageInfo" aria-live="polite">尚未加载图片</div>
                 <div class="quality-control">
                     <label for="quality">图片质量: <span id="qualityValue">90</span>%</label>
                     <input type="range" id="quality" min="10" max="100" value="90" style="width: 100%;">
@@ -636,6 +650,9 @@
                 <button class="btn" id="redoBtn" disabled title="重做 (Ctrl+Y)">↷ 重做</button>
                 <button class="btn" id="rotateLeftBtn">↺ 左转</button>
                 <button class="btn" id="rotateRightBtn">↻ 右转</button>
+                <button class="btn" id="flipHorizontalBtn">↔ 水平翻转</button>
+                <button class="btn" id="flipVerticalBtn">↕ 垂直翻转</button>
+                <button class="btn" id="resetBtn">重置</button>
                 <button class="btn btn-danger" id="deleteBtn">🗑️ 删除</button>
                 <button class="btn btn-warning" id="cropBtn">✂️ 裁剪</button>
             </div>
@@ -644,9 +661,9 @@
                 <div class="upload-zone" id="uploadZone">
                     <div class="upload-icon">📷</div>
                     <div class="upload-text">
-                        拖拽图片到这里<br>
-                        或点击选择图片文件<br>
-                        <small>支持 JPG、PNG、WebP 格式</small>
+                        拖拽图片到窗口任意位置<br>
+                        或点击选择、按 Ctrl+V 粘贴图片<br>
+                        <small>支持 JPG、PNG、WebP、GIF、BMP</small>
                     </div>
                 </div>
                 

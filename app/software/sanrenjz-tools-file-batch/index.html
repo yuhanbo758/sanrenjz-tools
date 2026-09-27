@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN" data-layout="batch-rail">
 <head>
 <meta charset="utf-8">
@@ -17,12 +17,6 @@
 html,body{height:100%;overflow:hidden}
 body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans)}
 .app{height:calc(100vh - 32px);display:flex;flex-direction:column;min-height:0}
-.head{display:flex;align-items:center;gap:14px;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
-.icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;flex:none}
-.icon svg{width:18px;height:18px;color:#fff}
-.head h1{margin:0;font-size:17px;font-weight:700}
-.head p{margin:0;color:var(--muted);font-size:12px}
-.spacer{flex:1}
 .tabs{display:flex;gap:6px;padding:10px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
 .tab{border:0;background:transparent;color:var(--muted);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;transition:.15s;display:flex;align-items:center;gap:7px}
 .tab svg{width:15px;height:15px}
@@ -32,6 +26,8 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
 .panel{flex:1;min-height:0;display:none;flex-direction:column;gap:14px}
 .panel.active{display:flex}
 .sel-dir{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;flex:none}
+.sel-dir.dragging{border-color:var(--accent);background:var(--accent-soft)}
+.drop-hint,.meta{font-size:12px;color:var(--muted)}
 .sel-dir .path{flex:1;font:12px var(--mono);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;flex:none}
 .rule{display:flex;flex-direction:column;gap:5px}
@@ -69,22 +65,20 @@ td .arrow{color:var(--faint);margin:0 6px}
 </head>
 <body>
 <main class="app">
-  <div class="head">
-    <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V5"/></svg></div>
-    <div><h1>文件批处理中心</h1><p>先预览命名和校验清单，再执行文件修改</p></div>
-    <div class="spacer"></div>
-  </div>
   <div class="tabs">
     <button class="tab active" data-tool="batch-renamer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V5h16v2M9 5v14M7 19h4M15 13l4 4-4 4M19 17H9"/></svg>批量重命名</button>
     <button class="tab" data-tool="file-checksum"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4M9 16h6"/></svg>文件校验</button>
   </div>
   <div class="content">
+    <div class="sel-dir" id="dropZone" style="margin-bottom:12px;flex-wrap:wrap">
+      <button class="btn" id="pickFiles">添加文件</button><button class="btn" id="pickDir">添加目录</button>
+      <span class="path" id="sourceSummary" style="flex:1;min-width:180px">拖入文件或目录，或点击左侧添加</span>
+      <label class="chk"><input type="checkbox" id="recursive">包含子目录</label>
+      <button class="btn" id="clearFiles">清空</button>
+      <span class="drop-hint">可直接拖入本窗口</span>
+    </div>
     <!-- Renamer -->
     <div class="panel active" data-panel="batch-renamer">
-      <div class="sel-dir">
-        <button class="btn" id="rnPickDir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V5"/></svg>选择目录</button>
-        <span class="path" id="rnDir">未选择目录</span>
-      </div>
       <div class="rules">
         <div class="rule"><label>查找</label><input class="inp" id="rnFind" placeholder="原文件名片段"></div>
         <div class="rule"><label>替换为</label><input class="inp" id="rnReplace" placeholder="新文本"></div>
@@ -92,6 +86,8 @@ td .arrow{color:var(--faint);margin:0 6px}
         <div class="rule"><label>后缀</label><input class="inp" id="rnSuffix" placeholder="_后缀"></div>
         <div class="rule"><label>编号起始</label><input class="inp" id="rnStart" type="number" value="1" style="width:80px"></div>
         <div class="rule"><label>编号位数</label><input class="inp" id="rnPad" type="number" value="2" style="width:80px"></div>
+        <div class="rule"><label>扩展名筛选</label><input class="inp" id="rnExt" placeholder="例：jpg,png；留空为全部"></div>
+        <div class="rule"><label>文件名大小写</label><select class="sel" id="rnCase"><option value="keep">保持原样</option><option value="lower">小写</option><option value="upper">大写</option></select></div>
         <div class="rule" style="justify-content:flex-end;flex-direction:row;align-items:center;gap:14px;padding-top:18px">
           <label class="chk"><input type="checkbox" id="rnNumber">编号</label>
           <label class="chk"><input type="checkbox" id="rnRegex">正则</label>
@@ -100,61 +96,19 @@ td .arrow{color:var(--faint);margin:0 6px}
       <div class="btn-row">
         <button class="btn primary" id="rnPreview">预览重命名</button>
         <button class="btn danger" id="rnExec" disabled>执行重命名</button>
+        <span class="meta">规则变化后需重新预览</span>
       </div>
-      <div class="table-wrap" id="rnTable"><div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7h6l2 2h10v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V5"/></svg><span>选择目录并预览后将显示重命名清单</span></div></div>
+      <div class="table-wrap" id="rnTable"><div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7h6l2 2h10v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V5"/></svg><span>添加文件并预览后将显示重命名清单</span></div></div>
       <div class="bar" id="rnBar"><span class="d"></span><span>等待操作</span></div>
     </div>
     <!-- Checksum -->
     <div class="panel" data-panel="file-checksum">
-      <div class="sel-dir">
-        <button class="btn" id="csPick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/></svg>选择文件</button>
-        <span class="path" id="csCount">未选择文件</span>
-      </div>
-      <div class="btn-row"><button class="btn primary" id="csCalc">计算 SHA-256</button></div>
+      <div class="btn-row" style="align-items:center;flex-wrap:wrap"><button class="btn primary" id="csCalc">计算 SHA-256</button><button class="btn" id="csExport" disabled>导出 CSV</button><label class="meta">校验指定 SHA-256：</label><input class="inp" id="csExpected" placeholder="输入 64 位哈希值进行比对" style="flex:1;min-width:220px"></div>
       <div class="table-wrap" id="csTable"><div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>选择文件后计算校验和</span></div></div>
       <div class="bar" id="csBar"><span class="d"></span><span>等待选择文件</span></div>
     </div>
   </div>
 </main>
 <div class="toast" id="toast"></div>
-<script>
-const api=window.pluginAPI;const $=s=>document.querySelector(s);const $$=s=>document.querySelectorAll(s);
-let current='batch-renamer';let csFiles=[];
-function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
-function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1800);}
-function setBar(sel,msg,st){const b=$(sel);b.className='bar'+(st==='ok'?' ok':st==='err'?' err':'');b.querySelector('span:last-child').textContent=msg;}
-$$('.tab').forEach(t=>t.onclick=()=>{current=t.dataset.tool;$$('.tab').forEach(x=>x.classList.toggle('active',x===t));$$('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===current));});
-let rnDir='';
-$('#rnPickDir').onclick=()=>{rnDir=api.selectDirectory('选择需要批量重命名的目录');if(rnDir)$('#rnDir').textContent=rnDir;};
-$('#rnPreview').onclick=async()=>{
-  if(!rnDir){toast('请先选择目录');return;}
-  const opts={directory:rnDir,find:$('#rnFind').value,replace:$('#rnReplace').value,prefix:$('#rnPrefix').value,suffix:$('#rnSuffix').value,number:$('#rnNumber').checked,regex:$('#rnRegex').checked,start:+$('#rnStart').value,padding:+$('#rnPad').value};
-  setBar('#rnBar','预览中…','idle');
-  const res=await api.runTask({toolId:'batch-renamer',input:'',options:opts,execute:false});
-  if(res.ok){const plan=res.result;if(!plan.length){$('#rnTable').innerHTML='<div class="empty"><span>没有需要重命名的文件</span></div>';setBar('#rnBar','无需重命名','ok');return;}
-    let html='<table><thead><tr><th>原文件名</th><th>新文件名</th></tr></thead><tbody>';
-    plan.forEach(p=>{html+=`<tr><td class="from">${esc(p.before)}</td><td class="to">${esc(p.after)}</td></tr>`;});
-    html+='</tbody></table>';$('#rnTable').innerHTML=html;$('#rnExec').disabled=false;setBar('#rnBar',`预览完成，${plan.length} 个文件待重命名`,'ok');}
-  else setBar('#rnBar',res.error,'err');
-};
-$('#rnExec').onclick=async()=>{
-  const opts={directory:rnDir,find:$('#rnFind').value,replace:$('#rnReplace').value,prefix:$('#rnPrefix').value,suffix:$('#rnSuffix').value,number:$('#rnNumber').checked,regex:$('#rnRegex').checked,start:+$('#rnStart').value,padding:+$('#rnPad').value};
-  setBar('#rnBar','正在重命名…','idle');
-  const res=await api.runTask({toolId:'batch-renamer',input:'',options:opts,execute:true});
-  if(res.ok){toast('重命名完成');setBar('#rnBar',`已重命名 ${res.result.length} 个文件`,'ok');$('#rnExec').disabled=true;}
-  else setBar('#rnBar',res.error,'err');
-};
-$('#csPick').onclick=()=>{const sel=api.selectFiles({multiple:true});if(sel&&sel.length){csFiles=sel;$('#csCount').textContent=`已选 ${csFiles.length} 个文件`;}};
-$('#csCalc').onclick=async()=>{
-  if(!csFiles.length){toast('请先选择文件');return;}
-  setBar('#csBar','计算中…','idle');
-  const res=await api.runTask({toolId:'file-checksum',input:'',options:{files:csFiles},execute:false});
-  if(res.ok){const items=res.result;let html='<table><thead><tr><th>文件名</th><th>SHA-256</th><th></th></tr></thead><tbody>';
-    items.forEach(i=>{const nm=esc(i.file.split(/[\\\/]/).pop());const h=esc(i.sha256);html+=`<tr><td>${nm}</td><td style="word-break:break-all">${h}</td><td><button class="btn" style="padding:3px 8px;font-size:11px" data-hash="${esc(i.sha256)}">复制</button></td></tr>`;});
-    html+='</tbody></table>';$('#csTable').innerHTML=html;setBar('#csBar',`已计算 ${items.length} 个文件`,'ok');
-    $$('#csTable [data-hash]').forEach(b=>b.onclick=()=>{api.copyText(b.dataset.hash);toast('已复制哈希值');});}
-  else setBar('#csBar',res.error,'err');
-};
-window.addEventListener('plugin-enter',e=>{const id=e.detail?.toolId;if(id){$$('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tool===id));$$('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===id));current=id;}});
-</script>
+<script src="renderer.js"></script>
 </body></html>

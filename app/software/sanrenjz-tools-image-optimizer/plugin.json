@@ -1,7 +1,7 @@
 {
   "pluginName": "图片优化器",
-  "description": "组合调整图片尺寸、质量和格式，支持 PNG、JPEG、WebP、BMP、ICO。",
-  "version": "2.1.0",
+  "description": "多图批量转换、压缩、缩放和方向调整，支持 PNG、JPEG、WebP、BMP、ICO 输出。",
+  "version": "2.2.0",
   "author": "三人聚智",
   "category": "效率工具",
   "main": "index.html",
@@ -11,7 +11,7 @@
     {
       "code": "plugin-market-image-compressor",
       "explain": "图片压缩",
-      "description": "批量调整质量、格式和尺寸，并即时比较体积。",
+      "description": "多图批量压缩与导出，组合设置 JPEG/WebP 质量、尺寸和方向。",
       "cmds": [
         "图片压缩",
         "压缩图片",
@@ -38,7 +38,7 @@
     {
       "code": "plugin-market-image-converter",
       "explain": "格式转换",
-      "description": "批量调整质量、格式和尺寸，并即时比较体积。",
+      "description": "将多张图片转换为 PNG、JPEG、WebP、BMP 或 ICO，可同时缩放。",
       "cmds": [
         "图片转换",
         "webp",
@@ -65,7 +65,7 @@
     {
       "code": "plugin-market-image-resizer",
       "explain": "图片缩放",
-      "description": "批量调整质量、格式和尺寸，并即时比较体积。",
+      "description": "按比例、百分比或最长边缩放多张图片，并可旋转和翻转。",
       "cmds": [
         "图片尺寸",
         "缩放图片",

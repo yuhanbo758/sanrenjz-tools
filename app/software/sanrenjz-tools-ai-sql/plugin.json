@@ -1,7 +1,7 @@
 {
   "pluginName": "AI SQL 助手",
-  "description": "按数据库方言生成、解释、格式化和优化 SQL，不连接数据库。",
-  "version": "1.0.0",
+  "description": "按数据库方言生成、解释、优化 SQL，支持本地格式化、风险检查和查询计划命令。",
+  "version": "1.0.1",
   "author": "三人聚智",
   "category": "AI 工具",
   "main": "index.html",
@@ -11,12 +11,15 @@
     {
       "code": "plugin-market-ai-sql",
       "explain": "SQL生成",
-      "description": "按数据库方言生成、解释、格式化和优化 SQL，不连接数据库。",
+      "description": "按数据库方言生成、解释、优化 SQL，支持本地格式化、风险检查和查询计划命令。",
       "cmds": [
         "AI SQL 助手",
         "生成 SQL",
         "解释 SQL",
         "优化 SQL",
+        "格式化 SQL",
+        "SQL 风险检查",
+        "SQL 查询计划",
         {
           "type": "over",
           "label": "用AI SQL 助手处理",

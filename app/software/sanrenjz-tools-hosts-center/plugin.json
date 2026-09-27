@@ -1,7 +1,7 @@
 {
   "pluginName": "Hosts 配置中心",
-  "description": "配置组、差异预览、自动备份与权限反馈。",
-  "version": "2.0.0",
+  "description": "Hosts 编辑、复制与清空、查找、格式检查、差异预览和安全备份。",
+  "version": "2.1.0",
   "author": "三人聚智",
   "category": "效率工具",
   "main": "index.html",
@@ -11,7 +11,7 @@
     {
       "code": "plugin-market-hosts-manager",
       "explain": "域名映射",
-      "description": "配置组、差异预览、自动备份与权限反馈。",
+      "description": "编辑 Hosts 并检查格式与差异，写入前自动备份。",
       "cmds": [
         "hosts",
         "hosts切换",

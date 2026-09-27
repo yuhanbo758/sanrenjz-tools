@@ -18,9 +18,10 @@ const api={...core,
     const extension=path.extname(filePath).slice(1).toLowerCase();
     const mime={jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp',bmp:'image/bmp',gif:'image/gif',ico:'image/x-icon'}[extension];
     if(!mime)throw new Error('不支持的图片格式');
+    if(fs.statSync(filePath).size>50*1024*1024)throw new Error('单张图片不能超过 50 MB');
     return `data:${mime};base64,${fs.readFileSync(filePath).toString('base64')}`;
   },
-  writeImageFile:async(filePath,bytes,format)=>{
+  writeImageFile:async(filePath,bytes,format,options={})=>{
     const target=path.resolve(String(filePath||''));
     const expected=String(format||'').toLowerCase();
     if(!OUTPUT_EXTENSIONS[expected])throw new Error('不支持的输出格式');
@@ -30,7 +31,7 @@ const api={...core,
     if(!data.length||data.length>256*1024*1024)throw new Error('图片数据无效或过大');
     const actual=detectImageFormat(data);
     if(actual!==expected)throw new Error(`格式转换失败：编码结果为 ${actual||'未知格式'}，目标格式为 ${expected}`);
-    await fs.promises.writeFile(target,data);
+    await fs.promises.writeFile(target,data,{flag:options.noOverwrite?'wx':'w'});
     return {path:target,bytes:data.length,format:actual};
   },
   migrateLegacy:async()=>{const done=await core.storage.get('migration-v1');if(done)return done;const names=['图片压缩器','图片格式转换','图片尺寸调整'], keys=['state','settings','data','items','history','notes','tasks','habits','projects'];const snapshot={schemaVersion:1,migratedAt:new Date().toISOString(),sources:{}};for(const name of names){for(const key of keys){const value=await ipcRenderer.invoke('plugin-storage-get-async',name,key);if(value!==null&&value!==undefined)(snapshot.sources[name]||={})[key]=value;}}await core.storage.set('migration-v1',snapshot);return snapshot;}

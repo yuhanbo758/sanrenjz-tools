@@ -5,6 +5,127 @@ let audioChunks = [];
 let keyboardHookProcess = null;
 let isRightCtrlDown = false;
 let isProcessing = false;
+let isStartingRecording = false;
+let recordingCancelled = false;
+let recordingStartedAt = 0;
+let recordingTimer = null;
+
+const workspace = {
+    card: document.querySelector('.workspace-card'),
+    record: document.getElementById('record-toggle-btn'),
+    cancel: document.getElementById('record-cancel-btn'),
+    import: document.getElementById('audio-file-btn'),
+    file: document.getElementById('audio-file-input'),
+    copy: document.getElementById('result-copy-btn'),
+    insert: document.getElementById('result-insert-btn'),
+    clear: document.getElementById('result-clear-btn'),
+    result: document.getElementById('workspace-result'),
+    status: document.getElementById('workspace-status'),
+    duration: document.getElementById('record-duration'),
+    count: document.getElementById('result-count'),
+    autoInsert: document.getElementById('workspace-auto-insert')
+};
+
+function setWorkspaceStatus(message, kind = 'info') {
+    if (!workspace.status) return;
+    workspace.status.textContent = message;
+    workspace.status.dataset.kind = kind;
+}
+
+function updateWorkspaceControls() {
+    if (!workspace.record) return;
+    workspace.record.textContent = isRecording ? '结束录音' : '开始录音';
+    workspace.record.disabled = isProcessing || isStartingRecording;
+    workspace.cancel.disabled = !isRecording;
+    workspace.import.disabled = isRecording || isProcessing || isStartingRecording;
+    const hasResult = !!workspace.result.value.trim();
+    workspace.copy.disabled = !hasResult;
+    workspace.insert.disabled = !hasResult || isProcessing;
+    workspace.clear.disabled = !hasResult || isProcessing;
+    workspace.count.textContent = `${Array.from(workspace.result.value).length} 字`;
+}
+
+function updateRecordingDuration() {
+    if (!workspace.duration) return;
+    const seconds = Math.floor((Date.now() - recordingStartedAt) / 1000);
+    workspace.duration.textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
+function stopRecordingTimer() {
+    if (recordingTimer) clearInterval(recordingTimer);
+    recordingTimer = null;
+}
+
+function setupWorkspace() {
+    if (!workspace.record) return;
+    updateWorkspaceControls();
+    workspace.record.addEventListener('click', () => {
+        if (isRecording) stopRecording();
+        else startRecording('manual');
+    });
+    workspace.cancel.addEventListener('click', () => {
+        recordingCancelled = true;
+        stopRecording();
+        setWorkspaceStatus('录音已取消，未发送音频。');
+    });
+    workspace.import.addEventListener('click', () => workspace.file.click());
+    workspace.file.addEventListener('change', () => {
+        const file = workspace.file.files && workspace.file.files[0];
+        workspace.file.value = '';
+        if (file) importAudioFile(file);
+    });
+    workspace.result.addEventListener('input', updateWorkspaceControls);
+    workspace.autoInsert.addEventListener('change', () => {
+        const settings = window.electronAPI.storage.get('settings') || {};
+        window.electronAPI.storage.set('settings', { ...settings, workspaceAutoInsert: workspace.autoInsert.checked });
+    });
+    workspace.copy.addEventListener('click', () => {
+        window.electronAPI.action.copy(workspace.result.value);
+        setWorkspaceStatus('结果已复制，可粘贴到其他应用。');
+    });
+    workspace.insert.addEventListener('click', async () => {
+        const success = await insertToExternalApp(workspace.result.value);
+        setWorkspaceStatus(success ? '已尝试插入结果。' : '插入失败，结果仍保留在工作台。', success ? 'info' : 'error');
+    });
+    workspace.clear.addEventListener('click', () => {
+        workspace.result.value = '';
+        updateWorkspaceControls();
+        setWorkspaceStatus('结果已清空。');
+    });
+    document.addEventListener('dragover', event => {
+        if (event.dataTransfer && Array.from(event.dataTransfer.types).includes('Files')) event.preventDefault();
+    });
+    document.addEventListener('drop', event => {
+        if (!event.dataTransfer || !event.dataTransfer.files.length) return;
+        event.preventDefault();
+        workspace.card.classList.remove('drag-over');
+        importAudioFile(event.dataTransfer.files[0]);
+    });
+    workspace.card.addEventListener('dragenter', () => workspace.card.classList.add('drag-over'));
+    workspace.card.addEventListener('dragleave', event => {
+        if (!workspace.card.contains(event.relatedTarget)) workspace.card.classList.remove('drag-over');
+    });
+}
+
+function importAudioFile(file) {
+    if (isRecording || isProcessing || isStartingRecording) {
+        setWorkspaceStatus('请等待当前录音或转写完成。', 'error');
+        return;
+    }
+    const extension = (file.name || '').split('.').pop().toLowerCase();
+    const formats = { wav: 'audio/wav', mp3: 'audio/mpeg', m4a: 'audio/mp4', ogg: 'audio/ogg', webm: 'audio/webm' };
+    if (!formats[extension] || (file.type && !file.type.startsWith('audio/'))) {
+        setWorkspaceStatus('请选择 WAV、MP3、M4A、OGG 或 WebM 音频文件。', 'error');
+        return;
+    }
+    if (!file.size || file.size > 25 * 1024 * 1024) {
+        setWorkspaceStatus('音频文件须非空且不超过 25 MB。', 'error');
+        return;
+    }
+    const blob = file.type ? file : new Blob([file], { type: formats[extension] });
+    setWorkspaceStatus(`正在转写 ${file.name}…`);
+    processAudio(blob, { autoInsert: !!workspace.autoInsert.checked });
+}
 
 const VIEW = new URLSearchParams(location.search).get('view') || 'settings';
 try {
@@ -28,6 +149,13 @@ const DEFAULT_PROMPT_PROFILES = [
 const indicatorIcon = document.getElementById('indicator-icon');
 
 const modelSelect = document.getElementById('model-select');
+const sharedAudioModelSelect = document.getElementById('shared-audio-model');
+const sharedSpeechModelSelect = document.getElementById('shared-speech-model');
+const sharedAsrSourceSelect = document.getElementById('shared-asr-source');
+const sharedTextModelSelect = document.getElementById('shared-text-model');
+const textModelSourceSelect = document.getElementById('text-model-source');
+const workspaceStatus = document.getElementById('workspace-status');
+const workspaceResult = document.getElementById('workspace-result');
 const geminiKeyInput = document.getElementById('gemini-key');
 const geminiKeyToggleBtn = document.getElementById('gemini-key-toggle');
 const geminiKeyCopyBtn = document.getElementById('gemini-key-copy');
@@ -477,6 +605,7 @@ function initSettingsView() {
     }
     loadSettings();
     setupEventListeners();
+    setupWorkspace();
     setSpeechState('ready');
     try {
         if (window.electronAPI.window && typeof window.electronAPI.window.createIndicatorWindow === 'function') {
@@ -489,9 +618,14 @@ function initSettingsView() {
 
 function loadSettings() {
     const settings = window.electronAPI.storage.get('settings') || {};
+    if (workspace.autoInsert) workspace.autoInsert.checked = !!settings.workspaceAutoInsert;
     
     // Defaults
     modelSelect.value = settings.model || 'gemini';
+    if (sharedAsrSourceSelect) sharedAsrSourceSelect.value = settings.sharedAsrSource || 'openai-compatible';
+    if (textModelSourceSelect) textModelSourceSelect.value = settings.textModelSource === 'shared' ? 'shared' : 'local';
+    refreshSharedModels(settings).catch(error => { if (workspaceStatus) workspaceStatus.textContent = `共享模型读取失败：${error.message}`; });
+    updateTextModelSource();
     geminiKeyInput.value = settings.geminiKey || '';
     geminiModelSelect.value = settings.geminiModel || 'gemini-3-flash-preview';
     qwenKeyInput.value = settings.qwenKey || '';
@@ -736,6 +870,10 @@ function switchPromptProfileBySlot(slot) {
 }
 
 function updateModelVisibility() {
+    const sharedAudioConfig = document.getElementById('shared-audio-config');
+    if (sharedAudioConfig) sharedAudioConfig.style.display = modelSelect.value === 'shared-audio' ? 'block' : 'none';
+    const sharedModelConfig = document.getElementById('shared-model-config');
+    if (sharedModelConfig) sharedModelConfig.style.display = modelSelect.value === 'shared-model' ? 'block' : 'none';
     if (modelSelect.value === 'gemini') {
         geminiConfig.style.display = 'block';
         qwenConfig.style.display = 'none';
@@ -751,6 +889,11 @@ function updateModelVisibility() {
         qwenConfig.style.display = 'none';
         siliconflowConfig.style.display = 'none';
         if (openaiCompatibleConfig) openaiCompatibleConfig.style.display = 'block';
+    } else if (modelSelect.value === 'shared-audio' || modelSelect.value === 'shared-model') {
+        geminiConfig.style.display = 'none';
+        qwenConfig.style.display = 'none';
+        siliconflowConfig.style.display = 'none';
+        if (openaiCompatibleConfig) openaiCompatibleConfig.style.display = 'none';
     } else {
         geminiConfig.style.display = 'none';
         qwenConfig.style.display = 'none';
@@ -759,9 +902,56 @@ function updateModelVisibility() {
     }
 }
 
+function readSharedSelection(select) {
+    try { return JSON.parse(select?.value || 'null'); } catch (_) { return null; }
+}
+
+async function refreshSharedModels(settings = window.electronAPI.storage.get('settings') || {}) {
+    const models = await window.electronAPI.sharedAi.listModels();
+    for (const [kind, select, saved] of [
+        ['audio', sharedAudioModelSelect, settings.sharedAudioSelection],
+        ['text', sharedTextModelSelect, settings.sharedTextSelection],
+        ['text', sharedSpeechModelSelect, settings.sharedSpeechSelection]
+    ]) {
+        if (!select) continue;
+        select.replaceChildren();
+        const matching = models.filter(item => item.kind === kind);
+        if (!matching.length) select.add(new Option(kind === 'audio' ? '无可用共享音频模型' : '无可用共享文本模型', ''));
+        for (const item of matching) select.add(new Option(item.label, JSON.stringify({ providerId: item.providerId, modelId: item.modelId })));
+        const savedValue = saved ? JSON.stringify(saved) : '';
+        if (matching.some(item => item.providerId === saved?.providerId && item.modelId === saved?.modelId)) select.value = savedValue;
+        else if (kind === 'text') {
+            const preferred = matching.find(item => item.selected);
+            if (preferred) select.value = JSON.stringify({ providerId: preferred.providerId, modelId: preferred.modelId });
+        }
+    }
+    // 旧版“共享音频模型”若没有真正可收音频的模型，切到可工作的两步流程。
+    if (settings.model === 'shared-audio' && !models.some(item => item.kind === 'audio') && sharedSpeechModelSelect?.value) {
+        const next = { ...settings, model: 'shared-model', sharedAsrSource: settings.sharedAsrSource || 'openai-compatible',
+            sharedSpeechSelection: readSharedSelection(sharedSpeechModelSelect) };
+        window.electronAPI.storage.set('settings', next);
+        modelSelect.value = 'shared-model';
+        if (sharedAsrSourceSelect) sharedAsrSourceSelect.value = next.sharedAsrSource;
+        updateModelVisibility();
+        setWorkspaceStatus('已改用现有语音服务转写，再交给共享 AI 模型处理文字。');
+    }
+}
+
+function updateTextModelSource() {
+    const shared = textModelSourceSelect?.value === 'shared';
+    const sharedBox = document.getElementById('shared-text-config');
+    const localBox = document.getElementById('local-text-config');
+    if (sharedBox) sharedBox.style.display = shared ? 'block' : 'none';
+    if (localBox) localBox.style.display = shared ? 'none' : 'block';
+}
+
 function setupEventListeners() {
     // Settings
     modelSelect.addEventListener('change', updateModelVisibility);
+    textModelSourceSelect?.addEventListener('change', updateTextModelSource);
+    document.getElementById('shared-audio-refresh')?.addEventListener('click', () => refreshSharedModels().catch(showProcessingError));
+    document.getElementById('shared-model-refresh')?.addEventListener('click', () => refreshSharedModels().catch(showProcessingError));
+    document.getElementById('shared-text-refresh')?.addEventListener('click', () => refreshSharedModels().catch(showProcessingError));
     document.querySelectorAll('[data-scroll-target]').forEach(button => {
         button.addEventListener('click', () => {
             const target = document.getElementById(button.dataset.scrollTarget);
@@ -1018,6 +1208,11 @@ function setupEventListeners() {
             siliconflowKey: siliconflowKeyInput.value,
             siliconflowAsrModel: (siliconflowAsrModelInput.value || '').trim() || 'TeleAI/TeleSpeechASR',
             textPostProcessEnabled: !!(textPostProcessEnabledInput && textPostProcessEnabledInput.checked),
+            textModelSource: textModelSourceSelect?.value || 'local',
+            sharedTextSelection: readSharedSelection(sharedTextModelSelect),
+            sharedAudioSelection: readSharedSelection(sharedAudioModelSelect),
+            sharedSpeechSelection: readSharedSelection(sharedSpeechModelSelect),
+            sharedAsrSource: sharedAsrSourceSelect?.value || 'openai-compatible',
             activeTextProviderId: textProvider.id,
             speechGlossaryText: speechGlossaryInput ? speechGlossaryInput.value.trim() : ''
         };
@@ -1080,6 +1275,11 @@ function setupSecretField(input, toggleBtn, copyBtn) {
 
 window.addEventListener('beforeunload', () => {
     try {
+        stopRecordingTimer();
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            recordingCancelled = true;
+            mediaRecorder.stop();
+        }
         if (keyboardHookProcess) {
             keyboardHookProcess.kill();
             keyboardHookProcess = null;
@@ -1089,12 +1289,13 @@ window.addEventListener('beforeunload', () => {
 });
 
 async function insertToExternalApp(text) {
-    if (!text) return;
+    if (!text) return false;
     try {
         const res = await window.electronAPI.action.insert(text);
-        void res;
+        return !!(res && res.success);
     } catch (e) {
         console.warn('插入失败:', e);
+        return false;
     }
 }
 
@@ -1297,34 +1498,53 @@ function onRightCtrlUp() {
     }
 }
 
-async function startRecording() {
+async function startRecording(source = 'hotkey') {
+    if (isRecording || isProcessing || isStartingRecording) return;
+    isStartingRecording = true;
+    updateWorkspaceControls();
+    setWorkspaceStatus('正在请求麦克风权限…');
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // 权限弹窗期间已松开快捷键时，不能留下无人控制的录音。
+        if (source === 'hotkey' && !isRightCtrlDown) {
+            stream.getTracks().forEach(track => track.stop());
+            setWorkspaceStatus('快捷键已松开，录音未开始。');
+            return;
+        }
         mediaRecorder = new MediaRecorder(stream);
         audioChunks = [];
+        recordingCancelled = false;
 
         mediaRecorder.ondataavailable = (event) => {
-            audioChunks.push(event.data);
+            if (event.data && event.data.size) audioChunks.push(event.data);
         };
 
-        mediaRecorder.onstop = async () => {
-            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' }); // Gemini supports webm
-            processAudio(audioBlob);
-            
-            // Stop all tracks
+        mediaRecorder.onstop = () => {
             stream.getTracks().forEach(track => track.stop());
+            if (recordingCancelled) return;
+            const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+            if (!audioBlob.size) {
+                setSpeechState('ready');
+                setWorkspaceStatus('录音为空，请重新尝试。', 'error');
+                return;
+            }
+            processAudio(audioBlob, { autoInsert: source === 'hotkey' || !!workspace.autoInsert.checked });
         };
 
         mediaRecorder.start();
         isRecording = true;
+        recordingStartedAt = Date.now();
+        updateRecordingDuration();
+        recordingTimer = setInterval(updateRecordingDuration, 1000);
+        updateWorkspaceControls();
+        setWorkspaceStatus(source === 'hotkey' ? '正在录音，松开右 Ctrl 结束。' : '正在录音，点击“结束录音”提交。');
         setSpeechState('recording');
-        
-        // Optional: Bring window to front? No, user might be typing elsewhere.
-        // We can play a sound to indicate start?
-        
     } catch (err) {
         console.error('Error accessing microphone:', err);
-        alert('无法访问麦克风: ' + err.message);
+        setWorkspaceStatus(`无法访问麦克风：${err.message}`, 'error');
+    } finally {
+        isStartingRecording = false;
+        updateWorkspaceControls();
     }
 }
 
@@ -1332,26 +1552,62 @@ function stopRecording() {
     if (mediaRecorder && isRecording) {
         mediaRecorder.stop();
         isRecording = false;
-        setSpeechState('processing');
+        stopRecordingTimer();
+        updateWorkspaceControls();
+        setSpeechState(recordingCancelled ? 'ready' : 'processing');
+        if (!recordingCancelled) setWorkspaceStatus('录音已结束，正在转写…');
     }
 }
 
-async function processAudio(blob) {
+async function processAudio(blob, { autoInsert = true } = {}) {
+    if (isProcessing) return;
     const settings = window.electronAPI.storage.get('settings') || {};
     const model = settings.model || 'gemini';
     const activePrompt = getActivePrompt();
     const prompt = (activePrompt && activePrompt.prompt) ? activePrompt.prompt : 'Convert speech to text.';
-    const recognitionPrompt = settings.textPostProcessEnabled
+    const recognitionPrompt = (settings.textPostProcessEnabled || model === 'shared-model')
         ? '请准确转写音频内容，只输出转写文本，不要润色、翻译或解释。'
         : prompt;
 
+    isProcessing = true;
+    updateWorkspaceControls();
+    setSpeechState('processing');
+    setWorkspaceStatus('正在识别语音…');
+    let text = '';
+    let postProcessError = null;
     try {
-        isProcessing = true;
-        let text = '';
         if (model === 'gemini') {
             text = await callGemini(blob, settings.geminiKey, settings.geminiModel || 'gemini-3-flash-preview', recognitionPrompt);
         } else if (model === 'qwen') {
             text = await callQwenTranscribe(blob, settings.qwenKey, settings.qwenModel, prompt);
+        } else if (model === 'shared-model') {
+            const selection = settings.sharedSpeechSelection;
+            if (!selection?.providerId || !selection?.modelId) throw new Error('请先选择并保存共享 AI 模型');
+            const asrSource = settings.sharedAsrSource || 'openai-compatible';
+            if (asrSource === 'gemini') text = await callGemini(blob, settings.geminiKey, settings.geminiModel || 'gemini-3-flash-preview', recognitionPrompt);
+            else if (asrSource === 'qwen') text = await callQwenTranscribe(blob, settings.qwenKey, settings.qwenModel, recognitionPrompt);
+            else if (asrSource === 'siliconflow') text = await callSiliconFlowTranscribe(blob, settings.siliconflowKey, settings.siliconflowAsrModel || 'TeleAI/TeleSpeechASR');
+            else if (asrSource === 'openai-compatible') {
+                const profile = getActiveOpenAICompatibleProfile(settings);
+                text = await callOpenAICompatibleTranscribe(blob, { baseUrl: profile.baseUrl, apiKey: profile.apiKey,
+                    model: profile.audioModel, audioFormatMode: profile.audioFormatMode || 'auto', prompt: recognitionPrompt });
+            } else throw new Error('无效的语音识别来源');
+            if (text) {
+                const original = text;
+                setWorkspaceStatus('语音已转写，正在使用共享 AI 模型处理文字…');
+                try {
+                    text = await window.electronAPI.sharedAi.processText({ selection, text, prompt });
+                    if (!text) throw new Error('共享模型返回空结果');
+                } catch (error) {
+                    text = original;
+                    postProcessError = error;
+                }
+            }
+        } else if (model === 'shared-audio') {
+            const selection = settings.sharedAudioSelection;
+            if (!selection?.providerId || !selection?.modelId) throw new Error('请先选择并保存共享音频模型');
+            const uploadBlob = /^mimo-v2\.5-asr$/i.test(selection.modelId) ? (await convertBlobToWav16kMono(blob) || blob) : blob;
+            text = await window.electronAPI.sharedAi.transcribe({ selection, audioBase64: await blobToBase64(uploadBlob), mimeType: uploadBlob.type || 'audio/webm', prompt: recognitionPrompt });
         } else if (model === 'openai-compatible') {
             const openaiProfile = getActiveOpenAICompatibleProfile(settings);
             text = await callOpenAICompatibleTranscribe(blob, {
@@ -1365,29 +1621,47 @@ async function processAudio(blob) {
             text = await callSiliconFlowTranscribe(blob, settings.siliconflowKey, settings.siliconflowAsrModel || 'TeleAI/TeleSpeechASR');
         }
 
-        if (text && settings.textPostProcessEnabled) {
-            const provider = getActiveTextProvider(settings);
-            text = await callOpenAICompatiblePostProcess(text, {
-                baseUrl: provider.baseUrl,
-                apiKey: provider.apiKey,
-                model: provider.model,
-                systemPrompt: prompt
-            });
+        if (text && settings.textPostProcessEnabled && model !== 'shared-model') {
+            setWorkspaceStatus('语音已识别，正在处理文本…');
+            const rawTranscript = text;
+            try {
+                if (settings.textModelSource === 'shared') {
+                    if (!settings.sharedTextSelection?.providerId) throw new Error('请先选择并保存共享文本模型');
+                    text = await window.electronAPI.sharedAi.processText({ selection: settings.sharedTextSelection, text, prompt });
+                } else {
+                    const provider = getActiveTextProvider(settings);
+                    text = await callOpenAICompatiblePostProcess(text, { baseUrl: provider.baseUrl, apiKey: provider.apiKey, model: provider.model, systemPrompt: prompt });
+                }
+                if (!text) throw new Error('文本模型返回空结果');
+            } catch (error) {
+                text = rawTranscript;
+                postProcessError = error;
+            }
         }
 
         setSpeechState('ready');
-        
-        // Auto insert
         if (text) {
-            await insertToExternalApp(text);
+            if (workspaceResult) workspaceResult.value = text;
+            updateWorkspaceControls();
+            const inserted = autoInsert ? await insertToExternalApp(text) : false;
+            if (postProcessError) {
+                setWorkspaceStatus(`文本处理失败，已保留原始转写：${postProcessError.message}`, 'error');
+            } else if (autoInsert) {
+                setWorkspaceStatus(inserted ? '转写完成，已尝试插入。' : '转写完成，自动插入失败；结果已保留。', inserted ? 'info' : 'error');
+            } else {
+                setWorkspaceStatus('转写完成，可校对、复制或插入。');
+            }
+        } else {
+            setWorkspaceStatus('未识别到文字，请检查音频内容。', 'error');
         }
-        
     } catch (error) {
         console.error('API Error:', error);
         setSpeechState('ready');
+        setWorkspaceStatus(`语音处理失败：${error.message || error}`, 'error');
         showProcessingError(error);
     } finally {
         isProcessing = false;
+        updateWorkspaceControls();
     }
 }
 

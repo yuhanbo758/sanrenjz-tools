@@ -23,7 +23,7 @@
             padding: 10px;
             border-bottom: 1px solid #eee;
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-end;
             align-items: center;
             flex-shrink: 0; /* 防止头部被压缩 */
         }
@@ -447,26 +447,62 @@
                 -webkit-overflow-scrolling: touch;
             }
         }
+        body { color: #172235; background: #f7f9fc; }
+        .header { padding: 10px 18px; background: #fff; }
+        .header-button { border-radius: 8px; font-weight: 600; }
+        .header-button:first-child { background: #1769e0; border-color: #1769e0; color: #fff; }
+        .main-container { height: auto; padding: 18px; overflow: hidden; }
+        .search-container { display: flex; gap: 10px; margin: 0; }
+        .search-input { flex: 1; min-width: 0; border-radius: 9px; background: #fff; }
+        .sort-select { padding: 0 10px; border: 1px solid #dbe2eb; border-radius: 9px; background: #fff; }
+        .list-meta { padding: 12px 2px 8px; color: #66758a; font-size: 13px; }
+        .snippets-list { margin-top: 0; min-height: 0; border-color: #dbe2eb; border-radius: 10px; background: #fff; }
+        .snippet-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
+        .snippet-item:focus-visible { outline: 2px solid #1769e0; outline-offset: -2px; }
+        .snippet-main { min-width: 0; flex: 1; }
+        .snippet-title { margin-bottom: 3px; }
+        .snippet-folder { color: #8995a6; font-size: 12px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .snippet-actions { display: flex; gap: 6px; flex-shrink: 0; }
+        .snippet-actions button { padding: 6px 9px; border: 1px solid #dbe2eb; border-radius: 7px; background: #fff; cursor: pointer; }
+        .snippet-actions button:hover { background: #edf4ff; }
+        .snippet-item:focus-within { background: #f0f6ff; }
+        .snippet-actions button[aria-pressed="true"] { color: #b06a00; background: #fff5d9; border-color: #f2d389; }
+        .filter-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-top: 10px; }
+        .filter-bar button, .filter-bar select { padding: 6px 10px; border: 1px solid #dbe2eb; border-radius: 7px; background: #fff; color: #34445b; cursor: pointer; }
+        .filter-bar button[aria-pressed="true"] { color: #145ac3; background: #eaf2ff; border-color: #8bb7f7; }
+        .filter-bar select { max-width: 230px; }
+        .empty-state { margin-top: 20px; padding: 24px; border: 1px dashed #c8d5e5; border-radius: 10px; background: #fff; }
+        .empty-state p { margin-bottom: 8px; }
+        .modal-content { max-height: calc(100vh - 42px); overflow: auto; }
+        .preview-content { white-space: pre-wrap; overflow: auto; max-height: 48vh; padding: 12px; border: 1px solid #e1e7ef; border-radius: 8px; background: #f7f9fc; font: 13px/1.6 Consolas, monospace; }
+        @media (max-width: 620px) { .snippet-item { align-items: flex-start; flex-wrap: wrap; } .snippet-actions { width: 100%; } .header-buttons { gap: 5px; } }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>余汉波文本片段助手</h1>
         <div class="header-buttons">
             <button onclick="showNewSnippetModal()" class="header-button">新建片段</button>
+            <button onclick="createFromClipboard()" class="header-button" title="读取当前剪贴板文字并打开新建窗口">从剪贴板新建</button>
             <button onclick="showSettingsModal()" class="header-button">设置</button>
-            <button onclick="refreshSnippets()" class="header-button">刷新</button>
+            <button onclick="refreshSnippets()" class="header-button" title="重新读取磁盘片段">刷新</button>
         </div>
     </div>
 
     <div class="main-container">
         <div class="search-container">
-            <input type="text" id="searchInput" class="search-input" placeholder="搜索片段..." oninput="searchSnippets()">
+            <input type="search" id="searchInput" class="search-input" placeholder="搜索标题或内容，多个词需全部匹配  /" oninput="searchSnippets()" aria-label="搜索片段">
+            <select id="sortSelect" class="sort-select" onchange="searchSnippets()" aria-label="片段排序"><option value="name">名称排序</option><option value="modified">最近修改</option></select>
     </div>
-
+        <div class="filter-bar" aria-label="片段筛选">
+            <button id="allFilter" type="button" aria-pressed="true" onclick="setListFilter('all')">全部</button>
+            <button id="favoriteFilter" type="button" aria-pressed="false" onclick="setListFilter('favorite')">★ 收藏</button>
+            <button id="recentFilter" type="button" aria-pressed="false" onclick="setListFilter('recent')">最近使用</button>
+            <select id="folderFilter" onchange="searchSnippets()" aria-label="按文件夹筛选"><option value="">全部文件夹</option></select>
+        </div>
+        <div id="listMeta" class="list-meta" aria-live="polite"></div>
         <div id="snippetsList" class="snippets-list"></div>
         
-        <div id="noSnippetsMessage" style="display: none;">
+        <div id="noSnippetsMessage" class="empty-state" style="display: none;">
             <p>还没有文本片段</p>
             <p>点击"新建片段"或在设置中指定文件夹路径</p>
         </div>
@@ -521,6 +557,7 @@
                     <input type="checkbox" id="autoInsert">
         </div>
     </div>
+
             <div class="setting-option">
                 <div class="setting-option-label">搜索子文件夹</div>
                 <div class="checkbox-container">
@@ -534,21 +571,68 @@
         </div>
     </div>
 
+    <div id="previewModal" class="modal" role="dialog" aria-modal="true" aria-label="片段预览">
+        <div class="modal-content">
+            <div class="modal-header"><h2 id="previewTitle"></h2><button class="modal-close" onclick="closeModal('previewModal')" aria-label="关闭预览">&times;</button></div>
+            <div id="previewPath" class="snippet-folder" style="margin-bottom: 12px;"></div>
+            <pre id="previewContent" class="preview-content"></pre>
+            <div class="form-buttons"><button class="btn" onclick="closeModal('previewModal')">关闭</button><button class="btn" onclick="duplicatePreviewSnippet()">创建副本</button><button class="btn" onclick="editPreviewSnippet()">编辑</button><button class="btn btn-primary" onclick="copyPreviewSnippet()">复制内容</button></div>
+        </div>
+    </div>
+
     <script>
         // 监听DOM加载完成
         document.addEventListener('DOMContentLoaded', function() {
             // 加载设置
-            const settings = window.services.getSettings();
-                    
             // 加载片段列表
             loadSnippets();
+            document.addEventListener('keydown', event => {
+                if (event.key === 'Escape') document.querySelectorAll('.modal').forEach(modal => modal.style.display = 'none');
+                if (event.key === 'ArrowDown' && document.activeElement.id === 'searchInput') {
+                    const first = document.querySelector('.snippet-item');
+                    if (first) { event.preventDefault(); first.focus(); }
+                } else if (['ArrowDown', 'ArrowUp'].includes(event.key) && document.activeElement.classList.contains('snippet-item')) {
+                    const rows = [...document.querySelectorAll('.snippet-item')];
+                    const index = rows.indexOf(document.activeElement);
+                    const next = rows[index + (event.key === 'ArrowDown' ? 1 : -1)];
+                    if (next) { event.preventDefault(); next.focus(); }
+                }
+                if (event.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && !document.querySelector('.modal[style*="flex"]')) {
+                    event.preventDefault(); document.getElementById('searchInput').focus();
+                }
+                if (event.ctrlKey && event.key.toLowerCase() === 'k') {
+                    event.preventDefault();
+                    document.getElementById('searchInput').focus();
+                }
+                if (event.ctrlKey && event.key.toLowerCase() === 'n') {
+                    event.preventDefault();
+                    showNewSnippetModal();
+                }
+            });
         });
 
         // 加载片段列表
         function loadSnippets() {
-            const snippets = window.services.getSnippets();
-            console.log('加载片段:', snippets);
-            updateSnippetsList(snippets);
+            refreshFolderFilter();
+            searchSnippets();
+        }
+
+        let listFilter = 'all';
+        function setListFilter(value) {
+            listFilter = value;
+            for (const [id, name] of [['allFilter', 'all'], ['favoriteFilter', 'favorite'], ['recentFilter', 'recent']]) {
+                document.getElementById(id).setAttribute('aria-pressed', String(name === value));
+            }
+            searchSnippets();
+        }
+
+        function refreshFolderFilter() {
+            const select = document.getElementById('folderFilter');
+            const selected = select.value;
+            const folders = [...new Set(window.services.getSnippets().map(item => item.folder))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+            select.replaceChildren(new Option('全部文件夹', ''));
+            for (const folder of folders) select.add(new Option(folder, folder));
+            select.value = folders.includes(selected) ? selected : '';
         }
 
         // 更新片段列表
@@ -556,11 +640,14 @@
             const listContainer = document.getElementById('snippetsList');
             const noSnippetsMessage = document.getElementById('noSnippetsMessage');
             
-            listContainer.innerHTML = '';
+            listContainer.replaceChildren();
+            document.getElementById('listMeta').textContent = `${snippets.length} 个片段`;
             
             if (!snippets || snippets.length === 0) {
                 listContainer.style.display = 'none';
                 noSnippetsMessage.style.display = 'block';
+                noSnippetsMessage.querySelector('p').textContent = window.services.getSnippets().length ?
+                    (listFilter === 'favorite' ? '还没有收藏的片段' : listFilter === 'recent' ? '还没有最近使用的片段' : '没有匹配的片段') : '还没有文本片段';
                 return;
             }
             
@@ -570,33 +657,105 @@
             // 创建文档片段提高性能
             const fragment = document.createDocumentFragment();
             
+            const favorites = new Set(window.services.getActivity().favorites);
             snippets.forEach(snippet => {
                 const item = document.createElement('div');
                 item.className = 'snippet-item';
-                item.innerHTML = `
-                    <div class="snippet-title">${snippet.title}</div>
-                    <div class="snippet-preview">${snippet.preview}</div>
-                `;
-                item.onclick = () => showEditSnippetModal(snippet);
+                item.tabIndex = 0;
+                const main = document.createElement('div');
+                main.className = 'snippet-main';
+                for (const [className, value] of [['snippet-title', snippet.title], ['snippet-preview', snippet.preview], ['snippet-folder', snippet.folder]]) {
+                    const line = document.createElement('div');
+                    line.className = className;
+                    line.textContent = value || '';
+                    main.appendChild(line);
+                }
+                const actions = document.createElement('div');
+                actions.className = 'snippet-actions';
+                const favorite = favorites.has(snippet.path);
+                for (const [label, handler] of [[favorite ? '★' : '☆', () => toggleFavorite(snippet)], ['复制', () => copySnippet(snippet)], ['编辑', () => showEditSnippetModal(snippet)]]) {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.textContent = label;
+                    if (label === '★' || label === '☆') {
+                        button.setAttribute('aria-label', favorite ? '取消收藏' : '收藏片段');
+                        button.setAttribute('aria-pressed', String(favorite));
+                    }
+                    button.onclick = event => { event.stopPropagation(); handler(); };
+                    actions.appendChild(button);
+                }
+                item.append(main, actions);
+                item.onclick = () => showPreviewSnippet(snippet);
+                item.onkeydown = event => { if (event.target === item && event.key === 'Enter') showPreviewSnippet(snippet); };
                 fragment.appendChild(item);
             });
             
             // 一次性添加所有元素
             listContainer.appendChild(fragment);
             
-            // 如果列表内容超出可视区域，确保显示滚动条
-            if (listContainer.scrollHeight > listContainer.clientHeight) {
-                listContainer.style.overflowY = 'auto';
+        }
+
+        let previewSnippet = null;
+        function showPreviewSnippet(snippet) {
+            previewSnippet = snippet;
+            document.getElementById('previewTitle').textContent = snippet.title;
+            document.getElementById('previewPath').textContent = snippet.path;
+            document.getElementById('previewContent').textContent = snippet.content;
+            document.getElementById('previewModal').style.display = 'flex';
+        }
+        function copySnippet(snippet) {
+            window.services.copySnippet(snippet);
+            searchSnippets();
+            showToast('已复制到剪贴板');
+        }
+        function toggleFavorite(snippet) {
+            window.services.toggleFavorite(snippet.path);
+            searchSnippets();
+        }
+        function createFromClipboard() {
+            const content = window.services.getClipboardText();
+            if (!content.trim()) { showToast('剪贴板没有文字'); return; }
+            showNewSnippetModal();
+            document.getElementById('snippetContent').value = content;
+            document.getElementById('snippetTitle').focus();
+        }
+        function duplicatePreviewSnippet() {
+            if (!previewSnippet) return;
+            try {
+                window.services.duplicateSnippet(previewSnippet.path);
+                closeModal('previewModal');
+                loadSnippets();
+                showToast('已创建副本');
+            } catch (error) { alert('复制片段失败: ' + error.message); }
+        }
+        function copyPreviewSnippet() { if (previewSnippet) copySnippet(previewSnippet); }
+        function editPreviewSnippet() { if (previewSnippet) { closeModal('previewModal'); showEditSnippetModal(previewSnippet); } }
+        function showToast(message) {
+            let toast = document.getElementById('snippetToast');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'snippetToast';
+                toast.style.cssText = 'position:fixed;bottom:18px;right:18px;padding:9px 14px;border-radius:8px;background:#172235;color:white;z-index:200';
+                document.body.appendChild(toast);
             }
+            toast.textContent = message;
+            toast.hidden = false;
+            clearTimeout(showToast.timer);
+            showToast.timer = setTimeout(() => { toast.hidden = true; }, 2200);
         }
 
         // 搜索片段（带权重排序，支持多关键词）
         function searchSnippets() {
             const searchText = document.getElementById('searchInput').value.trim();
-            const snippets = window.services.getSnippets();
+            const activity = window.services.getActivity();
+            const folder = document.getElementById('folderFilter').value;
+            const snippets = window.services.getSnippets().filter(item =>
+                (!folder || item.folder === folder) &&
+                (listFilter === 'all' || (listFilter === 'favorite' ? activity.favorites : activity.recent).includes(item.path))
+            );
             
             if (!searchText) {
-                updateSnippetsList(snippets);
+                updateSnippetsList(sortSnippets(snippets));
                 return;
             }
             
@@ -610,6 +769,7 @@
                 const content = snippet.content.toLowerCase();
                 
                 // 对每个关键词进行匹配计算
+                const matchesAll = keywords.every(keyword => title.includes(keyword) || content.includes(keyword));
                 keywords.forEach(keyword => {
                     // 文件名匹配权重为10
                     if (title.includes(keyword)) {
@@ -624,13 +784,26 @@
                 
                 return {
                     ...snippet,
-                    score: score
+                    score: matchesAll ? score : 0
                 };
             })
             .filter(snippet => snippet.score > 0) // 只保留有匹配的片段
-            .sort((a, b) => b.score - a.score); // 按分数降序排列
+            .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title, 'zh-CN'));
             
             updateSnippetsList(scoredSnippets);
+        }
+
+        function sortSnippets(snippets) {
+            const ordered = [...snippets];
+            if (listFilter === 'recent') {
+                const recent = window.services.getActivity().recent;
+                return ordered.sort((a, b) => recent.indexOf(a.path) - recent.indexOf(b.path));
+            }
+            if (listFilter === 'favorite') {
+                return ordered.sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'));
+            }
+            if (document.getElementById('sortSelect').value === 'modified') return ordered.sort((a, b) => b.modifiedAt - a.modifiedAt);
+            return ordered.sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'));
         }
 
         // 显示新建片段模态框
@@ -663,7 +836,7 @@
             document.getElementById('modalTitle').textContent = '编辑文本片段';
             document.getElementById('snippetTitle').value = snippet.title;
             document.getElementById('snippetContent').value = snippet.content;
-            document.getElementById('editingFileName').value = snippet.fileName;
+            document.getElementById('editingFileName').value = snippet.path;
             document.getElementById('deleteSnippetBtn').style.display = 'inline-block';
             
             // 显示当前文件路径
@@ -699,8 +872,8 @@
                 });
             }
             
-            document.getElementById('autoInsert').checked = settings.autoInsert || false;
-            document.getElementById('searchSubfolders').checked = settings.searchSubfolders || false;
+            document.getElementById('autoInsert').checked = settings.autoInsert !== false;
+            document.getElementById('searchSubfolders').checked = settings.searchSubfolders !== false;
             document.getElementById('settingsModal').style.display = 'flex';
         }
 
@@ -801,30 +974,22 @@
         // 保存片段
         function saveSnippet() {
             const title = document.getElementById('snippetTitle').value.trim();
-            const content = document.getElementById('snippetContent').value.trim();
-            const editingFileName = document.getElementById('editingFileName').value;
+            const content = document.getElementById('snippetContent').value;
+            const editingPath = document.getElementById('editingFileName').value;
 
             if (!title) {
                 alert('请输入标题');
                 return;
             }
 
-            if (!content) {
+            if (!content.trim()) {
                 alert('请输入内容');
                 return;
             }
 
             try {
-                if (editingFileName) {
-                    // 编辑现有片段
-                    if (editingFileName !== title) {
-                        // 如果标题修改了，删除旧文件并创建新文件
-                        window.services.deleteSnippet(editingFileName);
-                        window.services.createSnippet(title, content);
-                    } else {
-                        // 标题未变，直接更新内容
-                        window.services.editSnippet(editingFileName, content);
-                    }
+                if (editingPath) {
+                    window.services.editSnippet(editingPath, title, content);
                 } else {
                     // 创建新片段
                     window.services.createSnippet(title, content);
@@ -833,6 +998,7 @@
                 // 刷新列表并关闭模态框
                 loadSnippets();
                 closeModal('snippetModal');
+                showToast('片段已保存');
             } catch (error) {
                 alert('保存失败: ' + error.message);
             }
@@ -840,14 +1006,15 @@
 
         // 删除片段
         function deleteSnippet() {
-            const fileName = document.getElementById('editingFileName').value;
-            if (!fileName) return;
+            const filePath = document.getElementById('editingFileName').value;
+            if (!filePath) return;
             
             if (confirm('确定要删除这个片段吗？此操作不可撤销。')) {
                 try {
-                    window.services.deleteSnippet(fileName);
+                    window.services.deleteSnippet(filePath);
                     loadSnippets();
                     closeModal('snippetModal');
+                    showToast('片段已删除');
             } catch (error) {
                     alert('删除失败: ' + error.message);
                 }
@@ -888,7 +1055,7 @@
             };
             
             try {
-                window.services.saveSettings(settings);
+                if (!window.services.saveSettings(settings)) throw new Error('写入设置失败');
                 closeModal('settingsModal');
                 loadSnippets();
             } catch (error) {
@@ -899,7 +1066,8 @@
         // 刷新片段列表
         function refreshSnippets() {
             const snippets = window.services.refreshSnippets();
-            updateSnippetsList(snippets);
+            searchSnippets();
+            showToast(`已刷新 ${snippets.length} 个片段`);
         }
     </script>
 </body>

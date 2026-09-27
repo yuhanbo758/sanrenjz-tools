@@ -6,16 +6,16 @@
     <style>
         :root {
             --primary-color: #0078d4;
-            --bg-color: #f3f3f3;
+            --bg-color: #ffffff;
             --card-bg: #ffffff;
-            --text-color: #333;
+            --text-color: #18283b;
         }
         body {
             font-family: "Segoe UI", sans-serif;
             background-color: var(--bg-color);
             color: var(--text-color);
             margin: 0;
-            padding: 20px;
+            padding: 0;
             height: 100vh;
             box-sizing: border-box;
             overflow: hidden;
@@ -29,8 +29,7 @@
         }
         .container {
             background: var(--card-bg);
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 0;
             flex: 1;
             display: flex;
             flex-direction: column;
@@ -40,13 +39,29 @@
             display: none;
         }
         .header {
-            padding: 15px 20px;
-            border-bottom: 1px solid #eee;
+            padding: 14px 20px;
+            border-bottom: 1px solid #e6ebf1;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
         .header h2 { margin: 0; font-size: 18px; }
+        .header { gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+        .header > div { display: flex; gap: 8px; flex-wrap: wrap; }
+        .workspace-card { padding: 18px; border: 1px solid #dce6ef; border-radius: 12px; background: #fff; margin-bottom: 16px; }
+        .workspace-card.drag-over { border-color: var(--primary-color); box-shadow: 0 0 0 3px #d9edff; }
+        .workspace-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .workspace-actions button { min-width: 92px; }
+        .workspace-meta { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin: 12px 0 8px; font-size: 13px; color: #53677d; }
+        .workspace-status { color: #174a70; }
+        .workspace-status[data-kind="error"] { color: #b42318; }
+        .workspace-result { min-height: 110px; width: 100%; line-height: 1.6; }
+        .workspace-hint { margin: 8px 0 0; color: #66788d; font-size: 12px; }
+        .workspace-option { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #40566d; }
+        .workspace-option input { margin: 0; }
+        .workspace-card button:disabled { opacity: .45; cursor: not-allowed; }
+        .workspace-card button:focus-visible, .settings-nav button:focus-visible, textarea:focus-visible { outline: 2px solid #0078d4; outline-offset: 2px; }
+        @media (max-width: 620px) { body { padding: 8px; } #settings { padding: 12px !important; } .settings-nav { margin: -12px -12px 16px; } .row { flex-wrap: wrap; } }
         @keyframes pulse {
             0% { box-shadow: 0 0 0 0 rgba(255, 77, 77, 0.4); }
             70% { box-shadow: 0 0 0 10px rgba(255, 77, 77, 0); }
@@ -114,7 +129,8 @@
             border: 1px solid #ddd;
         }
         .container .icon-btn:hover { opacity: 0.9; }
-        .btn-secondary { background: #666; }
+        .container .btn-secondary { background: #eef3f8; color: #27445e; border: 1px solid #d6e1eb; }
+        .container .btn-secondary:hover { background: #e2edf6; }
 
         /* 不影响应用层注入的自定义标题栏按钮 */
         .custom-title-bar button {
@@ -170,7 +186,7 @@
             margin: 14px 0;
             border: 1px solid #dce6ef;
             border-radius: 10px;
-            background: #fbfdff;
+            background: #fff;
         }
         .section-title {
             margin-bottom: 10px;
@@ -197,7 +213,7 @@
             padding: 10px 12px;
             border-left: 4px solid var(--primary-color);
             border-radius: 6px;
-            background: #eaf4fb;
+            background: #f1f7fc;
             color: #17324d;
             font-size: 17px;
             font-weight: 700;
@@ -244,13 +260,32 @@
     </div>
     <div class="container">
         <div class="header">
-            <h2>AI 语音输入法</h2>
             <div>
                 <button id="hide-btn" class="btn-secondary" style="padding: 5px 10px;">隐藏后台运行</button>
                 <button id="close-btn" class="btn-secondary" style="padding: 5px 10px; margin-left:6px;">关闭并退出</button>
             </div>
         </div>
         <div id="settings" style="flex: 1; padding: 20px; overflow-y: auto;">
+            <section class="workspace-card" aria-label="语音工作台">
+                <div class="section-title">语音工作台</div>
+                <div class="workspace-actions">
+                    <button id="record-toggle-btn" type="button">开始录音</button>
+                    <button id="record-cancel-btn" type="button" class="btn-secondary" disabled>取消录音</button>
+                    <button id="audio-file-btn" type="button" class="btn-secondary">导入音频</button>
+                    <input id="audio-file-input" type="file" accept="audio/*,.wav,.mp3,.m4a,.ogg,.webm" hidden>
+                    <button id="result-copy-btn" type="button" class="btn-secondary" disabled>复制结果</button>
+                    <button id="result-insert-btn" type="button" class="btn-secondary" disabled>插入结果</button>
+                    <button id="result-clear-btn" type="button" class="btn-secondary" disabled>清空结果</button>
+                </div>
+                <div class="workspace-meta">
+                    <span id="workspace-status" class="workspace-status" role="status" aria-live="polite">就绪。可点击录音，也可按住右 Ctrl 说话。</span>
+                    <span id="record-duration" aria-label="录音时长">00:00</span>
+                    <span id="result-count">0 字</span>
+                    <label class="workspace-option"><input id="workspace-auto-insert" type="checkbox"> 完成后自动插入</label>
+                </div>
+                <textarea id="workspace-result" class="workspace-result" placeholder="本次识别结果会显示在这里，可检查后复制或插入。" aria-label="本次识别结果"></textarea>
+                <p class="workspace-hint">可拖入音频文件；结果可在此修改。右 Ctrl 快捷录音保持自动插入行为。</p>
+            </section>
             <div class="settings-nav">
                 <button type="button" data-scroll-target="section-asr">语音识别</button>
                 <button type="button" data-scroll-target="section-text">文本处理与场景</button>
@@ -264,8 +299,32 @@
                     <option value="qwen">阿里通义千问 (Qwen)</option>
                     <option value="siliconflow">硅基流动 (TeleSpeechASR)</option>
                     <option value="openai-compatible">OpenAI 兼容 / 自定义多模态</option>
+                    <option value="shared-model">共享 AI 模型处理语音</option>
+                    <option value="shared-audio">共享目录中的音频模型</option>
                 </select>
-                <div class="help-text">Gemini：可直接用“音频+提示词”输出最终文本。Qwen：先语音转文字，再用文本模型按提示词处理。硅基流动：支持语音转文字，并可选用文本模型做二次处理。</div>
+                <div class="help-text">选择“共享 AI 模型处理语音”可使用余汉波AI助手的 GPT-6 等模型：先由现有语音服务转写，再交给所选共享模型处理文字。</div>
+            </div>
+
+            <div id="shared-model-config" class="settings-section" style="display:none;">
+                <div class="section-title">共享 AI 模型处理语音</div>
+                <label for="shared-speech-model">处理模型</label>
+                <select id="shared-speech-model"></select>
+                <label for="shared-asr-source" style="margin-top:12px;">语音识别来源</label>
+                <select id="shared-asr-source">
+                    <option value="openai-compatible">现有 OpenAI 兼容语音配置</option>
+                    <option value="gemini">现有 Gemini 语音配置</option>
+                    <option value="qwen">现有 Qwen 语音配置</option>
+                    <option value="siliconflow">现有硅基流动语音配置</option>
+                </select>
+                <div class="help-text">GPT-6 当前只声明文字和图片输入。录音先使用上方选择的已配置服务转写，再把文字交给 GPT-6；语音不会直接发送给 GPT-6。所需密钥请在对应语音配置中保存。</div>
+                <button type="button" id="shared-model-refresh" class="btn-secondary" style="margin-top:8px;">刷新共享模型</button>
+            </div>
+
+            <div id="shared-audio-config" class="settings-section" style="display:none;">
+                <div class="section-title">共享音频模型</div>
+                <select id="shared-audio-model"></select>
+                <div class="help-text">仅显示共享目录中声明 audio 能力、采用 OpenAI 兼容接口的直连模型。OpenCode 模型的音频附件目前不会进入模型请求，因此不列入语音识别。</div>
+                <button type="button" id="shared-audio-refresh" class="btn-secondary" style="margin-top:8px;">刷新共享模型</button>
             </div>
 
             <div id="gemini-config">
@@ -450,6 +509,14 @@
                     启用文本后处理
                 </label>
                 <div class="help-text">开启后，所有语音识别供应商都会把转写结果交给下方选中的文本模型处理。模型只需在这里新增一次，不再分散配置。</div>
+                <label style="margin-top:12px;">处理模型来源</label>
+                <select id="text-model-source"><option value="local">本插件配置</option><option value="shared">共享模型目录</option></select>
+                <div id="shared-text-config" style="display:none; margin-top:8px;">
+                    <select id="shared-text-model"></select>
+                    <div class="help-text">可选择余汉波AI助手已配置的文本模型，包括通过 OpenCode 认证的模型。此处只处理识别后的文字。</div>
+                    <button type="button" id="shared-text-refresh" class="btn-secondary" style="margin-top:8px;">刷新共享模型</button>
+                </div>
+                <div id="local-text-config">
                 <div class="row" style="margin-top:10px;">
                     <select id="text-provider-profile"></select>
                     <button type="button" class="btn" id="text-provider-new">新增</button>
@@ -459,6 +526,7 @@
                 <input type="text" id="text-provider-url" placeholder="OpenAI 兼容 API URL" style="margin-top:8px;" />
                 <input type="password" id="text-provider-key" placeholder="API Key" style="margin-top:8px;" />
                 <input type="text" id="text-provider-model" placeholder="文本模型，例如 qwen-plus / deepseek-chat" style="margin-top:8px;" />
+                </div>
                 <div style="margin-top:12px; padding-top:10px; border-top:1px solid #e5edf5;">
                     <label style="display:flex; gap:8px; align-items:center; font-weight:400;">
                         <input type="checkbox" id="text-postprocess-hotkey-enabled" />

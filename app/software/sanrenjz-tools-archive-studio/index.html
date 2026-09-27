@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN" data-layout="archive-box">
 <head>
 <meta charset="utf-8">
@@ -33,6 +33,7 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
 .panel.active{display:flex}
 .drop{flex:none;border:2px dashed var(--border);border-radius:14px;padding:24px;text-align:center;cursor:pointer;transition:.15s;color:var(--faint)}
 .drop:hover{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.drop.dragging{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
 .drop svg{width:36px;height:36px;margin-bottom:6px}
 .ctrl{display:flex;gap:10px;align-items:center;flex-wrap:wrap;flex:none}
 .ctrl label{font-size:12px;color:var(--muted);font-weight:500}
@@ -49,6 +50,9 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
 .entry .nm{flex:1;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .entry .sz{color:var(--faint);font-size:11px}
 .entry .dir{color:var(--accent);font-weight:700}
+.entry input{accent-color:var(--accent)}
+.entry .remove{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:16px}
+.entry .remove:hover{color:var(--err)}
 .bar{flex:none;padding:6px 0;font:12px var(--mono);color:var(--muted);display:flex;align-items:center;gap:8px}
 .bar .d{width:7px;height:7px;border-radius:50%;background:var(--faint)}
 .bar.ok .d{background:var(--ok)}.bar.err .d{background:var(--err)}
@@ -77,26 +81,33 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
     <div class="panel active" data-panel="extract">
       <div class="drop" id="exDrop">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4"/></svg>
-        <div style="font-weight:600;color:var(--ink)">选择 ZIP 文件预览内容</div>
-        <div style="font-size:12px">查看压缩包内文件清单和大小</div>
+        <div style="font-weight:600;color:var(--ink)">点击添加 ZIP，或拖入多个 ZIP</div>
+        <div style="font-size:12px">批量预览、筛选条目并安全解压</div>
       </div>
+      <div class="ctrl"><button class="btn" id="exAdd">添加 ZIP</button><button class="btn" id="exRemove">移除当前</button><button class="btn" id="exClear">清空队列</button><select class="sel" id="exArchive" aria-label="选择压缩包"></select><input class="sel" id="exSearch" placeholder="筛选包内文件" aria-label="筛选包内文件"><button class="btn" id="exAll">全选</button><button class="btn" id="exNone">全不选</button><span id="exSummary" style="font-size:12px;color:var(--muted)"></span></div>
       <div class="ctrl">
         <button class="btn" id="exPickDir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V5"/></svg>解压目录</button>
+        <button class="btn" id="exOpenDir">打开目录</button>
         <span style="flex:1;font:12px var(--mono);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="exDir">未选择解压目录</span>
+        <label><input type="checkbox" id="exSeparate" checked>每个 ZIP 使用独立子目录</label>
+        <label><input type="checkbox" id="exSkip" checked>跳过已有文件</label>
         <button class="btn primary" id="exPreview">预览内容</button>
-        <button class="btn" id="exExtract" disabled>解压到目录</button>
+        <button class="btn" id="exExtract" disabled>解压所选文件</button>
+        <button class="btn" id="exBatch" disabled>批量解压全部</button>
       </div>
       <div class="entry-list" id="exList"><div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 8v13H3V8M1 3h22v5H1z"/></svg><span>选择 ZIP 后预览文件清单</span></div></div>
+      <div id="exResults" style="max-height:70px;overflow:auto;font-size:12px;color:var(--muted)" aria-live="polite"></div>
       <div class="bar" id="exBar"><span class="d"></span><span>等待选择文件</span></div>
     </div>
     <!-- Create -->
     <div class="panel" data-panel="create">
       <div class="drop" id="crDrop">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 21V9m0 0l-4 4m4-4l4 4M4 3h16"/></svg>
-        <div style="font-weight:600;color:var(--ink)">选择需要压缩的文件</div>
-        <div style="font-size:12px">支持多选，打包为 ZIP</div>
+        <div style="font-weight:600;color:var(--ink)">点击添加文件，或拖入文件与文件夹</div>
+        <div style="font-size:12px">保留文件夹结构，支持多次添加</div>
       </div>
       <div class="ctrl">
+        <button class="btn" id="crAddFiles">添加文件</button><button class="btn" id="crAddFolder">添加文件夹</button><button class="btn" id="crClear">清空队列</button>
         <label>压缩级别</label><select class="sel" id="crLevel"><option value="0">0 (仅存储)</option><option value="3">3</option><option value="6" selected>6 (默认)</option><option value="9">9 (最大)</option></select>
         <div class="spacer"></div>
         <button class="btn primary" id="crCreate">创建压缩包</button>
@@ -107,43 +118,5 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
   </div>
 </main>
 <div class="toast" id="toast"></div>
-<script>
-const api=window.pluginAPI;const $=s=>document.querySelector(s);const $$=s=>document.querySelectorAll(s);
-function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
-function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1800);}
-function setBar(sel,msg,st){const b=$(sel);b.className='bar'+(st==='ok'?' ok':st==='err'?' err':'');b.querySelector('span:last-child').textContent=msg;}
-function fmtSize(b){if(b==null)return'-';if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(2)+' MB';}
-let mode='extract';let exFile='',exDir='';let crFiles=[];
-$$('.mtab').forEach(t=>t.onclick=()=>{mode=t.dataset.mode;$$('.mtab').forEach(x=>x.classList.toggle('active',x===t));$$('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===mode));});
-$('#exDrop').onclick=()=>{const sel=api.selectFiles({multiple:false,filters:[{name:'ZIP',extensions:['zip']}]});const f=Array.isArray(sel)?sel[0]:sel;if(f){exFile=f;$('#exDrop').querySelector('div').textContent=f.split(/[\\\/]/).pop();}};
-$('#exPickDir').onclick=()=>{exDir=api.selectDirectory('选择解压目录');if(exDir)$('#exDir').textContent=exDir;};
-$('#exPreview').onclick=async()=>{
-  if(!exFile){toast('请先选择 ZIP 文件');return;}setBar('#exBar','预览中…','idle');
-  const res=await api.runTask({toolId:'archive-tool',input:'',options:{action:'preview',files:[exFile]},execute:false});
-  if(res.ok){const items=res.result;let html='';items.forEach(i=>{const isDir=i.name.endsWith('/');html+=`<div class="entry"><span class="${isDir?'dir':''}">${isDir?'📁':'📄'}</span><span class="nm">${esc(i.name)}</span><span class="sz">${fmtSize(i.bytes)}</span></div>`;});
-    $('#exList').innerHTML=html;setBar('#exBar',`共 ${items.length} 个条目`,'ok');$('#exExtract').disabled=false;}
-  else setBar('#exBar',res.error,'err');
-};
-$('#exExtract').onclick=async()=>{
-  if(!exFile||!exDir){toast('请选择 ZIP 文件和解压目录');return;}setBar('#exBar','解压中…','idle');
-  const res=await api.runTask({toolId:'archive-tool',input:'',options:{action:'preview',files:[exFile],outputDirectory:exDir},execute:true});
-  if(res.ok){toast('解压完成');setBar('#exBar',`已解压 ${res.result.length} 个文件到目录`,'ok');}
-  else setBar('#exBar',res.error,'err');
-};
-$('#crDrop').onclick=()=>{const sel=api.selectFiles({multiple:true});if(sel&&sel.length){crFiles=sel;renderCr();}};
-function renderCr(){
-  if(!crFiles.length){$('#crList').innerHTML='<div class="empty"><span>未选择文件</span></div>';return;}
-  let html='';crFiles.forEach(f=>{html+=`<div class="entry"><span>📄</span><span class="nm">${esc(f.split(/[\\\/]/).pop())}</span><span class="sz">${esc(f)}</span></div>`;});
-  $('#crList').innerHTML=html;
-}
-$('#crCreate').onclick=async()=>{
-  if(!crFiles.length){toast('请先选择文件');return;}setBar('#crBar','创建中…','idle');
-  const out=api.chooseSavePath({title:'保存 ZIP',defaultPath:'三人聚智压缩包.zip',filters:[{name:'ZIP',extensions:['zip']}]});
-  if(!out)return;
-  const res=await api.runTask({toolId:'archive-tool',input:'',options:{action:'create',files:crFiles,level:+$('#crLevel').value,output:out},execute:true});
-  if(res.ok){toast('已保存：'+res.result.output.split(/[\\\/]/).pop());setBar('#crBar',`已创建，${res.result.files} 个文件，${fmtSize(res.result.bytes)}`,'ok');}
-  else setBar('#crBar',res.error,'err');
-};
-window.addEventListener('plugin-enter',e=>{const f=e.detail?.action?.payload||e.detail?.action?.clipboardText||e.detail?.payload||e.detail?.clipboardText||'';if(f&&f.toLowerCase().endsWith('.zip')){exFile=f;$('#exDrop').querySelector('div').textContent=f.split(/[\\\/]/).pop();}});
-</script>
+<script src="renderer.js"></script>
 </body></html>

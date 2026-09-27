@@ -1,7 +1,7 @@
 {
   "pluginName": "压缩包工作台",
-  "description": "创建、预览并安全解压 ZIP，拦截越界路径。",
-  "version": "2.0.0",
+  "description": "批量预览和安全解压 ZIP，筛选条目，并打包文件与文件夹。",
+  "version": "2.1.0",
   "author": "三人聚智",
   "category": "效率工具",
   "main": "index.html",
@@ -11,7 +11,7 @@
     {
       "code": "plugin-market-archive-tool",
       "explain": "压缩解压",
-      "description": "创建、预览并安全解压 ZIP，拦截越界路径。",
+      "description": "批量预览和安全解压 ZIP，筛选条目，并打包文件与文件夹。",
       "cmds": [
         "zip",
         "压缩包",

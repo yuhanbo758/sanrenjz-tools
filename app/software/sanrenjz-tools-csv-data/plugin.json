@@ -1,7 +1,7 @@
 {
   "pluginName": "CSV 数据表",
-  "description": "像表格一样筛选、排序并在 CSV 与 JSON 之间转换。",
-  "version": "2.0.0",
+  "description": "导入或拖入 CSV、TSV、JSON，检查、筛选、排序并导出表格。",
+  "version": "2.1.0",
   "author": "三人聚智",
   "category": "效率工具",
   "main": "index.html",
@@ -11,7 +11,7 @@
     {
       "code": "plugin-market-csv-table",
       "explain": "CSV表格",
-      "description": "像表格一样筛选、排序并在 CSV 与 JSON 之间转换。",
+      "description": "导入或拖入 CSV、TSV、JSON，检查、筛选、排序并导出表格。",
       "cmds": [
         "csv",
         "csv转json",

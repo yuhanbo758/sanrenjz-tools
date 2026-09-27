@@ -23,14 +23,14 @@ const suites = [
 ].map((item,index)=>({id:item[0],folder:`sanrenjz-tools-${item[0]}`,name:item[1],tools:item[2],description:item[3],accent:item[4],layout:item[5],order:index+1,type:'suite'}));
 
 const aiPlugins = [
-  ['ai-writing','AI 写作工作室','draft-quill','#c026d3','润色、改写、扩写、缩写、语气和标题生成。',['润色','改写','扩写','缩写','标题']],
-  ['ai-document','AI 文档阅读器','reading-room','#2563eb','读取 PDF、Markdown、TXT，生成摘要、目录并围绕文档问答。',['摘要','目录','文档问答']],
-  ['ai-meeting','AI 会议纪要','meeting-board','#0f766e','把转写文本整理为议题、结论、决策和待办。',['整理纪要','提取决策','提取待办']],
+  ['ai-writing','AI 写作工作室','draft-quill','#c026d3','导入素材，设定受众与语气，完成润色、改写、大纲、续写、校对和摘要。',['润色','改写','扩写','缩写','标题','大纲','续写','校对','摘要']],
+  ['ai-document','AI 文档阅读器','reading-room','#2563eb','拖拽导入 Word、PDF、XLSX 与文本，提取信息、审校、对比文档并问答。',['摘要','目录','文档问答','DOC 阅读','PDF 阅读','XLSX 阅读','文档对比']],
+  ['ai-meeting','AI 会议纪要','meeting-board','#0f766e','录音转写、导入会议资料，整理议题、决策、待办与风险。',['整理纪要','提取决策','提取待办','录音转写','上传会议资料']],
   ['ai-code-review','AI 代码审查','review-terminal','#dc2626','检查代码或 Git Diff，按严重程度输出问题，不改动文件。',['审查代码','审查 Diff','安全检查']],
   ['ai-regex','AI 正则助手','regex-blueprint','#7c3aed','用自然语言生成、解释和修复正则，并在本地样本上验证。',['生成正则','解释正则','修复正则']],
   ['ai-sql','AI SQL 助手','query-plan','#ca8a04','按数据库方言生成、解释、格式化和优化 SQL，不连接数据库。',['生成 SQL','解释 SQL','优化 SQL']],
-  ['ai-git','AI Git 助手','commit-graph','#ea580c','读取本地 Diff/Log，生成提交说明、变更日志和 Release Notes。',['提交说明','变更日志','Release Notes']],
-  ['ai-prompt','AI 提示词工坊','prompt-layers','#4f46e5','管理变量模板、优化提示词、比较版本和模型输出。',['优化提示词','版本比较','多模型对比']],
+  ['ai-git','AI Git 助手','commit-graph','#ea580c','拖入 Git 项目，按范围生成提交说明、变更日志、Release Notes、PR 描述与变更风险分析。',['提交说明','变更日志','Release Notes','PR 描述','变更风险']],
+  ['ai-prompt','AI 提示词工坊','prompt-layers','#4f46e5','管理本地与文件夹提示词，通过 @ 插入、变量填充和 AI 优化生成副本。',['优化提示词','提示词模板','提示词变量']],
   ['ai-image','AI 图片理解','vision-lens','#db2777','生成图片描述、标签、无障碍文本、分析和反向提示词。',['图片描述','标签','无障碍文本','反向提示词']],
   ['ai-learning','AI 学习卡片','study-deck','#16a34a','从文本或文档生成知识点、问答、术语表、测试题和 Anki CSV。',['知识卡片','测试题','术语表','Anki CSV']]
 ].map((item,index)=>({id:item[0],folder:`sanrenjz-tools-${item[0]}`,name:item[1],layout:item[2],accent:item[3],description:item[4],actions:item[5],order:index+21,type:'ai'}));
