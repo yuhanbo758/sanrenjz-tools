@@ -23,6 +23,8 @@ const api = {
     schema: database.getTableSchema,
     query: database.queryRows,
     insert: database.insertRow,
+    update: database.updateRow,
+    delete: database.deleteRow,
     create: database.createDatabase,
     createTable: database.createTable
   },

@@ -1,7 +1,7 @@
 {
   "pluginName": "图片悬浮板",
-  "description": "从剪贴板取图，置顶查看并控制缩放、旋转与透明度。",
-  "version": "2.0.0",
+  "description": "拖入、粘贴或选择图片，调整视图并悬浮置顶。",
+  "version": "2.1.0",
   "author": "三人聚智",
   "category": "效率工具",
   "main": "index.html",
@@ -11,7 +11,7 @@
     {
       "code": "plugin-market-image-pinboard",
       "explain": "图片悬浮",
-      "description": "从剪贴板取图，置顶查看并控制缩放、旋转与透明度。",
+      "description": "拖入、粘贴或选择图片，调整视图并悬浮置顶。",
       "cmds": [
         "图片悬浮",
         "贴图",
@@ -44,5 +44,11 @@
     "single": true,
     "autoHideMenuBar": true,
     "menuBarVisible": false
+  },
+  "indicatorSetting": {
+    "width": 400,
+    "height": 300,
+    "resizable": true,
+    "focusable": true
   }
 }

@@ -1,7 +1,7 @@
 {
   "pluginName": "AI 图片理解",
-  "description": "生成图片描述、标签、无障碍文本、分析和反向提示词。",
-  "version": "1.0.0",
+  "description": "理解现有图片，拟定标题与描述、标签、无障碍文本，提取文字并回答图片问题。",
+  "version": "1.1.0",
   "author": "三人聚智",
   "category": "AI 工具",
   "main": "index.html",
@@ -11,12 +11,15 @@
     {
       "code": "plugin-market-ai-image",
       "explain": "图片理解",
-      "description": "生成图片描述、标签、无障碍文本、分析和反向提示词。",
+      "description": "为现有图片拟定标题、描述、标签、无障碍文本，提取文字并回答图片问题。",
       "cmds": [
         "AI 图片理解",
         "图片描述",
+        "图片标题",
         "标签",
         "无障碍文本",
+        "图片文字提取",
+        "图片问答",
         "反向提示词",
         {
           "type": "over",

@@ -1,7 +1,7 @@
 {
   "pluginName": "PDF 页面工作台",
-  "description": "合并、拆分、旋转、排序和提取 PDF 页面。",
-  "version": "2.0.0",
+  "description": "拖入 PDF，按页码提取、排序、旋转、合并或逐页拆分。",
+  "version": "2.1.0",
   "author": "三人聚智",
   "category": "效率工具",
   "main": "index.html",
@@ -11,7 +11,7 @@
     {
       "code": "plugin-market-pdf-organizer",
       "explain": "PDF编辑",
-      "description": "合并、拆分、旋转、排序和提取 PDF 页面。",
+      "description": "拖入 PDF，按页码提取、排序、旋转、合并或逐页拆分。",
       "cmds": [
         "pdf合并",
         "pdf拆分",

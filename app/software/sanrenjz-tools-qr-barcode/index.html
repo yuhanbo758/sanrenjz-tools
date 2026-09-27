@@ -1,140 +1,131 @@
-﻿<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN" data-layout="scan-frame">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>二维码与条码工具</title>
 <style>
-:root{
-  --accent:#087f5b;--accent-2:#0ca678;--accent-soft:rgba(8,127,91,.1);--accent-line:rgba(8,127,91,.3);
-  --bg:#f2f9f6;--surface:#fff;--surface-2:#e6f4ee;--border:#cde9df;
-  --ink:#0d2e22;--muted:#5a756a;--faint:#9ab0a6;
-  --ok:#16a34a;--err:#dc2626;
-  --mono:'JetBrains Mono',Consolas,monospace;
-  --sans:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;
-}
-*{box-sizing:border-box}
-html,body{height:100%;overflow:hidden}
-body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans)}
-.app{height:calc(100vh - 32px);display:flex;flex-direction:column;min-height:0}
-.head{display:flex;align-items:center;gap:14px;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
-.icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;flex:none}
-.icon svg{width:18px;height:18px;color:#fff}
-.head h1{margin:0;font-size:17px;font-weight:700}
-.head p{margin:0;color:var(--muted);font-size:12px}
-.spacer{flex:1}
-.body{flex:1;min-height:0;display:grid;grid-template-columns:1fr 320px;gap:0;overflow:hidden}
-.main{display:flex;flex-direction:column;min-height:0;overflow:hidden;padding:20px 24px;gap:16px}
-.mode-tabs{display:flex;gap:6px;flex:none}
-.mtab{border:1px solid var(--border);background:var(--surface);color:var(--muted);padding:8px 18px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;transition:.15s;display:flex;align-items:center;gap:7px}
-.mtab svg{width:15px;height:15px}
-.mtab:hover{border-color:var(--accent-line)}
-.mtab.active{background:var(--accent);color:#fff;border-color:transparent}
-.gen-area{flex:1;min-height:0;display:none;flex-direction:column;gap:14px}
-.gen-area.active{display:flex}
-.qr-stage{flex:1;min-height:0;background:var(--surface);border:1px solid var(--border);border-radius:14px;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:20px;position:relative}
-.qr-stage canvas{max-width:100%;max-height:100%;border-radius:8px}
-.qr-empty{display:flex;flex-direction:column;align-items:center;gap:10px;color:var(--faint)}
-.qr-empty svg{width:56px;height:56px;opacity:.3}
-.scan-area{flex:1;min-height:0;display:none;flex-direction:column;gap:14px}
-.scan-area.active{display:flex}
-.scan-drop{flex:1;min-height:0;border:2px dashed var(--border);border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:pointer;transition:.15s;color:var(--faint);overflow:hidden}
-.scan-drop:hover{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
-.scan-drop img{max-width:100%;max-height:100%;border-radius:8px}
-.scan-result{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;font:14px var(--mono);min-height:60px;word-break:break-all}
-.ctrl{display:flex;gap:10px;align-items:center;flex-wrap:wrap;flex:none}
-.inp{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font:14px var(--sans);color:var(--ink);outline:none;min-width:200px}
-.inp:focus{border-color:var(--accent-line);box-shadow:0 0 0 3px var(--accent-soft)}
-.inp::placeholder{color:var(--faint)}
-.sel{background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:7px;padding:8px 10px;font-size:13px;cursor:pointer;outline:none}
-.btn{border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:8px;padding:10px 16px;font-size:13px;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:6px}
-.btn:hover{border-color:var(--accent-line)}
-.btn svg{width:14px;height:14px}
-.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;border-color:transparent}
-.btn.primary:hover{filter:brightness(1.08)}
-.side{background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;min-height:0;overflow:hidden}
-.side-h{padding:16px 20px;border-bottom:1px solid var(--border);flex:none;display:flex;align-items:center;justify-content:space-between}
-.side-h h2{margin:0;font-size:15px;font-weight:700}
-.side-h .clr{font-size:11px;color:var(--accent);cursor:pointer}
-.hist-list{flex:1;overflow:auto;padding:8px 12px}
-.hist-item{padding:10px 12px;border-radius:8px;cursor:pointer;transition:.12s;margin-bottom:6px;border:1px solid transparent}
-.hist-item:hover{background:var(--surface-2);border-color:var(--border)}
-.hist-item .ht{font:13px var(--mono);color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.hist-item .hm{font:11px var(--mono);color:var(--faint);margin-top:3px}
-.hist-empty{color:var(--faint);text-align:center;padding:30px;font-size:13px}
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#0d2e22;color:#fff;padding:10px 22px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:50}
-.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-::-webkit-scrollbar{width:8px;height:8px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:#bcd8cc;border-radius:4px}
+:root{--accent:#087f5b;--bg:#f3f8f6;--surface:#fff;--line:#d9e8e1;--ink:#17372b;--muted:#668176;--soft:#e9f5ef;--danger:#b93838}
+*{box-sizing:border-box}html,body{height:100%;overflow:hidden}
+body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:13px/1.5 "Segoe UI","Microsoft YaHei",sans-serif}
+button,input,select,textarea{font:inherit}button{cursor:pointer}
+.app{height:calc(100vh - 32px);display:grid;grid-template-columns:minmax(300px,360px) minmax(260px,1fr) 250px;min-height:0}
+.panel{min-height:0;overflow:auto;background:var(--surface);padding:18px;border-right:1px solid var(--line)}
+.tabs{display:flex;gap:6px;margin-bottom:18px}.tab{flex:1;padding:9px;border:1px solid var(--line);border-radius:9px;background:white;color:var(--muted);font-weight:600}
+.tab.active{background:var(--accent);border-color:var(--accent);color:white}
+.field{margin-bottom:14px}.field label{display:block;font-weight:600;margin-bottom:6px}.field small{display:block;color:var(--muted);margin-top:5px}
+.input,select,textarea{width:100%;border:1px solid var(--line);border-radius:8px;background:white;color:var(--ink);padding:9px 10px;outline:0}
+.input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 2px #087f5b20}
+textarea{resize:vertical;min-height:80px}.row{display:flex;gap:8px}.row>*{flex:1;min-width:0}
+.settings{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}.settings .field{margin-bottom:12px}
+.color-row{display:flex;align-items:center;gap:8px}.color-row input{width:45px;height:36px;padding:2px;border:1px solid var(--line);border-radius:7px;background:white}
+.check{display:flex;align-items:center;gap:8px;margin:2px 0 14px}.check input{accent-color:var(--accent)}
+.btn{border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:white;color:var(--ink);white-space:nowrap}
+.btn:hover{border-color:var(--accent)}.btn.primary{border-color:var(--accent);background:var(--accent);color:white}
+.btn:disabled{opacity:.48;cursor:not-allowed}.actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.actions .btn{flex:1}
+.preview{min-width:0;min-height:0;padding:20px;display:flex;flex-direction:column;gap:12px}
+.preview-card{flex:1;min-height:180px;border:1px solid var(--line);border-radius:14px;background:white;display:flex;align-items:center;justify-content:center;padding:22px;overflow:auto}
+.preview-card img{max-width:100%;max-height:100%;object-fit:contain;image-rendering:auto}
+.empty{text-align:center;color:#9bad9f}.empty b{display:block;font-size:40px;font-weight:400;line-height:1.3;color:#d0ded6}.summary{color:var(--muted);min-height:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.history{min-height:0;background:#fcfefd;display:flex;flex-direction:column}.history-head{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding:18px 14px}.history-head strong{font-size:15px}
+.text-btn{background:none;border:0;color:var(--accent);padding:4px}.hist-list{padding:8px;overflow:auto;flex:1}
+.hist-item{padding:9px;border:1px solid transparent;border-radius:9px;margin-bottom:5px;display:flex;gap:4px;align-items:start}.hist-item:hover{background:var(--soft);border-color:var(--line)}
+.hist-main{min-width:0;flex:1;border:0;background:none;text-align:left;cursor:pointer;color:var(--ink);padding:0}
+.hist-main b,.hist-main span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hist-main b{font-size:12px}.hist-main span{font-size:11px;color:var(--muted);margin-top:3px}.hist-del{border:0;background:none;color:var(--muted);padding:0 4px}
+.hist-del:hover{color:var(--danger)}.drop{min-height:145px;border:2px dashed var(--line);border-radius:10px;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);padding:15px;cursor:pointer}
+.drop.over{border-color:var(--accent);background:var(--soft)}.drop img{max-width:100%;max-height:180px;object-fit:contain}
+.result{min-height:70px;padding:11px;background:var(--bg);border:1px solid var(--line);border-radius:8px;word-break:break-all;white-space:pre-wrap;user-select:text}
+.notice{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);padding:8px 14px;border-radius:8px;background:#17372b;color:white;display:none;z-index:10}
+.notice.show{display:block}[hidden]{display:none!important}
+@media(max-width:1050px){.app{grid-template-columns:minmax(280px,330px) minmax(250px,1fr) 205px}.panel{padding:14px}.preview{padding:14px}}
+@media(max-width:780px){.app{grid-template-columns:minmax(260px,1fr) minmax(240px,1fr)}.history{display:none}}
 </style>
 </head>
 <body>
 <main class="app">
-  <div class="head">
-    <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3zM15 15h2M21 15v2M15 21h2v-2M21 21h-2"/></svg></div>
-    <div><h1>二维码与条码工具</h1><p>生成、识别、导出并保存最近使用记录</p></div>
-    <div class="spacer"></div>
-  </div>
-  <div class="body">
-    <div class="main">
-      <div class="mode-tabs">
-        <button class="mtab active" data-mode="gen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>生成二维码</button>
-        <button class="mtab" data-mode="scan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 12h10"/></svg>识别二维码</button>
+  <section class="panel">
+    <nav class="tabs" aria-label="工作模式"><button class="tab active" data-mode="generate">生成</button><button class="tab" data-mode="scan">识别</button></nav>
+    <div id="generate">
+      <div class="field"><label for="kind">类型</label><select id="kind"><option value="QR">二维码</option><option value="CODE128">Code 128 条码</option><option value="EAN13">EAN-13 条码</option><option value="EAN8">EAN-8 条码</option><option value="UPC">UPC-A 条码</option><option value="CODE39">Code 39 条码</option><option value="ITF">ITF 条码</option></select></div>
+      <div class="field"><label for="content">内容</label><textarea id="content" placeholder="输入文本、网址或商品编码">https://sanrenjz.com</textarea><small id="formatTip">二维码支持文本、网址等内容</small></div>
+      <div id="qrOptions" class="settings">
+        <div class="field"><label for="size">图片尺寸</label><select id="size"><option value="240">240 px</option><option value="360" selected>360 px</option><option value="480">480 px</option><option value="720">720 px</option><option value="1000">1000 px</option></select></div>
+        <div class="field"><label for="level">纠错级别</label><select id="level"><option value="L">低 L</option><option value="M" selected>中 M</option><option value="Q">较高 Q</option><option value="H">高 H</option></select></div>
+        <div class="field"><label for="margin">留白模块</label><select id="margin"><option value="1">1</option><option value="2" selected>2</option><option value="4">4</option><option value="6">6</option></select></div>
+        <div class="field"><label>颜色</label><div class="color-row"><input id="dark" type="color" value="#17372b" aria-label="前景色"><input id="light" type="color" value="#ffffff" aria-label="背景色"></div></div>
       </div>
-      <div class="gen-area active" id="genArea">
-        <div class="ctrl">
-          <input class="inp" id="qrText" placeholder="输入文本或网址生成二维码" value="https://sanrenjz.com">
-          <select class="sel" id="qrSize"><option value="240">240px</option><option value="360" selected>360px</option><option value="480">480px</option><option value="720">720px</option></select>
-          <button class="btn primary" id="genBtn">生成</button>
-        </div>
-        <div class="qr-stage" id="qrStage">
-          <div class="qr-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3z"/></svg><span>输入内容后点击生成</span></div>
-        </div>
-        <div class="ctrl"><button class="btn" id="saveBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>保存为图片</button></div>
+      <div id="barcodeOptions" hidden>
+        <div class="settings"><div class="field"><label for="barWidth">条宽</label><select id="barWidth"><option value="2" selected>标准</option><option value="3">较宽</option><option value="4">加宽</option></select></div><div class="field"><label for="barHeight">条高</label><select id="barHeight"><option value="80">80 px</option><option value="120" selected>120 px</option><option value="160">160 px</option></select></div></div>
+        <label class="check"><input id="showValue" type="checkbox" checked>显示条码下方文本</label>
       </div>
-      <div class="scan-area" id="scanArea">
-        <div class="scan-drop" id="scanDrop">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/></svg>
-          <div style="font-weight:600;color:var(--ink)">点击选择含二维码的图片</div>
-          <div style="font-size:12px">支持从剪贴板粘贴或选择文件</div>
-        </div>
-        <div class="ctrl"><button class="btn" id="pasteScanBtn">从剪贴板取图</button><button class="btn primary" id="scanBtn">识别</button></div>
-        <div class="scan-result" id="scanResult">识别结果将显示在这里</div>
-      </div>
+      <button id="generateBtn" class="btn primary" style="width:100%">生成图码</button>
+      <div class="actions"><button id="copyImage" class="btn" disabled>复制图片</button><button id="savePng" class="btn" disabled>保存 PNG</button><button id="saveSvg" class="btn" disabled>保存 SVG</button></div>
     </div>
-    <aside class="side">
-      <div class="side-h"><h2>历史记录</h2><span class="clr" id="clearHist">清空</span></div>
-      <div class="hist-list" id="histList"><div class="hist-empty">暂无记录</div></div>
-    </aside>
-  </div>
+    <div id="scan" hidden>
+      <div class="field"><label>识别图片</label><div class="drop" id="drop" tabindex="0" role="button">点击选图，或将图片拖入这里<br>支持 PNG、JPEG、WebP、BMP</div><small>也可粘贴截图或读取剪贴板图片</small></div>
+      <div class="row"><button id="pasteImage" class="btn">剪贴板图片</button><button id="recognize" class="btn primary" disabled>开始识别</button></div>
+      <div class="field" style="margin-top:18px"><label>识别结果</label><div class="result" id="result">尚未识别</div></div>
+      <div class="row"><button id="copyResult" class="btn" disabled>复制结果</button><button id="useResult" class="btn" disabled>转为生成内容</button></div>
+    </div>
+  </section>
+  <section class="preview"><div class="preview-card" id="preview"><div class="empty"><b>▦</b>生成结果将在这里显示</div></div><div class="summary" id="summary">选择类型并输入内容</div></section>
+  <aside class="history"><div class="history-head"><strong>最近记录</strong><button id="clearHistory" class="text-btn">清空</button></div><div id="historyList" class="hist-list"><div class="empty">暂无记录</div></div></aside>
 </main>
-<div class="toast" id="toast"></div>
+<div class="notice" id="notice" role="status"></div>
+<script src="./vendor/jsbarcode.min.js"></script>
 <script>
-const api=window.pluginAPI;const $=s=>document.querySelector(s);const $$=s=>document.querySelectorAll(s);
-let mode='gen';let lastDataUrl='';
-function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1800);}
-$$('.mtab').forEach(t=>t.onclick=()=>{mode=t.dataset.mode;$$('.mtab').forEach(x=>x.classList.toggle('active',x===t));$('#genArea').classList.toggle('active',mode==='gen');$('#scanArea').classList.toggle('active',mode==='scan');});
-function drawQr(dataUrl){const img=new Image();img.onload=()=>{const stage=$('#qrStage');let canvas=stage.querySelector('canvas');if(!canvas){canvas=document.createElement('canvas');stage.innerHTML='';stage.appendChild(canvas);}const s=stage.clientWidth-40;canvas.width=s;canvas.height=s;const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,s,s);const scale=Math.min(s/img.width,s/img.height);const w=img.width*scale,h=img.height*scale;ctx.drawImage(img,(s-w)/2,(s-h)/2,w,h);};img.src=dataUrl;}
-$('#saveBtn').onclick=()=>{
-  if(!lastDataUrl){toast('请先生成二维码');return;}
-  const saved=api.saveResult({title:'保存二维码',defaultPath:'qrcode.png',filters:[{name:'PNG',extensions:['png']}],dataUrl:lastDataUrl});if(!saved.cancelled)toast('已保存');
-};
-$('#scanDrop').onclick=()=>{const sel=api.selectFiles({multiple:false,filters:[{name:'图片',extensions:['png','jpg','jpeg','webp','bmp']}]});const f=Array.isArray(sel)?sel[0]:sel;if(f)loadScanImage(api.readFileDataUrl(f));};
-$('#pasteScanBtn').onclick=()=>{const d=api.readClipboardImage();if(d)loadScanImage(d);else toast('剪贴板无图片');};
-function loadScanImage(dataUrl){const img=new Image();img.onload=()=>{$('#scanDrop').innerHTML=`<img src="${dataUrl}">`;$('#scanDrop').dataset.url=dataUrl;};img.src=dataUrl;}
-// history
-async function addHist(text){let h=await api.storage.get('qr-history')||[];h=[{text,time:new Date().toLocaleTimeString('zh-CN')},...h].slice(0,30);await api.storage.set('qr-history',h);renderHist(h);}
-async function loadHistory(){renderHist(await api.storage.get('qr-history')||[]);}
-function renderHist(h){const list=$('#histList');if(!h.length){list.innerHTML='<div class="hist-empty">暂无记录</div>';return;}
-  list.innerHTML=h.map(i=>`<div class="hist-item"><div class="ht">${esc(i.text)}</div><div class="hm">${i.time}</div></div>`).join('');
-  $$('#histList .hist-item').forEach((el,i)=>el.onclick=()=>{$('#qrText').value=h[i].text.replace(/^识别: /,'');$$('.mtab')[0].click();});
+const api=window.pluginAPI,$=id=>document.getElementById(id);
+let current=null,scanDataUrl='',recognized='',history=[];
+const formats={QR:'二维码',CODE128:'Code 128',EAN13:'EAN-13',EAN8:'EAN-8',UPC:'UPC-A',CODE39:'Code 39',ITF:'ITF'};
+function notice(message){const el=$('notice');el.textContent=message;el.classList.add('show');clearTimeout(el.timer);el.timer=setTimeout(()=>el.classList.remove('show'),2300)}
+function setMode(mode){document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab.dataset.mode===mode));$('generate').hidden=mode!=='generate';$('scan').hidden=mode!=='scan'}
+document.querySelectorAll('.tab').forEach(tab=>tab.onclick=()=>setMode(tab.dataset.mode));
+function updateKind(){const qr=$('kind').value==='QR';$('qrOptions').hidden=!qr;$('barcodeOptions').hidden=qr;$('content').style.minHeight=qr?'80px':'48px';$('formatTip').textContent=qr?'二维码支持文本、网址等内容':'EAN/UPC 支持不含校验位的数字，工具会自动计算；ITF 需要偶数位数字';}
+$('kind').onchange=updateKind;
+function setCurrent(value){current=value;const stage=$('preview');stage.replaceChildren();const image=new Image();image.src=value.dataUrl;image.alt=value.kind==='QR'?'生成的二维码':'生成的条码';stage.appendChild(image);$('summary').textContent=formats[value.kind]+' · '+value.text;$('copyImage').disabled=$('savePng').disabled=$('saveSvg').disabled=false}
+async function generate(){const kind=$('kind').value,text=$('content').value.trim();if(!text){notice('请输入内容');return}if(text.length>3000){notice('内容最多 3000 字符');return}
+  $('generateBtn').disabled=true;
+  try{
+    let dataUrl,svg;
+    if(kind==='QR'){
+      const result=await api.generateQrAdvanced(text,{size:$('size').value,level:$('level').value,margin:$('margin').value,dark:$('dark').value,light:$('light').value});
+      if(!result.ok)throw new Error(result.error);({dataUrl,svg}=result);
+    }else{
+      const canvas=document.createElement('canvas'),svgNode=document.createElementNS('http://www.w3.org/2000/svg','svg');
+      const options={format:kind,width:Number($('barWidth').value),height:Number($('barHeight').value),displayValue:$('showValue').checked,margin:18,background:'#ffffff',lineColor:'#17372b',fontSize:18};
+      JsBarcode(canvas,text,options);JsBarcode(svgNode,text,options);
+      dataUrl=canvas.toDataURL('image/png');svg=new XMLSerializer().serializeToString(svgNode);
+    }
+    setCurrent({kind,text,dataUrl,svg});await addHistory({kind,text,action:'生成'});notice('生成成功');
+  }catch(error){notice('生成失败：'+error.message)}finally{$('generateBtn').disabled=false}
 }
-$('#clearHist').onclick=async()=>{await api.storage.set('qr-history',[]);renderHist([]);toast('已清空');};
-function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
-window.addEventListener('plugin-enter',e=>{const text=e.detail?.action?.payload||e.detail?.action?.clipboardText||e.detail?.payload||e.detail?.clipboardText||'';if(text){$('#qrText').value=text;}});
-$('#genBtn').onclick=async()=>{const text=$('#qrText').value.trim();if(!text){toast('请输入内容');return;}const size=+$('#qrSize').value;const res=await api.generateQr(text,size);if(res.ok){lastDataUrl=res.dataUrl;drawQr(res.dataUrl);await addHist(text);toast('已生成');}else toast(res.error);};
-$('#scanBtn').onclick=async()=>{const dataUrl=$('#scanDrop').dataset.url;if(!dataUrl){toast('请先选择图片');return;}const res=await api.decodeQr(dataUrl);if(res.ok&&res.text){$('#scanResult').textContent=res.text;await addHist('识别: '+res.text.slice(0,40));toast('识别成功');}else{$('#scanResult').textContent='未识别到二维码';toast('未识别到二维码');}};
-loadHistory();
+$('generateBtn').onclick=generate;$('content').addEventListener('keydown',event=>{if(event.ctrlKey&&event.key==='Enter')generate()});
+function save(format){if(!current)return;const name=current.kind==='QR'?'qrcode':'barcode';
+  const result=format==='svg'?api.saveResult({title:'保存 SVG',defaultPath:name+'.svg',filters:[{name:'SVG',extensions:['svg']}],text:current.svg}):api.saveResult({title:'保存 PNG',defaultPath:name+'.png',filters:[{name:'PNG',extensions:['png']}],dataUrl:current.dataUrl});
+  if(!result.cancelled)notice('已保存 '+format.toUpperCase());
+}
+$('savePng').onclick=()=>save('png');$('saveSvg').onclick=()=>save('svg');
+$('copyImage').onclick=()=>{try{api.copyImage(current.dataUrl);notice('已复制图片')}catch(error){notice(error.message)}};
+async function addHistory(item){history=[{...item,time:new Date().toISOString()},...history].slice(0,30);await api.storage.set('qr-history-v2',history);renderHistory()}
+function renderHistory(){const list=$('historyList');list.replaceChildren();if(!history.length){const el=document.createElement('div');el.className='empty';el.textContent='暂无记录';list.appendChild(el);return}
+  history.forEach((item,index)=>{const row=document.createElement('div');row.className='hist-item';const main=document.createElement('button');main.className='hist-main';const name=document.createElement('b');name.textContent=item.action+' · '+(formats[item.kind]||item.kind);const detail=document.createElement('span');detail.textContent=item.text;main.append(name,detail);main.onclick=()=>{$('kind').value=item.kind in formats?item.kind:'QR';updateKind();$('content').value=item.text;setMode('generate');notice('已填入内容，点击生成')};const del=document.createElement('button');del.className='hist-del';del.textContent='×';del.title='删除记录';del.onclick=async()=>{history.splice(index,1);await api.storage.set('qr-history-v2',history);renderHistory()};row.append(main,del);list.appendChild(row)})}
+$('clearHistory').onclick=async()=>{if(!history.length)return;if(!confirm('清空全部最近记录？'))return;history=[];await api.storage.set('qr-history-v2',history);renderHistory();notice('已清空')};
+async function loadHistory(){const saved=await api.storage.get('qr-history-v2');if(Array.isArray(saved)){history=saved}else{const old=await api.storage.get('qr-history');history=Array.isArray(old)?old.map(item=>({kind:'QR',text:String(item.text||'').replace(/^识别: /,''),action:String(item.text||'').startsWith('识别:')?'识别':'生成',time:''})):[]}renderHistory()}
+function readFile(file){if(!file||!file.type.startsWith('image/')){notice('请选择图片文件');return}if(file.size>20*1024*1024){notice('图片不能超过 20 MB');return}const reader=new FileReader();reader.onload=()=>loadScanImage(reader.result);reader.onerror=()=>notice('读取图片失败');reader.readAsDataURL(file)}
+function loadScanImage(url){scanDataUrl=url;const drop=$('drop');drop.replaceChildren();const img=new Image();img.src=url;img.alt='待识别图片';drop.appendChild(img);$('recognize').disabled=false;$('result').textContent='图片已载入，点击开始识别';recognized='';$('copyResult').disabled=$('useResult').disabled=true}
+$('drop').onclick=()=>{const selection=api.selectFiles({multiple:false,filters:[{name:'图片',extensions:['png','jpg','jpeg','webp','bmp']}]});const path=Array.isArray(selection)?selection[0]:selection;if(path){try{loadScanImage(api.readImageFile(path))}catch(error){notice(error.message)}}};
+$('drop').onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();$('drop').click()}};
+document.addEventListener('dragover',event=>{if(event.dataTransfer?.types?.includes('Files'))event.preventDefault()});
+document.addEventListener('drop',event=>{if(!event.dataTransfer?.files?.length)return;event.preventDefault();$('drop').classList.remove('over');setMode('scan');readFile(event.dataTransfer.files[0])});
+$('drop').ondragenter=()=>$('drop').classList.add('over');$('drop').ondragleave=()=>$('drop').classList.remove('over');
+$('pasteImage').onclick=()=>{const url=api.readClipboardImage();if(url)loadScanImage(url);else notice('剪贴板中没有图片')};
+document.addEventListener('paste',event=>{const file=[...(event.clipboardData?.files||[])].find(item=>item.type.startsWith('image/'));if(file){setMode('scan');readFile(file)}});
+async function recognize(){if(!scanDataUrl)return;$('recognize').disabled=true;$('result').textContent='正在识别…';
+  try{const result=await api.decodeBarcode(scanDataUrl);recognized=result.text;const kind=({CODE_128:'CODE128',EAN_13:'EAN13',EAN_8:'EAN8',UPC_A:'UPC',CODE_39:'CODE39',ITF:'ITF'})[result.format]||'QR';$('result').textContent=recognized;$('copyResult').disabled=$('useResult').disabled=false;await addHistory({kind,text:recognized,action:'识别'});notice('识别成功')}
+  catch(error){const qr=await api.decodeQr(scanDataUrl);if(qr.ok&&qr.text){recognized=qr.text;$('result').textContent=recognized;$('copyResult').disabled=$('useResult').disabled=false;await addHistory({kind:'QR',text:recognized,action:'识别'});notice('识别成功')}else{$('result').textContent='未识别到支持的二维码或条码';notice('未识别到图码')}}
+  finally{$('recognize').disabled=false}
+}
+$('recognize').onclick=recognize;$('copyResult').onclick=()=>{api.copyText(recognized);notice('已复制识别结果')};$('useResult').onclick=()=>{$('content').value=recognized;setMode('generate')};
+window.addEventListener('plugin-enter',event=>{const action=event.detail?.action||{};const text=action.payload||action.clipboardText||'';if(text){$('content').value=String(text);setMode('generate')}});
+updateKind();loadHistory().catch(error=>notice('历史记录读取失败：'+error.message));
 </script>
 </body></html>

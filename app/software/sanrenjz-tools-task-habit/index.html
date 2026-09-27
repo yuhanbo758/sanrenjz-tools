@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN" data-layout="kanban-garden">
 <head>
 <meta charset="utf-8">
@@ -17,7 +17,7 @@
 html,body{height:100%;overflow:hidden}
 body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans)}
 .app{height:calc(100vh - 32px);display:flex;flex-direction:column;min-height:0}
-.head{display:flex;align-items:center;gap:14px;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
+.head{display:none}
 .icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;flex:none}
 .icon svg{width:18px;height:18px;color:#fff}
 .head h1{margin:0;font-size:17px;font-weight:700}
@@ -58,6 +58,18 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
 .todo-due{font:12px var(--mono);color:var(--warn)}
 .todo-del{border:0;background:transparent;color:var(--faint);cursor:pointer;font-size:16px;padding:4px}
 .todo-del:hover{color:var(--err)}
+.todo-item.overdue .todo-due{color:var(--err);font-weight:700}
+.todo-item:focus-within{border-color:var(--accent)}
+.todo-actions{display:flex;gap:4px;align-items:center}
+.todo-edit{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:4px}
+.todo-edit:hover{color:var(--accent)}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:none}
+.toolbar .inp{min-width:150px;flex:1}
+.drop-mask{position:fixed;inset:32px 0 0;z-index:30;background:rgba(243,250,244,.9);border:3px dashed var(--accent);display:none;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:var(--accent);pointer-events:none}
+.drop-mask.show{display:flex}
+.hint{font-size:12px;color:var(--muted)}
+.habit-today{margin-top:12px;width:100%;justify-content:center}
+@media(max-width:900px){.tabs{padding:8px 14px}.content{padding:12px 14px}.todo-item{flex-wrap:wrap}.todo-text{min-width:55%}}
 .todo-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--faint);gap:10px}
 .todo-empty svg{width:48px;height:48px;opacity:.3}
 /* habits */
@@ -74,6 +86,19 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
 .day-check svg{display:none;width:14px;height:14px;color:#fff}
 .habit-del{border:0;background:transparent;color:var(--faint);cursor:pointer;font-size:14px}
 .habit-del:hover{color:var(--err)}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:none}.toolbar .inp{min-width:150px;flex:1}
+.summary{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;color:var(--muted);font-size:12px}.muted{color:var(--muted)}
+.todo-main{flex:1;min-width:0}.todo-text{display:block;overflow-wrap:anywhere}.todo-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;font-size:11px;color:var(--muted)}
+.todo-due.overdue{color:var(--err)}.todo-actions{display:flex;gap:3px}.icon-btn{border:0;background:transparent;color:var(--muted);padding:5px 7px;border-radius:6px;cursor:pointer;font:12px var(--sans)}.icon-btn:hover{background:var(--surface-2);color:var(--ink)}
+.day-check:disabled{cursor:not-allowed;opacity:.45;background:var(--surface-2)}.day-check.today{outline:2px solid var(--accent);outline-offset:2px}
+.habit-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:var(--muted)}
+.week-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.week-nav strong{font-size:13px;min-width:150px;text-align:center}
+.empty-state{padding:36px 16px;text-align:center;color:var(--muted);border:1px dashed var(--border);border-radius:12px;background:var(--surface);align-self:stretch}
+.dialog-backdrop{position:fixed;inset:32px 0 0;background:rgba(15,46,22,.3);display:none;align-items:center;justify-content:center;padding:16px;z-index:30}.dialog-backdrop.open{display:flex}
+.dialog-card{background:var(--surface);border-radius:14px;padding:20px;width:min(440px,100%);box-shadow:0 16px 48px #17382035;display:flex;flex-direction:column;gap:12px}.dialog-card h2{margin:0;font-size:18px}.dialog-card label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--muted)}.dialog-actions{display:flex;justify-content:flex-end;gap:8px}
+.focus-layout{display:grid;grid-template-columns:minmax(300px,1.3fr) minmax(260px,1fr);gap:16px;min-height:0;overflow:auto}.focus-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px}.focus-card h2{margin:0 0 14px;font-size:17px}.timer-face{text-align:center;padding:16px 0}.timer-phase{color:var(--accent);font-weight:700}.timer-time{font:700 clamp(54px,8vw,96px)/1.1 var(--mono);letter-spacing:-.06em;font-variant-numeric:tabular-nums}.timer-actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}.focus-fields{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:16px}.focus-fields label{font-size:12px;color:var(--muted)}.focus-fields input{width:100%;margin-top:4px}.focus-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}.focus-stat{background:var(--surface-2);border-radius:10px;padding:10px}.focus-stat b{display:block;font:700 23px var(--mono);color:var(--accent)}.session-list{display:flex;flex-direction:column;gap:8px}.session-row{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--border);padding:7px 0;font-size:12px}.session-row span{overflow-wrap:anywhere}.focus-hint{color:var(--muted);font-size:12px;margin:8px 0}.focus-card .sel{width:100%;max-width:100%}
+@media(max-width:760px){.focus-layout{grid-template-columns:1fr}.focus-fields{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:940px){.content{padding:12px}.tabs{padding:8px 12px}.add-row .inp[type=date]{max-width:155px}.todo-item{padding:10px}.habit-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#0f2e16;color:#fff;padding:10px 22px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:50}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 ::-webkit-scrollbar{width:8px;height:8px}
@@ -83,14 +108,10 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
 </head>
 <body>
 <main class="app">
-  <div class="head">
-    <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
-    <div><h1>任务与习惯</h1><p>把一次性任务和长期习惯放在同一条进度线上</p></div>
-    <div class="spacer"></div>
-  </div>
   <div class="tabs">
     <button class="tab active" data-tool="todo-list"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>待办任务</button>
     <button class="tab" data-tool="habit-tracker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>习惯打卡</button>
+    <button class="tab" data-tool="pomodoro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="9"/><path d="M12 13l4-3M9 2h6"/></svg>番茄专注</button>
   </div>
   <div class="content">
     <div class="panel active" data-panel="todo-list">
@@ -99,64 +120,36 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
         <select class="sel" id="todoPri"><option value="normal">普通</option><option value="high">高优先级</option><option value="low">低优先级</option></select>
         <input class="inp" id="todoDue" type="date">
         <button class="btn primary" id="todoAdd">添加任务</button>
+        <button class="btn" id="importTasks" title="支持 .txt 和 .md，每行一个任务">导入文件</button>
+        <input id="taskFiles" type="file" accept=".txt,.md,text/plain,text/markdown" multiple hidden>
       </div>
       <div class="todo-stats">
         <span class="stat-pill"><span class="n" id="todoTotal">0</span>总任务</span>
         <span class="stat-pill"><span class="n" id="todoDone">0</span>已完成</span>
         <span class="stat-pill"><span class="n" id="todoPct">0%</span>完成率</span>
       </div>
+      <div class="toolbar"><input class="inp" id="todoSearch" placeholder="搜索任务" aria-label="搜索任务"><select class="sel" id="todoFilter" aria-label="筛选任务"><option value="open">未完成</option><option value="all">全部</option><option value="today">今天到期</option><option value="overdue">已逾期</option><option value="done">已完成</option></select><select class="sel" id="todoSort" aria-label="排序任务"><option value="due">按截止日期</option><option value="priority">按优先级</option><option value="newest">最近添加</option></select></div>
+      <div class="summary"><span id="todoVisible">显示 0 项</span><span>可拖入 TXT / Markdown 文件；已完成任务在筛选中查看</span></div>
       <div class="todo-list" id="todoList"></div>
     </div>
     <div class="panel" data-panel="habit-tracker">
       <div class="add-row">
         <input class="inp" id="habitInput" placeholder="输入习惯名称…" style="flex:1;min-width:200px">
+        <label class="muted">每周目标 <select class="sel" id="habitGoal"><option value="7">7 天</option><option value="5">5 天</option><option value="3">3 天</option><option value="1">1 天</option></select></label>
         <button class="btn primary" id="habitAdd">添加习惯</button>
       </div>
+      <div class="summary"><div class="week-nav"><button class="btn" id="weekPrev" aria-label="上一周">‹</button><strong id="weekRange"></strong><button class="btn" id="weekNext" aria-label="下一周">›</button><button class="btn" id="weekToday">本周</button></div><span id="habitSummary"></span></div>
       <div class="habit-grid" id="habitGrid"></div>
+    </div>
+    <div class="panel" data-panel="pomodoro">
+      <div class="focus-layout">
+        <section class="focus-card"><h2>番茄计时</h2><label class="muted" for="focusTask">关联任务</label><select class="sel" id="focusTask"></select><div class="timer-face"><div class="timer-phase" id="timerPhase">准备专注</div><div class="timer-time" id="timerTime" role="timer" aria-live="off">25:00</div><div class="focus-hint" id="timerHint">完成一轮后自动计入任务进度</div></div><div class="timer-actions"><button class="btn primary" id="timerStart">开始专注</button><button class="btn" id="timerSkip" hidden>跳过休息</button><button class="btn" id="timerReset">重置本轮</button></div><div class="focus-fields"><label>专注分钟<input class="inp" id="focusMinutes" type="number" min="1" max="180"></label><label>短休分钟<input class="inp" id="shortMinutes" type="number" min="1" max="90"></label><label>长休分钟<input class="inp" id="longMinutes" type="number" min="1" max="90"></label></div></section>
+        <section class="focus-card"><h2>专注记录</h2><div class="focus-stats"><div class="focus-stat"><b id="todayPomos">0</b>今日番茄</div><div class="focus-stat"><b id="todayFocusMinutes">0</b>今日分钟</div></div><p class="focus-hint">每完成四轮专注进入长休；休息需手动开始。</p><div class="session-list" id="sessionList"></div></section>
+      </div>
     </div>
   </div>
 </main>
+<div class="drop-mask" id="dropMask">释放以导入 TXT / Markdown 任务文件</div>
 <div class="toast" id="toast"></div>
-<script>
-const api=window.pluginAPI;const $=s=>document.querySelector(s);const $$=s=>document.querySelectorAll(s);
-let current='todo-list';
-function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
-function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1600);}
-$$('.tab').forEach(t=>t.onclick=()=>{current=t.dataset.tool;$$('.tab').forEach(x=>x.classList.toggle('active',x===t));$$('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===current));if(current==='habit-tracker')renderHabits();});
-// Todo
-let todos=[];
-async function loadTodos(){todos=await api.storage.get('todos')||[];renderTodos();}
-function renderTodos(){
-  const done=todos.filter(t=>t.completed).length;
-  $('#todoTotal').textContent=todos.length;$('#todoDone').textContent=done;
-  $('#todoPct').textContent=todos.length?Math.round(done/todos.length*100)+'%':'0%';
-  if(!todos.length){$('#todoList').innerHTML='<div class="todo-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>还没有任务，添加一个吧</span></div>';return;}
-  const sorted=[...todos].sort((a,b)=>(a.completed-b.completed)||({high:0,normal:1,low:2}[a.priority]??1)-({high:0,normal:1,low:2}[b.priority]??1));
-  $('#todoList').innerHTML=sorted.map(t=>{const idx=todos.indexOf(t);return `<div class="todo-item${t.completed?' done':''}"><div class="todo-check${t.completed?' checked':''}" data-tog="${idx}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></div><span class="todo-text">${esc(t.title)}</span>${t.dueDate?`<span class="todo-due">📅 ${t.dueDate}</span>`:''}<span class="todo-pri pri-${t.priority||'normal'}">${{high:'高',normal:'普通',low:'低'}[t.priority||'normal']}</span><button class="todo-del" data-del="${idx}">×</button></div>`;}).join('');
-  $$('#todoList [data-tog]').forEach(el=>el.onclick=async()=>{todos[+el.dataset.tog].completed=!todos[+el.dataset.tog].completed;await api.storage.set('todos',todos);renderTodos();});
-  $$('#todoList [data-del]').forEach(el=>el.onclick=async()=>{todos.splice(+el.dataset.del,1);await api.storage.set('todos',todos);renderTodos();});
-}
-$('#todoAdd').onclick=addTodo;$('#todoInput').onkeydown=e=>{if(e.key==='Enter')addTodo();};
-async function addTodo(){const title=$('#todoInput').value.trim();if(!title){toast('请输入任务');return;}todos.unshift({title,priority:$('#todoPri').value,dueDate:$('#todoDue').value,completed:false});await api.storage.set('todos',todos);$('#todoInput').value='';$('#todoDue').value='';renderTodos();}
-loadTodos();
-// Habits
-let habits=[];const dayLabels=['一','二','三','四','五','六','日'];
-async function loadHabits(){habits=await api.storage.get('habits')||[];renderHabits();}
-function getWeekKey(date){const d=new Date(date);const y=d.getFullYear();const w=Math.floor((d-new Date(y,0,1))/604800000);return `${y}-W${w}`;}
-function renderHabits(){
-  if(!habits.length){$('#habitGrid').innerHTML='<div style="grid-column:1/-1;color:var(--faint);text-align:center;padding:40px">添加一个习惯开始打卡</div>';return;}
-  const weekKey=getWeekKey(new Date());const today=new Date().getDay()||7;
-  $('#habitGrid').innerHTML=habits.map((h,i)=>{
-    const checks=h.weeks?.[weekKey]||[false,false,false,false,false,false,false];
-    const streak=checks.filter(Boolean).length;
-    return `<div class="habit-card"><div class="habit-name">${esc(h.name)}<button class="habit-del" data-hdel="${i}">×</button></div><div class="habit-streak">本周打卡 ${streak}/7 天</div><div class="week-row">${checks.map((c,di)=>`<div class="day-cell"><div class="day-label">周${dayLabels[di]}</div><div class="day-check${c?' checked':''}" data-h="${i}" data-d="${di}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></div></div>`).join('')}</div></div>`;
-  }).join('');
-  $$('#habitGrid [data-hdel]').forEach(el=>el.onclick=async()=>{habits.splice(+el.dataset.hdel,1);await api.storage.set('habits',habits);renderHabits();});
-  $$('#habitGrid [data-h]').forEach(el=>el.onclick=async()=>{const hi=+el.dataset.h,di=+el.dataset.d;const wk=getWeekKey(new Date());if(!habits[hi].weeks)habits[hi].weeks={};if(!habits[hi].weeks[wk])habits[hi].weeks[wk]=[false,false,false,false,false,false,false];habits[hi].weeks[wk][di]=!habits[hi].weeks[wk][di];await api.storage.set('habits',habits);renderHabits();});
-}
-$('#habitAdd').onclick=async()=>{const name=$('#habitInput').value.trim();if(!name){toast('请输入习惯名称');return;}habits.push({name,weeks:{}});await api.storage.set('habits',habits);$('#habitInput').value='';renderHabits();};
-$('#habitInput').onkeydown=e=>{if(e.key==='Enter')$('#habitAdd').click();};
-loadHabits();
-window.addEventListener('plugin-enter',e=>{const text=e.detail?.action?.payload||e.detail?.action?.clipboardText||e.detail?.payload||e.detail?.clipboardText||'';if(text&&current==='todo-list'){$('#todoInput').value=text;}});
-</script>
+<div class="dialog-backdrop" id="editDialog"><form class="dialog-card" id="editForm"><h2>编辑任务</h2><label>任务名称<input class="inp" id="editTitle" required maxlength="200"></label><label>优先级<select class="sel" id="editPriority"><option value="normal">普通</option><option value="high">高</option><option value="low">低</option></select></label><label>截止日期<input class="inp" id="editDue" type="date"></label><label>预计番茄数<input class="inp" id="editEstimate" type="number" min="1" max="99" value="1"></label><div class="dialog-actions"><button class="btn" type="button" id="editCancel">取消</button><button class="btn primary" type="submit">保存</button></div></form></div><script src="task-habit-core.js"></script><script src="renderer.js"></script>
 </body></html>

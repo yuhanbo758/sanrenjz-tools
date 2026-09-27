@@ -12,7 +12,7 @@ const inputPath = path.join(temporaryDirectory, 'source-800.png');
 let outputPath = path.join(temporaryDirectory, 'result-256.ico');
 const memory = new Map();
 
-ipcMain.on('show-open-dialog', event => { event.returnValue = []; });
+ipcMain.on('show-open-dialog', (event, options) => { event.returnValue = options.properties?.includes('openDirectory') ? [temporaryDirectory] : []; });
 ipcMain.on('show-save-dialog', event => { event.returnValue = outputPath; });
 ipcMain.handle('plugin-storage-get-async', (_event, name, key) => memory.get(`${name}:${key}`) ?? null);
 ipcMain.handle('plugin-storage-set-async', (_event, name, key, value) => {
@@ -71,7 +71,9 @@ app.whenReady().then(async () => {
       sectionCount: document.querySelectorAll('.setting-section').length,
       heading: document.querySelector('.side-h h2')?.textContent
     })`);
-    assert.deepStrictEqual(unifiedUi, { tabCount: 0, sectionCount: 3, heading: '优化设置' });
+    assert.deepStrictEqual(unifiedUi, { tabCount: 0, sectionCount: 4, heading: '优化设置' });
+    const introCount = await window.webContents.executeJavaScript("document.querySelectorAll('.head,.workflow').length");
+    assert.strictEqual(introCount, 0, '菜单下方不应重复显示插件介绍和流程栏');
     const focusedControl = await window.webContents.executeJavaScript(`focusToolSection('image-resizer');document.activeElement.id`);
     assert.strictEqual(focusedControl, 'targetW', '尺寸入口应定位到尺寸设置，而不是切换重复页面');
     for (const [width, height] of [[900, 650], [1180, 760], [1440, 900]]) {
@@ -86,6 +88,7 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`
       document.querySelector('#outputFmt').value = 'ico';
       document.querySelector('#outputFmt').dispatchEvent(new Event('change'));
+      document.querySelector('#sizePreset').value = 'custom';
       document.querySelector('#targetW').value = '256';
       document.querySelector('#targetH').value = '256';
     `);
@@ -114,6 +117,7 @@ app.whenReady().then(async () => {
       await window.webContents.executeJavaScript(`
         document.querySelector('#outputFmt').value = ${JSON.stringify(format)};
         document.querySelector('#outputFmt').dispatchEvent(new Event('change'));
+        document.querySelector('#sizePreset').value = 'custom';
         document.querySelector('#targetW').value = '320';
         document.querySelector('#targetH').value = '180';
         document.querySelector('#processBtn').click();
@@ -148,6 +152,32 @@ app.whenReady().then(async () => {
     const signatureError = await window.webContents.executeJavaScript(`(async()=>{try{await window.pluginAPI.writeImageFile(${JSON.stringify(fakePngPath)},new Uint8Array([0x42,0x4d,0,0]),'png');return '';}catch(error){return error.message;}})()`);
     assert.ok(signatureError.includes('编码结果为 bmp，目标格式为 png'), '写盘前必须检查真实文件签名');
     assert.strictEqual(fs.existsSync(fakePngPath), false, '二进制内容与目标格式不一致时不得写盘');
+    const secondPath = path.join(temporaryDirectory, 'second.png');
+    fs.writeFileSync(secondPath, nativeImage.createFromBitmap(bitmap.subarray(0, 400 * 200 * 4), { width: 400, height: 200, scaleFactor: 1 }).toPNG());
+    await window.webContents.executeJavaScript(`
+      const dropEvent = new Event('drop', { bubbles: true, cancelable: true });
+      Object.defineProperty(dropEvent, 'dataTransfer', { value: { files: [{ path: ${JSON.stringify(secondPath)} }] } });
+      document.querySelector('#dropZone').dispatchEvent(dropEvent);
+    `);
+    await waitFor(() => window.webContents.executeJavaScript('entries.length === 2'));
+    assert.strictEqual(await window.webContents.executeJavaScript('entries.length'), 2);
+    await window.webContents.executeJavaScript(`
+      document.querySelector('#rotateRight').click();
+      document.querySelector('#flipH').click();
+      document.querySelector('#sizePreset').value='50';
+      document.querySelector('#outputFmt').value='png';
+      document.querySelector('#outputFmt').dispatchEvent(new Event('change'));
+      document.querySelector('#batchBtn').click();
+    `);
+    const batchFirst = path.join(temporaryDirectory, 'source-800-optimized-400x400.png');
+    const batchSecond = path.join(temporaryDirectory, 'second-optimized-100x200.png');
+    await waitFor(() => fs.existsSync(batchFirst) && fs.existsSync(batchSecond));
+    assert.deepStrictEqual(nativeImage.createFromPath(batchSecond).getSize(), { width: 100, height: 200 }, '旋转后应按新宽高缩放');
+    await window.webContents.executeJavaScript("document.querySelector('#batchBtn').click()");
+    await waitFor(() => fs.existsSync(path.join(temporaryDirectory, 'source-800-optimized-400x400-1.png')));
+    assert.ok(fs.existsSync(batchFirst), '第二次批量导出不应覆盖第一次输出');
+    await window.webContents.executeJavaScript("document.querySelector('#removeBtn').click()");
+    assert.strictEqual(await window.webContents.executeJavaScript('entries.length'), 1, '移除当前图片应更新队列');
     console.log('image optimizer Electron test passed: ICO/PNG/JPEG/WebP/BMP conversion and resize');
     app.exit(0);
   } catch (error) {

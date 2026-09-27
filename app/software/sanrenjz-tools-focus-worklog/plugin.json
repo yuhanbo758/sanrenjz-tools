@@ -1,7 +1,7 @@
 {
   "pluginName": "专注与工时",
-  "description": "专注计时直接沉淀为项目工时与周期报告。",
-  "version": "2.0.0",
+  "description": "任务规划、番茄专注与工时记录。",
+  "version": "2.1.0",
   "author": "三人聚智",
   "category": "效率工具",
   "main": "index.html",
@@ -11,7 +11,7 @@
     {
       "code": "plugin-market-pomodoro-focus",
       "explain": "专注计时",
-      "description": "专注计时直接沉淀为项目工时与周期报告。",
+      "description": "选择任务开始番茄专注，完成后自动记录工时。",
       "cmds": [
         "番茄钟",
         "专注",
@@ -38,7 +38,7 @@
     {
       "code": "plugin-market-worklog",
       "explain": "工时记录",
-      "description": "专注计时直接沉淀为项目工时与周期报告。",
+      "description": "按任务查看和导出专注工时记录。",
       "cmds": [
         "工时",
         "工作日志",

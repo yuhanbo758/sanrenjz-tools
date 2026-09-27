@@ -1,1 +1,23 @@
-const {contextBridge,ipcRenderer}=require('electron');const {createAiRuntime}=require('../../plugin_runtime/ai-runtime');let emit=()=>{};const api=createAiRuntime("AI 文档阅读器",chunk=>emit(chunk));api.onChunk=listener=>{emit=listener;return()=>{emit=()=>{}}};const fs=require('fs'),path=require('path'),{nativeImage}=require('electron');api.pickFiles=()=>ipcRenderer.sendSync('show-open-dialog',{title:'选择资料',properties:['openFile'],filters:[{name:'文档',extensions:['pdf','txt','md','markdown']}]})||[];api.readTextFile=p=>fs.readFileSync(p,'utf8');api.readImage=p=>{const ext=path.extname(p).toLowerCase();const mime=ext==='.png'?'image/png':'image/jpeg';return 'data:'+mime+';base64,'+fs.readFileSync(p).toString('base64');};api.readDocument=async p=>require('path').extname(p).toLowerCase()==='.pdf'?(await require('pdf-parse')(require('fs').readFileSync(p))).text:require('fs').readFileSync(p,'utf8');try{contextBridge.exposeInMainWorld('aiAPI',api)}catch(_){window.aiAPI=api}function enter(action){window.dispatchEvent(new CustomEvent('plugin-enter',{detail:action||{}}))}window.exports={'plugin-market-ai-document':{mode:'none',args:{enter,search:(_a,_w,setList)=>setList([]),select:()=>{}}}};
+const { contextBridge, ipcRenderer } = require('electron');
+const { createAiRuntime } = require('../../plugin_runtime/ai-runtime');
+const { SUPPORTED_EXTENSIONS, extractDocument, readDocument } = require('./document-service');
+
+let emit = () => {};
+const api = createAiRuntime('AI 文档阅读器', chunk => emit(chunk));
+api.onChunk = listener => { emit = listener; return () => { emit = () => {}; }; };
+api.pickFiles = () => ipcRenderer.sendSync('show-open-dialog', {
+  title: '选择文档',
+  properties: ['openFile', 'multiSelections'],
+  filters: [{ name: '文档', extensions: SUPPORTED_EXTENSIONS.map(ext => ext.slice(1)) }]
+}) || [];
+api.readDocument = readDocument;
+api.readDroppedDocument = (name, bytes) => extractDocument(name, Buffer.from(bytes));
+try { contextBridge.exposeInMainWorld('aiAPI', api); } catch (_) { window.aiAPI = api; }
+
+function enter(action) { window.dispatchEvent(new CustomEvent('plugin-enter', { detail: action || {} })); }
+window.exports = {
+  'plugin-market-ai-document': {
+    mode: 'none',
+    args: { enter, search: (_action, _word, setList) => setList([]), select: () => {} }
+  }
+};

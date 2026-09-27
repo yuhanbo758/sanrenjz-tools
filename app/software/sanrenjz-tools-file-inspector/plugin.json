@@ -1,7 +1,7 @@
 {
   "pluginName": "文件检查工作台",
-  "description": "搜索内容、比较目录并生成结构树。",
-  "version": "2.0.0",
+  "description": "拖入文件或目录，搜索内容、比较目录并导出结果，生成目录树。",
+  "version": "2.1.0",
   "author": "三人聚智",
   "category": "效率工具",
   "main": "index.html",

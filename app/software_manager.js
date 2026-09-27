@@ -472,11 +472,37 @@ class PluginManager {
                 contextIsolation: false,
                 enableRemoteModule: true,
                 webSecurity: false,
+                webviewTag: pluginName === '网页浏览',
                 // 如果有preload脚本，加载它
                 preload: pluginConfig.preload ? path.join(pluginPath, pluginConfig.preload) : undefined
             },
             show: false
         });
+
+        if (pluginName === '网页浏览') {
+            pluginWindow.webContents.on('will-attach-webview', (event, preferences, params) => {
+                if (!/^https?:\/\//i.test(params.src || '')) {
+                    event.preventDefault();
+                    return;
+                }
+                delete preferences.preload;
+                delete preferences.preloadURL;
+                preferences.nodeIntegration = false;
+                preferences.contextIsolation = true;
+                preferences.webSecurity = true;
+                preferences.sandbox = true;
+            });
+            pluginWindow.webContents.on('did-attach-webview', (_event, guest) => {
+                guest.on('will-navigate', (event, url) => {
+                    if (!/^https?:\/\//i.test(url)) event.preventDefault();
+                });
+                // 站点的 target=_blank 仍可用，但只复用隔离的网页容器。
+                guest.setWindowOpenHandler(({ url }) => {
+                    if (/^https?:\/\//i.test(url)) guest.loadURL(url).catch(() => {});
+                    return { action: 'deny' };
+                });
+            });
+        }
 
         // 为插件窗口设置独特的应用ID，确保在任务栏中独立显示
         try {
@@ -1120,7 +1146,9 @@ class PluginManager {
                         }, 200);
                     }
                 };
-            `);
+                // executeJavaScript 会把最后一个表达式传回主进程；避免返回含函数的 utools 对象。
+                true;
+            `).catch(error => console.error('注入插件全局变量失败:', error));
         });
 
         // 加载插件主页面
@@ -1198,20 +1226,33 @@ class PluginManager {
 
         const mainFile = pluginConfig.main || 'index.html';
         const mainFilePath = path.join(pluginPath, mainFile);
+        const indicatorSetting = pluginConfig.indicatorSetting || {};
+        const indicatorWidth = Math.max(72, Math.min(1200, Number(indicatorSetting.width) || 72));
+        const indicatorHeight = Math.max(72, Math.min(900, Number(indicatorSetting.height) || 72));
+        let savedBounds = null;
+        try {
+            savedBounds = this.getPluginStorageItem(pluginName, 'indicatorBounds');
+        } catch (_) {
+        }
+        const savedWidth = indicatorSetting.resizable === true && Number.isFinite(savedBounds?.width)
+            ? Math.max(72, Math.min(1200, Math.round(savedBounds.width))) : indicatorWidth;
+        const savedHeight = indicatorSetting.resizable === true && Number.isFinite(savedBounds?.height)
+            ? Math.max(72, Math.min(900, Math.round(savedBounds.height))) : indicatorHeight;
 
         const indicatorWindow = new BrowserWindow({
-            width: 72,
-            height: 72,
+            width: savedWidth,
+            height: savedHeight,
+            useContentSize: indicatorSetting.resizable === true,
             frame: false,
             transparent: true,
-            resizable: false,
+            resizable: indicatorSetting.resizable === true,
             minimizable: false,
             maximizable: false,
             fullscreenable: false,
             movable: true,
             skipTaskbar: true,
             alwaysOnTop: true,
-            focusable: false,
+            focusable: indicatorSetting.focusable === true,
             show: false,
             hasShadow: false,
             backgroundColor: '#00000000',
@@ -1225,38 +1266,35 @@ class PluginManager {
         });
 
         try {
-            const saved = this.getPluginStorageItem(pluginName, 'indicatorBounds');
             const display = screen ? screen.getPrimaryDisplay() : null;
             const workArea = display ? display.workArea : null;
 
-            if (saved && typeof saved === 'object' && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
-                const x = Math.round(saved.x);
-                const y = Math.round(saved.y);
+            if (savedBounds && typeof savedBounds === 'object' && Number.isFinite(savedBounds.x) && Number.isFinite(savedBounds.y)) {
+                const x = Math.round(savedBounds.x);
+                const y = Math.round(savedBounds.y);
                 indicatorWindow.setPosition(x, y);
             } else if (workArea) {
-                const x = workArea.x + workArea.width - 72 - 20;
-                const y = workArea.y + workArea.height - 72 - 20;
+                const x = workArea.x + workArea.width - indicatorWindow.getBounds().width - 20;
+                const y = workArea.y + workArea.height - indicatorWindow.getBounds().height - 20;
                 indicatorWindow.setPosition(x, y);
             }
         } catch (_) {
         }
 
-        let lastPos = null;
+        const openingSize = indicatorWindow.getSize();
+        let userResized = false;
         try {
-            indicatorWindow.on('move', () => {
-                try {
-                    if (!indicatorWindow || indicatorWindow.isDestroyed()) return;
-                    const [x, y] = indicatorWindow.getPosition();
-                    lastPos = { x, y };
-                } catch (_) {
-                }
+            indicatorWindow.on('resize', () => {
+                const [width, height] = indicatorWindow.getSize();
+                if (Math.abs(width - openingSize[0]) > 4 || Math.abs(height - openingSize[1]) > 4) userResized = true;
             });
 
             indicatorWindow.on('close', () => {
                 try {
-                    if (lastPos && Number.isFinite(lastPos.x) && Number.isFinite(lastPos.y)) {
-                        this.setPluginStorageItem(pluginName, 'indicatorBounds', { x: lastPos.x, y: lastPos.y });
-                    }
+                    const { x, y } = indicatorWindow.getBounds();
+                    const [width, height] = userResized ? indicatorWindow.getContentSize()
+                        : [savedWidth, savedHeight];
+                    this.setPluginStorageItem(pluginName, 'indicatorBounds', { x, y, width, height });
                 } catch (_) {
                 }
             });

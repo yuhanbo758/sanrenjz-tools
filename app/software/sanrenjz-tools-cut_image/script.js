@@ -5,6 +5,8 @@ class ImageEditor {
         this.originalImage = null;
         this.currentImage = null;
         this.rotation = 0;
+        this.flipHorizontal = false;
+        this.flipVertical = false;
         this.cropData = null;
         this.textElements = [];
         this.selectedTextElement = null;
@@ -48,22 +50,33 @@ class ImageEditor {
         const backgroundInput = document.getElementById('backgroundInput');
         backgroundInput.addEventListener('change', (e) => this.handleBackgroundSelect(e));
         
-        // 拖拽上传
-        uploadZone.addEventListener('dragover', (e) => {
+        // 在整个窗口接收文件，画布出现后虚线框隐藏也不影响再次拖入。
+        const canvasArea = document.querySelector('.canvas-area');
+        document.addEventListener('dragover', (e) => {
             e.preventDefault();
-            uploadZone.classList.add('dragover');
+            const hasFiles = Array.from(e.dataTransfer?.types || []).includes('Files');
+            if (e.dataTransfer) e.dataTransfer.dropEffect = hasFiles ? 'copy' : 'none';
+            canvasArea.classList.toggle('dragover', hasFiles);
         });
-        
-        uploadZone.addEventListener('dragleave', () => {
-            uploadZone.classList.remove('dragover');
+        document.addEventListener('dragleave', (e) => {
+            if (!e.relatedTarget) canvasArea.classList.remove('dragover');
         });
-        
-        uploadZone.addEventListener('drop', (e) => {
+        document.addEventListener('drop', (e) => {
             e.preventDefault();
-            uploadZone.classList.remove('dragover');
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                this.loadImage(files[0]);
+            canvasArea.classList.remove('dragover');
+            const files = Array.from(e.dataTransfer?.files || []);
+            if (!files.length) return;
+            const file = files.find(file => this.isSupportedImage(file));
+            if (file) this.loadImage(file);
+            else alert('请拖入 JPG、PNG、WebP、GIF 或 BMP 图片文件。');
+        });
+        document.addEventListener('paste', (e) => {
+            if (/^(INPUT|TEXTAREA)$/.test(e.target?.tagName || '') || e.target?.isContentEditable) return;
+            const file = Array.from(e.clipboardData?.items || [])
+                .find(item => item.kind === 'file' && item.type.startsWith('image/'))?.getAsFile();
+            if (file) {
+                e.preventDefault();
+                this.loadImage(file);
             }
         });
         
@@ -71,6 +84,9 @@ class ImageEditor {
         document.getElementById('addBackgroundBtn').addEventListener('click', () => this.selectBackground());
         document.getElementById('rotateLeftBtn').addEventListener('click', () => this.rotate(-90));
         document.getElementById('rotateRightBtn').addEventListener('click', () => this.rotate(90));
+        document.getElementById('flipHorizontalBtn').addEventListener('click', () => this.flip('horizontal'));
+        document.getElementById('flipVerticalBtn').addEventListener('click', () => this.flip('vertical'));
+        document.getElementById('resetBtn').addEventListener('click', () => this.resetImage());
         document.getElementById('deleteBtn').addEventListener('click', () => this.deleteImage());
         document.getElementById('cropBtn').addEventListener('click', () => this.applyCrop());
         
@@ -285,10 +301,16 @@ class ImageEditor {
         if (file) {
             this.loadImage(file);
         }
+        e.target.value = '';
+    }
+
+    isSupportedImage(file) {
+        return !!file && (/^image\/(jpeg|png|webp|gif|bmp|x-ms-bmp)$/i.test(file.type || '') ||
+            /\.(jpe?g|png|webp|gif|bmp)$/i.test(file.name || ''));
     }
     
     loadImage(file) {
-        if (!file.type.startsWith('image/')) {
+        if (!this.isSupportedImage(file)) {
             alert('请选择有效的图片文件！');
             return;
         }
@@ -297,9 +319,20 @@ class ImageEditor {
         reader.onload = (e) => {
             const img = new Image();
             img.onload = () => {
+                if (!img.naturalWidth || !img.naturalHeight) return;
+                const keepBackground = !this.currentImage;
                 this.originalImage = img;
                 this.currentImage = img;
                 this.rotation = 0;
+                this.flipHorizontal = false;
+                this.flipVertical = false;
+                this.backgroundImage = keepBackground ? this.backgroundImage : null;
+                this.cropData = null;
+                this.hideCropOverlay();
+                document.querySelectorAll('.size-btn').forEach(btn => btn.classList.remove('active'));
+                document.getElementById('cropWidth').value = '';
+                document.getElementById('cropHeight').value = '';
+                this.selectedRatio = null;
                 this.textElements = [];
                 this.selectedTextElement = null;
                 this.hideTextControls();
@@ -309,15 +342,28 @@ class ImageEditor {
                 this.imageOffsetX = 0;
                 this.imageOffsetY = 0;
                 
-                this.setupCanvas();
                 this.showCanvas();
+                this.setupCanvas();
+                this.updateImageInfo();
                 
                 // 保存初始状态
+                this.history = [];
+                this.historyIndex = -1;
                 this.saveState('加载图片');
             };
+            img.onerror = () => alert('图片解码失败，请选择有效的图片文件。');
             img.src = e.target.result;
         };
+        reader.onerror = () => alert('读取图片失败，请检查文件是否可访问。');
         reader.readAsDataURL(file);
+    }
+
+    updateImageInfo() {
+        const info = document.getElementById('imageInfo');
+        const source = this.currentImage;
+        info.textContent = source
+            ? `图片 ${source.naturalWidth || source.width} × ${source.naturalHeight || source.height} px · 当前画布 ${this.canvas.width} × ${this.canvas.height} px`
+            : '尚未加载图片';
     }
     
     setupCanvas() {
@@ -326,8 +372,8 @@ class ImageEditor {
         const containerRect = container.getBoundingClientRect();
         
         // 计算最大可用尺寸（减去较少的边距，充分利用空间）
-        const maxCanvasWidth = Math.max(600, containerRect.width - 20); // 最小600px，减少边距
-        const maxCanvasHeight = Math.max(600, containerRect.height - 20); // 最小600px，减少边距
+        const maxCanvasWidth = Math.max(1, containerRect.width - 20);
+        const maxCanvasHeight = Math.max(1, containerRect.height - 20);
         
         let canvasWidth, canvasHeight;
         
@@ -376,6 +422,7 @@ class ImageEditor {
         this.canvas.height = canvasHeight;
         
         this.drawImage();
+        this.updateImageInfo();
     }
     
     getRotatedDimensions() {
@@ -500,6 +547,7 @@ class ImageEditor {
             // 应用图片偏移
             this.ctx.translate(this.canvas.width / 2 + this.imageOffsetX, this.canvas.height / 2 + this.imageOffsetY);
             this.ctx.rotate((this.rotation * Math.PI) / 180);
+            this.ctx.scale(this.flipHorizontal ? -1 : 1, this.flipVertical ? -1 : 1);
             
             let drawWidth, drawHeight;
             
@@ -747,12 +795,36 @@ class ImageEditor {
     
     rotate(degrees) {
         if (!this.currentImage) return;
-        
-        // 保存状态
-        this.saveState(`旋转${degrees > 0 ? '右' : '左'}转`);
-        
         this.rotation = (this.rotation + degrees) % 360;
+        this.hideCropOverlay();
         this.setupCanvas();
+        this.saveState(`旋转${degrees > 0 ? '右' : '左'}转`);
+    }
+
+    flip(direction) {
+        if (!this.currentImage) return;
+        if (direction === 'horizontal') this.flipHorizontal = !this.flipHorizontal;
+        else this.flipVertical = !this.flipVertical;
+        this.drawImage();
+        this.saveState(direction === 'horizontal' ? '水平翻转' : '垂直翻转');
+    }
+
+    resetImage() {
+        if (!this.originalImage) return;
+        this.currentImage = this.originalImage;
+        this.backgroundImage = null;
+        this.rotation = 0;
+        this.flipHorizontal = false;
+        this.flipVertical = false;
+        this.imageScale = 1;
+        this.imageOffsetX = 0;
+        this.imageOffsetY = 0;
+        this.textElements = [];
+        this.selectedTextElement = null;
+        this.hideTextControls();
+        this.hideCropOverlay();
+        this.setupCanvas();
+        this.saveState('重置图片');
     }
     
 
@@ -990,9 +1062,6 @@ class ImageEditor {
     applyCrop() {
         if (!this.currentImage) return;
         
-        // 保存状态
-        this.saveState('裁剪图片');
-        
         let cropData = this.cropData;
         if (!cropData) {
             // 如果没有裁剪预览，使用输入框的值，如果输入框为空则使用整个画布
@@ -1020,7 +1089,8 @@ class ImageEditor {
         tempCanvas.width = cropData.width;
         tempCanvas.height = cropData.height;
         
-        // 裁剪图片
+        // 裁剪时重绘无编辑边框的内容，避免将蓝色虚线烘焙进图片。
+        this.drawImage(false);
         tempCtx.drawImage(
             this.canvas,
             cropData.x, cropData.y, cropData.width, cropData.height,
@@ -1044,6 +1114,7 @@ class ImageEditor {
             this.hideTextControls();
             this.hideCropOverlay();
             this.setupCanvas();
+            this.saveState('裁剪图片');
         };
         img.src = tempCanvas.toDataURL();
     }
@@ -1051,9 +1122,6 @@ class ImageEditor {
     addText() {
         // 允许在有背景图或主图时添加文字
         if (!this.currentImage && !this.backgroundImage) return;
-        
-        // 保存状态
-        this.saveState('添加文字');
         
         // 尝试加载保存的文字样式
         const savedStyle = this.getSavedTextStyle();
@@ -1093,6 +1161,7 @@ class ImageEditor {
         this.showTextControls();
         this.updateTextControls();
         this.drawImage();
+        this.saveState('添加文字');
     }
     
     saveTextStyle() {
@@ -1272,15 +1341,13 @@ class ImageEditor {
     deleteSelectedText() {
         if (!this.selectedTextElement) return;
         
-        // 保存状态
-        this.saveState('删除文字');
-        
         const index = this.textElements.findIndex(el => el.id === this.selectedTextElement.id);
         if (index > -1) {
             this.textElements.splice(index, 1);
             this.selectedTextElement = null;
             this.hideTextControls();
             this.drawImage();
+            this.saveState('删除文字');
         }
     }
     
@@ -1999,10 +2066,11 @@ class ImageEditor {
         if (file) {
             this.loadBackgroundImage(file);
         }
+        e.target.value = '';
     }
     
     loadBackgroundImage(file) {
-        if (!file.type.startsWith('image/')) {
+        if (!this.isSupportedImage(file)) {
             alert('请选择有效的图片文件！');
             return;
         }
@@ -2012,10 +2080,7 @@ class ImageEditor {
             const img = new Image();
             img.onload = () => {
                 this.backgroundImage = img;
-                
-                // 保存状态
-                this.saveState('添加背景图片');
-                
+
                 if (this.currentImage) {
                     this.drawImage();
                 } else {
@@ -2044,6 +2109,8 @@ class ImageEditor {
                     
                     this.showCanvas();
                 }
+                this.updateImageInfo();
+                this.saveState('添加背景图片');
             };
             img.src = e.target.result;
         };
@@ -2051,14 +2118,13 @@ class ImageEditor {
     }
     
     deleteImage() {
-        // 保存当前状态到历史记录
-        this.saveState('删除图片');
-        
         // 重置到初始状态
         this.originalImage = null;
         this.currentImage = null;
         this.backgroundImage = null;
         this.rotation = 0;
+        this.flipHorizontal = false;
+        this.flipVertical = false;
         this.textElements = [];
         this.selectedTextElement = null;
         this.cropData = null;
@@ -2076,6 +2142,8 @@ class ImageEditor {
         // 清除文件输入
         document.getElementById('fileInput').value = '';
         document.getElementById('backgroundInput').value = '';
+        this.updateImageInfo();
+        this.saveState('删除图片');
     }
     
     // 历史记录系统方法
@@ -2088,6 +2156,8 @@ class ImageEditor {
             currentImage: this.currentImage,
             backgroundImage: this.backgroundImage,
             rotation: this.rotation,
+            flipHorizontal: this.flipHorizontal,
+            flipVertical: this.flipVertical,
             textElements: JSON.parse(JSON.stringify(this.textElements)), // 深拷贝
             cropData: this.cropData ? { ...this.cropData } : null,
             imageScale: this.imageScale,
@@ -2137,6 +2207,8 @@ class ImageEditor {
         this.currentImage = state.currentImage;
         this.backgroundImage = state.backgroundImage;
         this.rotation = state.rotation;
+        this.flipHorizontal = !!state.flipHorizontal;
+        this.flipVertical = !!state.flipVertical;
         this.textElements = JSON.parse(JSON.stringify(state.textElements)); // 深拷贝
         this.cropData = state.cropData ? { ...state.cropData } : null;
         this.imageScale = state.imageScale;
@@ -2154,6 +2226,7 @@ class ImageEditor {
         } else {
             this.hideCanvas();
         }
+        this.updateImageInfo();
         
         // 清除选中的文字元素
         this.selectedTextElement = null;

@@ -1,7 +1,7 @@
 {
   "pluginName": "文本工程实验室",
-  "description": "正则、差异、行处理与文件编码集中调试。",
-  "version": "2.0.0",
+  "description": "支持文本文件拖入、正则匹配与替换、对齐差异、行处理和安全编码转换。",
+  "version": "2.1.0",
   "author": "三人聚智",
   "category": "效率工具",
   "main": "index.html",

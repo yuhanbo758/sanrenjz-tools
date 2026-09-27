@@ -1,7 +1,7 @@
 (() => {
   const api = window.accountManagerAPI;
   const $ = selector => document.querySelector(selector);
-  const state = { databasePath: '', tables: [], tableName: '', columns: [], rows: [], total: 0, page: 1, pageSize: 50, busy: false };
+  const state = { databasePath: '', tables: [], tableName: '', columns: [], rows: [], total: 0, page: 1, pageSize: 50, busy: false, editCapability: null, editingRecord: null, deletingRecord: null };
 
   const elements = {
     dbPath: $('#dbPath'), tableList: $('#tableList'), tableTitle: $('#tableTitle'), tableMeta: $('#tableMeta'),
@@ -9,8 +9,9 @@
     searchColumn: $('#searchColumn'), searchMode: $('#searchMode'), searchText: $('#searchText'),
     searchButton: $('#searchButton'), clearSearch: $('#clearSearch'), addRow: $('#addRow'), createTable: $('#createTable'),
     prevPage: $('#prevPage'), nextPage: $('#nextPage'), pageInfo: $('#pageInfo'), rowDrawer: $('#rowDrawer'),
-    rowForm: $('#rowForm'), drawerTable: $('#drawerTable'), saveRow: $('#saveRow'), tableModal: $('#tableModal'),
-    newTableName: $('#newTableName'), columnEditor: $('#columnEditor'), saveTable: $('#saveTable')
+    rowForm: $('#rowForm'), drawerTitle: $('#drawerTitle'), drawerTable: $('#drawerTable'), saveRow: $('#saveRow'), tableModal: $('#tableModal'),
+    newTableName: $('#newTableName'), columnEditor: $('#columnEditor'), saveTable: $('#saveTable'),
+    deleteModal: $('#deleteModal'), deleteDescription: $('#deleteDescription'), confirmDelete: $('#confirmDelete')
   };
 
   function setStatus(message, error = false) {
@@ -89,6 +90,10 @@
         header.title = `${column.name} · ${column.type || '未声明类型'}${column.primaryKey ? ' · 主键' : ''}`;
         row.appendChild(header);
       });
+      const actionHeader = document.createElement('th');
+      actionHeader.className = 'action-column action-header';
+      actionHeader.textContent = '操作';
+      row.appendChild(actionHeader);
       elements.tableHead.appendChild(row);
     }
     state.rows.forEach(record => {
@@ -103,6 +108,34 @@
         cell.addEventListener('dblclick', () => { api.copy(value); setStatus(`已复制 ${column.name}`); });
         row.appendChild(cell);
       });
+      const actionCell = document.createElement('td');
+      actionCell.className = 'action-column';
+      const actions = document.createElement('div');
+      actions.className = 'row-actions';
+      const editButton = document.createElement('button');
+      editButton.className = 'edit-row';
+      editButton.textContent = '修改';
+      const canEdit = Boolean(state.editCapability?.editable && record.__locator);
+      editButton.disabled = !canEdit;
+      if (!canEdit) {
+        editButton.dataset.baseDisabled = 'true';
+        editButton.title = state.editCapability?.reason || '当前记录无法安全定位';
+      } else {
+        editButton.addEventListener('click', () => openRowDrawer(record));
+      }
+      const deleteButton = document.createElement('button');
+      deleteButton.className = 'delete-row';
+      deleteButton.textContent = '删除';
+      deleteButton.disabled = !canEdit;
+      if (!canEdit) {
+        deleteButton.dataset.baseDisabled = 'true';
+        deleteButton.title = state.editCapability?.reason || '当前记录无法安全定位';
+      } else {
+        deleteButton.addEventListener('click', () => openDeleteModal(record));
+      }
+      actions.append(editButton, deleteButton);
+      actionCell.appendChild(actions);
+      row.appendChild(actionCell);
       elements.tableBody.appendChild(row);
     });
     elements.empty.hidden = state.rows.length > 0;
@@ -151,9 +184,11 @@
     state.rows = result.rows;
     state.total = result.total;
     state.page = result.page;
+    state.editCapability = result.editCapability;
     renderSearchColumns();
     renderGrid();
-    elements.tableMeta.textContent = `${state.columns.filter(column => column.hidden === 0).length} 个字段 · ${state.total} 条记录 · 双击单元格可复制`;
+    const editHint = state.editCapability?.editable ? '可安全修改或删除记录' : (state.editCapability?.reason || '记录不可修改或删除');
+    elements.tableMeta.textContent = `${state.columns.filter(column => column.hidden === 0).length} 个字段 · ${state.total} 条记录 · ${editHint}`;
     setStatus(`已加载 ${state.rows.length} 条记录`);
     updateControls();
   }
@@ -177,6 +212,7 @@
     state.columns = [];
     state.rows = [];
     state.total = 0;
+    state.editCapability = null;
     elements.dbPath.textContent = result.databasePath;
     elements.dbPath.title = result.databasePath;
     renderTables();
@@ -192,28 +228,65 @@
     await api.storage.set('lastSession', { databasePath: result.databasePath, tableName: nextTable || '' });
   }
 
-  function buildRowForm() {
+  function buildRowForm(record = null) {
+    state.editingRecord = record;
     elements.rowForm.replaceChildren();
+    elements.drawerTitle.textContent = record ? '修改记录' : '新增记录';
     elements.drawerTable.textContent = state.tableName;
-    state.columns.filter(column => column.insertable && !column.autoGenerated).forEach(column => {
+    elements.saveRow.textContent = record ? '保存修改' : '写入数据';
+    state.columns.filter(column => column.insertable && (record || !column.autoGenerated)).forEach(column => {
       const wrapper = document.createElement('div');
       wrapper.className = 'field';
       const label = document.createElement('label');
       label.htmlFor = `field-${column.cid}`;
       label.textContent = `${column.name}${column.notNull && column.defaultValue === null ? ' *' : ''}`;
       const type = String(column.type || '').toUpperCase();
-      const input = type.includes('JSON') || type.includes('TEXT') ? document.createElement('textarea') : document.createElement('input');
+      const sensitive = isSensitiveColumn(column.name);
+      const input = !sensitive && (type.includes('JSON') || type.includes('TEXT')) ? document.createElement('textarea') : document.createElement('input');
       input.id = `field-${column.cid}`;
       input.name = column.name;
-      input.dataset.column = column.name;
-      if (input.tagName === 'INPUT') input.type = /(REAL|FLOA|DOUB|NUMERIC|DECIMAL|INT)/.test(type) ? 'number' : 'text';
+      if (!column.autoGenerated && !(record && type.includes('BLOB'))) input.dataset.column = column.name;
+      if (input.tagName === 'INPUT') input.type = sensitive ? 'password' : (/(REAL|FLOA|DOUB|NUMERIC|DECIMAL|INT)/.test(type) ? 'number' : 'text');
       if (input.type === 'number' && !type.includes('INT')) input.step = 'any';
-      if (/DATE|TIME/.test(type)) { input.type = type.includes('TIME') ? 'datetime-local' : 'date'; }
+      if (!record && /DATE|TIME/.test(type)) { input.type = type.includes('TIME') ? 'datetime-local' : 'date'; }
+      if (record) input.value = displayValue(record[column.name]);
+      if (column.autoGenerated || (record && type.includes('BLOB'))) input.disabled = true;
       const hint = document.createElement('small');
-      hint.textContent = `${column.type || '未声明类型'}${column.primaryKey ? ' · 主键' : ''}${column.defaultValue !== null ? ` · 默认 ${column.defaultValue}` : ''}`;
+      hint.textContent = `${column.type || '未声明类型'}${column.primaryKey ? ' · 主键' : ''}${column.autoGenerated ? ' · 自动生成不可修改' : ''}${record && type.includes('BLOB') ? ' · 为避免损坏，不在表单中修改' : ''}${column.defaultValue !== null ? ` · 默认 ${column.defaultValue}` : ''}`;
       wrapper.append(label, input, hint);
+      if (record && !column.notNull && !column.autoGenerated && !type.includes('BLOB')) {
+        const nullLabel = document.createElement('label');
+        nullLabel.className = 'null-toggle';
+        const nullInput = document.createElement('input');
+        nullInput.type = 'checkbox';
+        nullInput.dataset.nullColumn = column.name;
+        nullInput.checked = record[column.name] === null;
+        if (nullInput.checked) input.disabled = true;
+        nullInput.addEventListener('change', () => { input.disabled = nullInput.checked; });
+        nullLabel.append(nullInput, document.createTextNode('将该字段设为 NULL'));
+        wrapper.appendChild(nullLabel);
+      }
       elements.rowForm.appendChild(wrapper);
     });
+  }
+
+  function openRowDrawer(record = null) {
+    buildRowForm(record);
+    elements.rowDrawer.classList.add('open');
+  }
+
+  function closeDeleteModal() {
+    if (state.busy) return;
+    state.deletingRecord = null;
+    elements.deleteModal.classList.remove('open');
+  }
+
+  function openDeleteModal(record) {
+    if (state.busy) return;
+    state.deletingRecord = record;
+    const rowNumber = (state.page - 1) * state.pageSize + state.rows.indexOf(record) + 1;
+    elements.deleteDescription.textContent = `将从“${state.tableName}”中删除当前第 ${rowNumber} 行记录。请确认所选行无误。`;
+    elements.deleteModal.classList.add('open');
   }
 
   function addColumnEditor(values = {}) {
@@ -252,17 +325,42 @@
   elements.clearSearch.addEventListener('click', () => { elements.searchText.value = ''; state.page = 1; loadRows(); });
   elements.prevPage.addEventListener('click', () => { state.page -= 1; loadRows(); });
   elements.nextPage.addEventListener('click', () => { state.page += 1; loadRows(); });
-  elements.addRow.addEventListener('click', () => { buildRowForm(); elements.rowDrawer.classList.add('open'); });
-  document.querySelectorAll('[data-close-drawer]').forEach(button => button.addEventListener('click', () => elements.rowDrawer.classList.remove('open')));
-  elements.rowDrawer.addEventListener('click', event => { if (event.target === elements.rowDrawer) elements.rowDrawer.classList.remove('open'); });
+  elements.addRow.addEventListener('click', () => openRowDrawer());
+  document.querySelectorAll('[data-close-drawer]').forEach(button => button.addEventListener('click', () => { state.editingRecord = null; elements.rowDrawer.classList.remove('open'); }));
+  elements.rowDrawer.addEventListener('click', event => { if (event.target === elements.rowDrawer) { state.editingRecord = null; elements.rowDrawer.classList.remove('open'); } });
   elements.saveRow.addEventListener('click', async () => {
-    const values = Object.fromEntries([...elements.rowForm.querySelectorAll('[data-column]')].map(input => [input.dataset.column, input.value]));
-    const result = await execute('正在写入数据…', () => api.database.insert(state.databasePath, { tableName: state.tableName, values }));
+    const nullToggles = new Map([...elements.rowForm.querySelectorAll('[data-null-column]')].map(toggle => [toggle.dataset.nullColumn, toggle]));
+    const values = Object.fromEntries([...elements.rowForm.querySelectorAll('[data-column]')].map(input => [
+      input.dataset.column,
+      nullToggles.get(input.dataset.column)?.checked ? null : input.value
+    ]));
+    const editingRecord = state.editingRecord;
+    const result = await execute(editingRecord ? '正在保存修改…' : '正在写入数据…', () => editingRecord
+      ? api.database.update(state.databasePath, { tableName: state.tableName, values, locator: editingRecord.__locator, original: editingRecord.__original })
+      : api.database.insert(state.databasePath, { tableName: state.tableName, values }));
     if (!result) return;
+    state.editingRecord = null;
     elements.rowDrawer.classList.remove('open');
-    state.page = 1;
+    if (!editingRecord) state.page = 1;
     await loadRows();
-    setStatus(`记录写入成功，rowid ${result.lastInsertRowid}`);
+    setStatus(editingRecord ? '记录修改成功' : `记录写入成功，rowid ${result.lastInsertRowid}`);
+  });
+  document.querySelectorAll('[data-close-delete]').forEach(button => button.addEventListener('click', closeDeleteModal));
+  elements.deleteModal.addEventListener('click', event => { if (event.target === elements.deleteModal) closeDeleteModal(); });
+  elements.confirmDelete.addEventListener('click', async () => {
+    const record = state.deletingRecord;
+    if (!record || state.busy) return;
+    const result = await execute('正在删除记录…', () => api.database.delete(state.databasePath, {
+      tableName: state.tableName,
+      locator: record.__locator,
+      original: record.__original
+    }));
+    if (!result) return;
+    state.deletingRecord = null;
+    elements.deleteModal.classList.remove('open');
+    if (state.rows.length === 1 && state.page > 1) state.page -= 1;
+    await loadRows();
+    setStatus('记录删除成功');
   });
   elements.createTable.addEventListener('click', () => {
     elements.newTableName.value = '';

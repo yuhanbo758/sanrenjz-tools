@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN" data-layout="page-stack">
 <head>
 <meta charset="utf-8">
@@ -17,27 +17,26 @@
 html,body{height:100%;overflow:hidden}
 body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans)}
 .app{height:calc(100vh - 32px);display:flex;flex-direction:column;min-height:0}
-.head{display:flex;align-items:center;gap:14px;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
-.icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;flex:none}
-.icon svg{width:18px;height:18px;color:#fff}
-.head h1{margin:0;font-size:17px;font-weight:700}
-.head p{margin:0;color:var(--muted);font-size:12px}
 .spacer{flex:1}
-.body{flex:1;min-height:0;display:grid;grid-template-columns:340px 1fr;gap:0}
-.side{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+.body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(310px,340px) minmax(0,1fr);gap:0}
+.side{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0;overflow:hidden}
 .side-h{padding:16px 20px;border-bottom:1px solid var(--border);flex:none}
 .side-h h2{margin:0 0 4px;font-size:15px;font-weight:700}
-.side-h p{margin:0;font-size:12px;color:var(--muted)}
-.drop{margin:16px 20px;padding:32px 16px;border:2px dashed var(--border);border-radius:14px;text-align:center;cursor:pointer;transition:.15s;color:var(--faint);flex:none}
+.drop{margin:16px 20px;padding:18px 12px;border:2px dashed var(--border);border-radius:14px;text-align:center;cursor:pointer;transition:.15s;color:var(--faint);flex:none}
 .drop:hover{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.drop.dragging,.body.dragging .drop{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
 .drop svg{width:40px;height:40px;margin-bottom:8px}
 .drop .d2{font-size:12px}
-.opts{padding:0 20px;flex:none}
+.opts{padding:0 20px;flex:1;min-height:0;overflow:auto}
 .opt{margin-bottom:16px}
 .opt label{display:block;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px}
 .sel{width:100%;background:var(--surface-2);color:var(--ink);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:13px;cursor:pointer;outline:none}
 .sel:focus{border-color:var(--accent-line)}
 .rot-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mode-btn{border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:9px 5px;color:var(--muted);cursor:pointer}
+.mode-btn.active{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:700}
+.hint{font-size:11px;color:var(--muted);margin:7px 0 0}
 .rot-btn{border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:8px;padding:10px 4px;cursor:pointer;font-size:12px;transition:.15s;display:flex;flex-direction:column;align-items:center;gap:4px}
 .rot-btn svg{width:20px;height:20px}
 .rot-btn:hover{border-color:var(--accent-line);color:var(--accent)}
@@ -62,6 +61,10 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
 .pdf-info{flex:1;min-width:0}
 .pdf-info .nm{font-weight:600;font-size:14px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pdf-info .meta{font:12px var(--mono);color:var(--muted);margin-top:3px}
+.pdf-config{display:flex;align-items:center;gap:8px;margin-top:9px;flex-wrap:wrap}
+.pdf-config input{min-width:130px;max-width:210px;flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:6px;color:var(--ink)}
+.pdf-config label{font-size:12px;color:var(--muted);white-space:nowrap}
+.pdf-config input[type=checkbox]{min-width:0;flex:none;margin-right:2px}
 .pdf-actions{display:flex;gap:6px;flex:none}
 .mini{border:0;background:var(--surface-2);color:var(--muted);border-radius:6px;width:30px;height:30px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.12s}
 .mini:hover{background:var(--accent-soft);color:var(--accent)}
@@ -73,6 +76,7 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
 .bar.ok .d{background:var(--ok)}.bar.err .d{background:var(--err)}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#2d1410;color:#fff;padding:10px 22px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:50}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media(max-width:950px){.body{grid-template-columns:310px minmax(0,1fr)}.pdf-card{align-items:flex-start}.pdf-actions{flex-direction:column}}
 ::-webkit-scrollbar{width:8px;height:8px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:#e0c4c0;border-radius:4px}
@@ -80,20 +84,16 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
 </head>
 <body>
 <main class="app">
-  <div class="head">
-    <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
-    <div><h1>PDF 页面工作台</h1><p>合并、拆分、旋转、排序和提取 PDF 页面</p></div>
-    <div class="spacer"></div>
-  </div>
   <div class="body">
     <aside class="side">
-      <div class="side-h"><h2>操作设置</h2><p>选择 PDF 文件并配置处理选项</p></div>
+      <div class="side-h"><h2>处理设置</h2></div>
       <div class="drop" id="dropZone">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7M12 13v4M10 15l2-2 2 2"/></svg>
-        <div style="font-weight:600;font-size:14px;color:var(--ink)">点击选择 PDF 文件</div>
-        <div class="d2">支持多个文件，按顺序合并</div>
+        <div style="font-weight:600;font-size:14px;color:var(--ink)">点击选择或拖入 PDF 文件</div>
+        <div class="d2">可一次添加多个文件，也可继续追加</div>
       </div>
       <div class="opts">
+        <div class="opt"><label>输出方式</label><div class="mode-grid"><button class="mode-btn active" data-mode="merge">合并／提取</button><button class="mode-btn" data-mode="split">逐页拆分</button></div><p class="hint">每个文件可单独指定页码；留空表示全部。</p></div>
         <div class="opt"><label>页面旋转</label>
           <div class="rot-grid">
             <button class="rot-btn active" data-rot="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>0°</button>
@@ -104,8 +104,8 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
         </div>
       </div>
       <div class="actions">
-        <button class="btn primary" id="previewBtn" disabled>预览页数</button>
-        <button class="btn" id="saveBtn" disabled>处理并保存</button>
+        <button class="btn" id="previewBtn" disabled>预览输出</button>
+        <button class="btn primary" id="saveBtn" disabled>处理并保存</button>
       </div>
     </aside>
     <section class="main">
@@ -113,52 +113,15 @@ body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1
         <div class="stat"><span class="n" id="fileCount">0</span><span>个文件</span></div>
         <div class="stat"><span class="n" id="pageCount">-</span><span>页</span></div>
         <div class="spacer"></div>
-        <button class="btn" id="clearBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>清空</button>
+        <button class="btn" id="addBtn">＋ 添加</button><button class="btn" id="clearBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>清空</button>
       </div>
       <div class="file-list" id="fileList">
-        <div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><span>选择 PDF 文件后将显示在这里</span></div>
+        <div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><span>点击左侧或拖入 PDF 文件</span></div>
       </div>
       <div class="bar" id="bar"><span class="d"></span><span>等待选择文件</span></div>
     </section>
   </div>
 </main>
 <div class="toast" id="toast"></div>
-<script>
-const api=window.pluginAPI;const $=s=>document.querySelector(s);const $$=s=>document.querySelectorAll(s);
-function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
-function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1800);}
-function setBar(msg,st){const b=$('#bar');b.className='bar'+(st==='ok'?' ok':st==='err'?' err':'');b.querySelector('span:last-child').textContent=msg;}
-let files=[];let rotation=0;
-$('#dropZone').onclick=()=>{const sel=api.selectFiles({multiple:true,filters:[{name:'PDF',extensions:['pdf']}]});if(sel&&sel.length){files=[...files,...sel];render();}};
-$$('.rot-btn').forEach(b=>b.onclick=()=>{rotation=+b.dataset.rot;$$('.rot-btn').forEach(x=>x.classList.toggle('active',x===b));});
-$('#clearBtn').onclick=()=>{files=[];render();setBar('已清空','idle');};
-function render(){
-  $('#fileCount').textContent=files.length;
-  $('#previewBtn').disabled=!files.length;$('#saveBtn').disabled=!files.length;$('#pageCount').textContent='-';
-  if(!files.length){$('#fileList').innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><span>选择 PDF 文件后将显示在这里</span></div>';return;}
-  let html='';files.forEach((f,i)=>{const nm=esc(f.split(/[\\\/]/).pop());
-    html+=`<div class="pdf-card"><div class="pdf-thumb"><span class="ord">${i+1}</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg></div>`;
-    html+=`<div class="pdf-info"><div class="nm">${nm}</div><div class="meta">${esc(f)}</div></div>`;
-    html+=`<div class="pdf-actions"><button class="mini" data-up="${i}" title="上移"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 15l-6-6-6 6"/></svg></button><button class="mini" data-down="${i}" title="下移"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button><button class="mini" data-del="${i}" title="移除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2"/></svg></button></div></div>`;});
-  $('#fileList').innerHTML=html;
-  $$('#fileList [data-up]').forEach(b=>b.onclick=()=>{const i=+b.dataset.up;if(i>0){[files[i-1],files[i]]=[files[i],files[i-1]];render();}});
-  $$('#fileList [data-down]').forEach(b=>b.onclick=()=>{const i=+b.dataset.down;if(i<files.length-1){[files[i+1],files[i]]=[files[i],files[i+1]];render();}});
-  $$('#fileList [data-del]').forEach(b=>b.onclick=()=>{files.splice(+b.dataset.del,1);render();});
-}
-$('#previewBtn').onclick=async()=>{
-  setBar('预览中…','idle');
-  const res=await api.runTask({toolId:'pdf-organizer',input:'',options:{files,rotation},execute:false});
-  if(res.ok){$('#pageCount').textContent=res.result.pages;setBar(res.result.hint||`共 ${res.result.pages} 页，可点击保存`, 'ok');}
-  else setBar(res.error,'err');
-};
-$('#saveBtn').onclick=async()=>{
-  const out=api.chooseSavePath({title:'保存 PDF',defaultPath:'PDF页面整理结果.pdf',filters:[{name:'PDF',extensions:['pdf']}]});
-  if(!out)return;
-  setBar('处理中…','idle');
-  const res=await api.runTask({toolId:'pdf-organizer',input:'',options:{files,rotation,output:out},execute:true});
-  if(res.ok){toast('已保存：'+res.result.output.split(/[\\\/]/).pop());setBar(`已保存 ${res.result.pages} 页到文件`,'ok');}
-  else setBar(res.error,'err');
-};
-window.addEventListener('plugin-enter',e=>{const text=e.detail?.action?.payload||e.detail?.action?.clipboardText||e.detail?.payload||e.detail?.clipboardText||'';if(text&&text.endsWith('.pdf')){files=[...files,text];render();}});
-</script>
+<script src="renderer.js"></script>
 </body></html>

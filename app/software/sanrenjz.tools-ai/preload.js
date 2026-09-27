@@ -3,7 +3,9 @@ const path = require('path')
 const { contextBridge, ipcRenderer, clipboard } = require('electron');
 const { createAiRuntime } = require('../../plugin_runtime/ai-runtime');
 const { listInstalledPluginCapabilities } = require('../../plugin_runtime/commander-plugin-catalog');
+const { decideRoute } = require('../../plugin_runtime/commander-jev');
 const AI_SHARED_NAME = 'AI 共享配置中心';
+const ASSISTANT_SYSTEM_PROMPT = '你是余汉波AI助手。插件打开由外部总指挥实际执行；你不能自行打开设备上的插件。除非已有真实插件调用结果，不得声称插件已打开或任务已由插件完成。若用户要求的插件未被打开，应如实说明并继续提供有帮助的回答。';
 
 // 插件配置
 const PLUGIN_NAME = '余汉波AI助手';
@@ -28,7 +30,8 @@ const DEFAULT_SETTINGS = {
     savePath: '',  // 添加保存路径设置
     customModels: [],
     promptsPath: '',
-    quickCommands: [] // 用户自定义快捷指令列表
+    quickCommands: [], // 用户自定义快捷指令列表
+    jevProvider: 'off'
 };
 
 // 内置模型列表
@@ -237,6 +240,43 @@ window.services = {
         }
     },
 
+    hasDecisionKey: async provider => aiRuntimeForCatalog.hasProviderSecret(`commander-jev-${provider}`),
+    saveDecisionKey: async (provider, key) => {
+        if (!['openrouter', 'typesafe'].includes(provider)) throw new Error('无效的 Jev 供应商');
+        return aiRuntimeForCatalog.saveProviderSecret(`commander-jev-${provider}`, key);
+    },
+    decideCommanderRoute: async (message, plugins, aiTargets, provider) => {
+        if (!['openrouter', 'typesafe'].includes(provider)) return null;
+        let key = await aiRuntimeForCatalog.getProviderSecret(`commander-jev-${provider}`);
+        if (!key && provider === 'openrouter') key = window.services.getSettings().openrouterApiKey;
+        return decideRoute({ message, plugins, aiTargets, provider, apiKey: key });
+    },
+
+    getConversations: () => {
+        const stored = ipcRenderer.sendSync('plugin-storage-get', PLUGIN_NAME, 'conversations-v1');
+        return Array.isArray(stored) ? stored : [];
+    },
+    saveConversation: conversation => {
+        if (!conversation || !conversation.id || !Array.isArray(conversation.messages)) return false;
+        const records = window.services.getConversations();
+        const index = records.findIndex(item => item.id === conversation.id);
+        if (!conversation.messages.length) {
+            if (index >= 0) records.splice(index, 1);
+        } else if (index >= 0) records[index] = conversation;
+        else records.push(conversation);
+        ipcRenderer.sendSync('plugin-storage-set', PLUGIN_NAME, 'conversations-v1', records);
+        return true;
+    },
+    deleteConversation: async conversationId => {
+        if (typeof conversationId !== 'string' || !conversationId) return false;
+        const records = await ipcRenderer.invoke('plugin-storage-get-async', PLUGIN_NAME, 'conversations-v1');
+        if (!Array.isArray(records)) return false;
+        const remaining = records.filter(item => item?.id !== conversationId);
+        if (remaining.length === records.length) return false;
+        return ipcRenderer.invoke('plugin-storage-set-async', PLUGIN_NAME, 'conversations-v1', remaining);
+    },
+    clearConversations: () => ipcRenderer.invoke('plugin-storage-remove-async', PLUGIN_NAME, 'conversations-v1'),
+
     showNotification: (body) => {
         if (Notification.permission === 'granted') {
             new Notification('AI 助手', { body });
@@ -305,7 +345,7 @@ window.services = {
         try {
             const settings = window.services.getSettings();
             if (!settings.savePath) {
-                window.services.showNotification('请先在设置中设置保存路径');
+                window.services.showNotification('请先在设置中选择 Markdown 导出目录');
                 return false;
             }
 
@@ -319,7 +359,7 @@ window.services = {
             const filePath = path.join(normalizedPath, safeFileName);
 
             fs.writeFileSync(filePath, content, 'utf8');
-            window.services.showNotification('聊天记录已保存: ' + filePath);
+            window.services.showNotification('对话已手动导出为 Markdown: ' + filePath);
             return true;
         } catch (error) {
             window.services.showNotification('保存失败: ' + error.message);
@@ -348,13 +388,14 @@ window.services = {
                             name: file,
                             path: filePath,
                             date: stats.mtime.toLocaleString(),
+                            modifiedAt: stats.mtimeMs,
                             preview: preview + '...'
                         });
                     } catch (e) {}
                 }
             }
             // 按时间倒序
-            return history.sort((a, b) => new Date(b.date) - new Date(a.date));
+            return history.sort((a, b) => b.modifiedAt - a.modifiedAt);
         } catch (error) {
             console.error(error);
             return [];
@@ -362,7 +403,19 @@ window.services = {
     },
 
     loadChatFile: async (filePath) => {
+        const savePath = window.services.getSettings().savePath;
+        if (!savePath || path.dirname(path.resolve(filePath)) !== path.resolve(savePath)
+            || !/^chat-.*\.md$/i.test(path.basename(filePath))) throw new Error('无效的历史记录路径');
         return await fs.promises.readFile(filePath, 'utf8');
+    },
+    chooseChatExport: () => {
+        const savePath = window.services.getSettings().savePath;
+        if (!savePath) return null;
+        const selected = ipcRenderer.sendSync('show-open-dialog', {
+            title: '打开已导出的对话', defaultPath: savePath,
+            properties: ['openFile'], filters: [{ name: 'Markdown', extensions: ['md'] }]
+        });
+        return selected?.[0] || null;
     },
 
     insertContent: (content, type = 'text') => {
@@ -436,9 +489,9 @@ window.services = {
                 action: {
                     type: 'plugin',
                     pluginPath: targetPath,
-                    // 首次派发默认自动执行；仅重新打开结果窗口时显式关闭 autoRun，
-                    // 避免重复调用模型并产生额外费用。
-                    feature: { code: featureCode, args: { autoRun: delegationOptions.autoRun !== false } }
+                    // 路由只打开目标窗口并传入文本；由调用方显式控制 autoRun，
+                    // 防止首次派发或再次打开时意外触发模型调用。
+                    feature: { code: featureCode, args: { autoRun: delegationOptions.autoRun === true } }
                 },
                 clipboardText: String(text || '')
             });
@@ -465,7 +518,7 @@ window.services = {
             return new ReadableStream({
                 start(controller) {
                     const shared = createAiRuntime(PLUGIN_NAME, chunk => chunk.token && controller.enqueue(chunk.token));
-                    shared.complete({ requestId: `legacy-chat-${Date.now()}`, selection: { providerId, modelId: modelInfo.value }, capability: fileAttachment?.type === 'image' ? 'vision' : 'text', stream: true, messages: [...conversationHistory.map(item => ({ role: item.role === 'user' ? 'user' : 'assistant', content: item.content })), { role: 'user', content: message }] })
+                    shared.complete({ requestId: `legacy-chat-${Date.now()}`, selection: { providerId, modelId: modelInfo.value }, capability: fileAttachment?.type === 'image' ? 'vision' : 'text', stream: true, messages: [{ role: 'system', content: ASSISTANT_SYSTEM_PROMPT }, ...conversationHistory.map(item => ({ role: item.role, content: item.content })), { role: 'user', content: message }] })
                         .then(() => controller.close()).catch(error => controller.error(error));
                 }
             });
@@ -475,10 +528,10 @@ window.services = {
         let messages = [
             {
                 role: "system",
-                content: "你是一个有帮助的AI助手。"
+                content: ASSISTANT_SYSTEM_PROMPT
             },
             ...conversationHistory.map(msg => ({
-                role: msg.role === 'user' ? 'user' : 'assistant',
+                role: msg.role,
                 content: msg.content
             }))
         ];
@@ -579,7 +632,7 @@ window.services = {
             // 它是 contents: [{ role: 'user'|'model', parts: [{text: ...}] }]
             // system instruction 是单独的参数 (systemInstruction)
             
-            let contents = conversationHistory.map(msg => ({
+            let contents = conversationHistory.filter(msg => msg.role !== 'system').map(msg => ({
                 role: msg.role === 'user' ? 'user' : 'model',
                 parts: [{ text: msg.content }]
             }));
@@ -613,7 +666,8 @@ window.services = {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         contents: contents,
-                        systemInstruction: { parts: [{ text: "你是一个有帮助的AI助手。" }] }
+                        systemInstruction: { parts: [{ text: [ASSISTANT_SYSTEM_PROMPT,
+                            ...conversationHistory.filter(msg => msg.role === 'system').map(msg => msg.content)].join('\n') }] }
                     })
                 });
             } catch (e) {

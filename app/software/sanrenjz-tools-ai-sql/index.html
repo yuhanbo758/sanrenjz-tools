@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN" data-layout="query-plan">
 <head data-business>
 <meta charset="utf-8">
@@ -24,6 +24,9 @@
 .input-area{flex:1;border:0;outline:0;resize:none;padding:14px;font:14px/1.7 var(--sans);background:var(--sf);min-height:0}.input-area::placeholder{color:var(--ft)}
 .result-area{flex:1;overflow:auto;padding:14px;font:14px/1.7 var(--mono);white-space:pre-wrap;word-break:break-word;background:#2d2400;color:#f0e8b8}
 .result-area.empty{display:flex;align-items:center;justify-content:center;color:var(--ft);font-style:italic;background:var(--sf)}
+.result-area{white-space:normal;background:var(--sf);color:var(--ink);font:14px/1.7 var(--sans)}
+.result-section{margin:0 0 18px}.result-section h3{margin:0 0 8px;color:var(--mt);font-size:12px}.result-section p{white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 10px}.result-section pre{margin:0;background:#221c0b;color:#f8e7a9;border-radius:8px;padding:14px;overflow:auto;font:13px/1.65 var(--mono);white-space:pre;tab-size:2}
+.hint{padding:5px 24px;color:var(--mt);font-size:12px;background:var(--bg);border-bottom:1px solid var(--bd)}
 .code-block{background:#1a1500;border-radius:8px;padding:14px;margin:8px 0;overflow-x:auto;font:14px/1.6 var(--mono);color:#fde68a}
 .act-bar{padding:12px 24px;border-top:1px solid var(--bd);background:var(--sf);display:flex;gap:10px;align-items:center;flex:none}
 .btn{border:1px solid var(--bd);background:var(--sf);color:var(--ink);border-radius:8px;padding:9px 18px;font-size:13px;cursor:pointer;transition:.12s;display:inline-flex;align-items:center;gap:6px}.btn:hover{border-color:var(--al)}
@@ -48,11 +51,15 @@
     <button class="mode active" data-mode="生成">生成 SQL</button>
     <button class="mode" data-mode="解释">解释 SQL</button>
     <button class="mode" data-mode="优化">优化 SQL</button>
+    <button class="mode" data-mode="格式化">格式化</button>
+    <button class="mode" data-mode="检查">风险检查</button>
+    <button class="mode" data-mode="计划">查询计划</button>
   </div>
   <div class="opt-row">
     <label>数据库</label><select class="sel" id="dialect"><option>MySQL</option><option>PostgreSQL</option><option>SQLite</option><option>SQL Server</option><option>Oracle</option></select>
     <label>表结构（可选）</label><input style="flex:1;min-width:200px;border:1px solid var(--bd);border-radius:7px;padding:6px 10px;font:12px var(--mono);outline:none;background:var(--s2)" id="schema" placeholder="如：users(id, name, email, created_at)">
   </div>
+  <div class="hint" id="modeHint">用自然语言描述查询需求。生成结果只供审阅，不会连接数据库或执行 SQL。</div>
   <div class="body">
     <div class="card"><div class="card-h">输入 <span class="cnt" id="inCnt">0 字</span></div><textarea class="input-area" id="input" placeholder="生成：用自然语言描述查询需求，如「查询最近 7 天注册的用户」&#10;解释/优化：粘贴 SQL 语句"></textarea></div>
     <div class="card"><div class="card-h">SQL 结果 <span class="cnt" id="resStat">等待</span></div><div class="result-area empty" id="result">结果将显示在这里</div></div>
@@ -62,43 +69,13 @@
     <button class="btn" id="stopBtn" disabled>取消</button>
     <div class="spacer"></div>
     <button class="btn" id="copyBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>复制</button>
+    <button class="btn" id="copySqlBtn" disabled>复制 SQL</button>
   </div>
 </main>
 <div class="overlay" id="overlay" onclick="toggleDrawer()"></div>
-<aside class="drawer" id="drawer"><button class="close" onclick="toggleDrawer()">×</button><h2>统一供应商配置</h2>
-  <div class="field"><label>服务名称</label><input id="pName" value="OpenAI 兼容服务"></div>
-  <div class="field"><label>Base URL</label><input id="pUrl" value="https://api.openai.com/v1"></div>
-  <div class="field"><label>模型 ID</label><input id="pModel" value="gpt-4o-mini"></div>
-  <div class="field"><label>API Key</label><input id="pKey" type="password" placeholder="仅保存到系统安全存储"></div>
-  <button class="btn primary" style="width:100%;justify-content:center" onclick="saveProvider()">保存并共享</button>
-</aside>
+<aside class="drawer" id="drawer"></aside>
 <div class="toast" id="toast"></div>
 <script src="../../plugin_runtime/ai-provider-manager.js"></script>
-<script>
-const api=window.aiAPI;const $=s=>document.querySelector(s);const $$=s=>document.querySelectorAll(s);
-let mode='生成';let requestId='';
-const providerManager=AIProviderManager.create(api,{capability:'text',notify:toast});
-function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
-function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1600);}
-function toggleDrawer(){$('#drawer').classList.toggle('open');$('#overlay').classList.toggle('show');}
-$$('#modes .mode').forEach(b=>b.onclick=()=>{$$('#modes .mode').forEach(x=>x.classList.remove('active'));b.classList.add('active');mode=b.textContent;$('#genLabel').textContent=mode+' SQL';});
-$('#input').addEventListener('input',()=>$('#inCnt').textContent=$('#input').value.length+' 字');
-api.onChunk(chunk=>{if(chunk.requestId===requestId){$('#result').classList.remove('empty');$('#result').textContent=chunk.text;}});
-$('#genBtn').onclick=async()=>{
-  const input=$('#input').value.trim();if(!input){toast('请输入内容');return;}
-  const dialect=$('#dialect').value;const schema=$('#schema').value.trim();
-  requestId=crypto.randomUUID();$('#genBtn').disabled=true;$('#stopBtn').disabled=false;$('#resStat').textContent='生成中…';
-  $('#result').classList.remove('empty');$('#result').textContent='';
-  const base=(mode==='生成'?'请根据以下需求生成':mode==='解释'?'请解释以下':mode==='优化'?'请优化以下':'处理')+' SQL';
-  let prompt=`${base}。数据库方言：${dialect}。${schema?'表结构：'+schema+'\n':''}\n${mode==='生成'?'需求':'SQL'}：${input}\n\n请输出${mode==='生成'?'SQL 语句':mode==='解释'?'每部分的含义和执行逻辑':mode==='优化'?'优化后的 SQL 和优化说明':''}。`;
-  try{const r=await api.complete({requestId,capability:'text',selection:await providerManager.getSelection(),stream:true,messages:[{role:'user',content:prompt}]});$('#result').textContent=r.text;$('#resStat').textContent='已完成';}
-  catch(e){$('#result').textContent=e.message;$('#resStat').textContent=e.message==='请求已取消'?'已取消':'失败';}
-  finally{$('#genBtn').disabled=false;$('#stopBtn').disabled=true;}
-};
-$('#stopBtn').onclick=()=>{if(requestId){api.cancel(requestId);$('#genBtn').disabled=false;$('#stopBtn').disabled=true;$('#resStat').textContent='已取消';}};
-$('#copyBtn').onclick=()=>{const t=$('#result').textContent;if(t&&t!=='结果将显示在这里'){navigator.clipboard.writeText(t);toast('已复制');}else toast('暂无结果');};
-window.addEventListener('plugin-enter',e=>{const text=e.detail?.payload||e.detail?.clipboardText||'';if(text)$('#input').value=text;});
-// 总指挥模式：收到 featureArgs.autoRun 时自动开始生成
-window.addEventListener('plugin-enter',e=>{const text=e.detail?.payload||e.detail?.clipboardText||'';if(e.detail?.featureArgs?.autoRun&&text)setTimeout(()=>{const b=$('#genBtn');if(b&&!b.disabled)b.click()},150);});
-</script>
+<script src="sql-tools.js"></script>
+<script src="app.js"></script>
 </body></html>

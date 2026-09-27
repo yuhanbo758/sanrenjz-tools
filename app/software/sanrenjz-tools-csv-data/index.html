@@ -1,168 +1,202 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN" data-layout="sheet-grid">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>CSV 数据表</title>
 <style>
-:root{
-  --accent:#0f9d8a;--accent-soft:rgba(15,157,138,.12);--accent-line:rgba(15,157,138,.34);
-  --bg:#f6f8f7;--surface:#ffffff;--surface-2:#f0f4f2;--border:#dfe7e3;
-  --ink:#1a2e2a;--muted:#5c706a;--faint:#9aa8a3;
-  --ok:#0f9d8a;--err:#e5484d;
-  --mono:'JetBrains Mono','Fira Code',Consolas,monospace;
-  --sans:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;
-}
+:root{--accent:#0f9d8a;--bg:#f5f8f6;--surface:#fff;--soft:#edf7f4;--border:#dce8e3;--ink:#20342f;--muted:#607670;--danger:#b64b48;--mono:Consolas,monospace;--sans:"Segoe UI","Microsoft YaHei",sans-serif}
 *{box-sizing:border-box}
 html,body{height:100%;overflow:hidden}
-body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans)}
+body{margin:0;padding-top:32px;background:var(--bg);color:var(--ink);font:13px/1.5 var(--sans)}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
 .app{height:calc(100vh - 32px);display:flex;flex-direction:column;min-height:0}
-.head{display:flex;align-items:center;gap:14px;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
-.head .logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--accent),#34d399);display:flex;align-items:center;justify-content:center;flex:none}
-.head .logo svg{width:18px;height:18px;color:#fff}
-.head h1{margin:0;font-size:17px;font-weight:700}
-.head p{margin:0;color:var(--muted);font-size:12px}
-.head .spacer{flex:1}
-.btn{border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:6px}
-.btn:hover{border-color:var(--accent-line);background:var(--surface-2)}
-.btn svg{width:14px;height:14px}
-.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
-.btn.primary:hover{filter:brightness(1.08)}
-.btn:disabled{opacity:.5;cursor:not-allowed}
-.sel{background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:7px;padding:6px 10px;font-size:12px;cursor:pointer;outline:none}
-.sel:focus{border-color:var(--accent-line)}
-.lab{font-size:12px;color:var(--muted);font-weight:500}
-/* body split */
-.body{flex:1;min-height:0;display:grid;grid-template-columns:300px 1fr;gap:0}
-.input-col{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
-.input-col .ph{padding:12px 16px;border-bottom:1px solid var(--border);font:600 11px var(--mono);color:var(--muted);letter-spacing:.05em;text-transform:uppercase}
-.csv-area{flex:1;min-height:0;border:0;resize:none;outline:0;padding:16px;font:13px/1.6 var(--mono);background:var(--surface);color:var(--ink)}
-.csv-area::placeholder{color:var(--faint)}
-.input-foot{padding:12px 16px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:10px;flex:none}
-.row{display:flex;align-items:center;gap:8px}
-.row .lab{flex:none;width:56px}
-.opt-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-/* table view */
-.table-col{display:flex;flex-direction:column;min-height:0;overflow:hidden}
-.table-bar{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex:none;background:var(--surface-2)}
-.table-wrap{flex:1;min-height:0;overflow:auto;background:var(--surface)}
-table.csv{width:100%;border-collapse:collapse;font-size:13px}
-table.csv th,table.csv td{border:1px solid var(--border);padding:6px 10px;text-align:left;white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}
-table.csv th{background:var(--accent-soft);color:var(--ink);font-weight:700;position:sticky;top:0;z-index:2;cursor:pointer;user-select:none}
-table.csv th:hover{background:rgba(15,157,138,.2)}
-table.csv th .arr{font-size:9px;margin-left:4px;color:var(--accent)}
-table.csv tr:nth-child(even){background:var(--surface-2)}
-table.css tr:hover{background:rgba(15,157,138,.06)}
-table.csv td.num{text-align:right;font-family:var(--mono)}
-.empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--faint);gap:12px;gap:14px}
-.empty-state svg{width:54px;height:54px;opacity:.4}
-.stats{font:12px var(--mono);color:var(--muted);padding:8px 16px;border-top:1px solid var(--border);display:flex;gap:18px;flex:none;background:var(--surface)}
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a2e2a;color:#fff;padding:10px 22px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:50}
-.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-::-webkit-scrollbar{width:8px;height:8px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:#c4d1cc;border-radius:4px}
+.head{height:72px;display:flex;align-items:center;gap:10px;padding:10px 20px;background:var(--surface);border-bottom:1px solid var(--border);flex:none}
+.brand{display:flex;align-items:center;gap:12px;min-width:260px}
+.brand-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:var(--accent);color:white;font-size:21px}
+h1{font-size:17px;margin:0}
+.sub{font-size:11px;color:var(--muted);margin:0}
+.spacer{flex:1}
+.btn{border:1px solid var(--border);background:#fff;color:var(--ink);border-radius:8px;padding:7px 12px;white-space:nowrap;min-height:34px}
+.btn:hover{border-color:var(--accent);background:var(--soft)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn:disabled{opacity:.5;cursor:default}
+.workspace{display:grid;grid-template-columns:minmax(270px,320px) minmax(0,1fr);flex:1;min-height:0}
+.sidebar{display:flex;flex-direction:column;min-height:0;background:var(--surface);border-right:1px solid var(--border)}
+.section{padding:12px 14px;border-bottom:1px solid var(--border)}
+.section-title{display:flex;justify-content:space-between;align-items:center;font-weight:600;margin-bottom:8px}
+.hint{color:var(--muted);font-size:11px}
+.dropzone{border:1.5px dashed #8ac9b8;background:#f7fcfa;border-radius:10px;text-align:center;padding:12px 8px;outline:0}
+.dropzone.active,.dropzone:focus{border-color:var(--accent);background:var(--soft)}
+.dropzone strong{display:block;font-size:13px}
+.file-line{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:11px;margin-top:5px}
+.inline{display:flex;gap:7px;align-items:center}
+.inline>*{min-width:0}
+.inline .btn{flex:1}
+.field{display:flex;align-items:center;gap:8px;margin-top:8px}
+.field label{width:56px;color:var(--muted);flex:none}
+.field select{flex:1;min-width:0}
+select,input[type=search]{height:34px;padding:0 9px;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--ink)}
+select:focus,input:focus,textarea:focus{outline:1px solid var(--accent)}
+.source-label{padding:9px 14px 4px;font-weight:600}
+textarea{flex:1;min-height:80px;border:0;resize:none;padding:9px 14px;background:#fff;color:var(--ink);font:12px/1.5 var(--mono)}
+.sidebar-bottom{padding:10px 14px;border-top:1px solid var(--border)}
+.sidebar-bottom .btn{width:100%}
+.main{display:flex;flex-direction:column;min-width:0;min-height:0}
+.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 14px;background:#fff;border-bottom:1px solid var(--border)}
+.toolbar input{width:min(310px,42%)}
+.toolbar .mini{width:92px}
+.quality{padding:6px 14px;background:#fff;border-bottom:1px solid var(--border);color:var(--muted);font-size:11px;min-height:30px}
+.quality.warn{color:var(--danger);background:#fff7f5}
+.table-wrap{flex:1;min-height:0;overflow:auto;background:#fff}
+table{border-collapse:separate;border-spacing:0;width:100%;font-size:12px}
+th,td{border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:8px 10px;text-align:left;white-space:nowrap;max-width:360px;overflow:hidden;text-overflow:ellipsis}
+th{position:sticky;top:0;background:var(--soft);z-index:2;cursor:pointer;user-select:none}
+th:hover{background:#d8f1e9}
+td.numeric{text-align:right;font-family:var(--mono)}
+tbody tr:nth-child(even){background:#f9fbfa}
+.empty{height:100%;display:grid;place-content:center;text-align:center;color:var(--muted);gap:6px}
+.empty strong{color:var(--ink);font-size:16px}
+.footer{display:flex;align-items:center;gap:10px;padding:7px 14px;border-top:1px solid var(--border);background:#fff;color:var(--muted);font-size:11px;flex:none}
+.footer .btn{min-height:28px;padding:3px 8px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translate(-50%,15px);background:#20342f;color:#fff;padding:8px 16px;border-radius:8px;opacity:0;pointer-events:none;transition:.2s;z-index:20}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+@media(max-width:1000px){.head{padding:8px 12px}.brand{min-width:195px}.sub{display:none}.workspace{grid-template-columns:270px minmax(0,1fr)}.toolbar{gap:5px}.toolbar input{width:190px}.btn{padding:6px 9px}}
 </style>
 </head>
 <body>
 <main class="app">
-  <div class="head">
-    <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg></div>
-    <div><h1>CSV 数据表</h1><p>筛选、排序并在 CSV 与 JSON 之间转换</p></div>
-    <div class="spacer"></div>
-    <button class="btn" id="pasteBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 2h6a1 1 0 0 1 1 1v1H8V3a1 1 0 0 1 1-1z"/><path d="M5 5h14a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg>粘贴</button>
-    <button class="btn primary" id="runBtn">解析表格</button>
-  </div>
-  <div class="body">
-    <div class="input-col">
-      <div class="ph">CSV 输入</div>
-      <textarea class="csv-area" id="csvInput" spellcheck="false" placeholder="姓名,年龄,城市&#10;张三,28,北京&#10;李四,34,上海"></textarea>
-      <div class="input-foot">
-        <div class="row"><span class="lab">分隔符</span>
-          <select class="sel" id="delimiter" style="flex:1"><option value=",">逗号 ,</option><option value=";">分号 ;</option><option value="\t">制表符</option><option value="|">竖线 |</option></select>
-        </div>
-        <div class="row"><span class="lab">操作</span>
-          <select class="sel" id="action" style="flex:1"><option value="table">表格预览</option><option value="json">转为 JSON</option></select>
-        </div>
-        <button class="btn primary" id="sortBtn" style="justify-content:center">应用排序并导出</button>
-      </div>
+ <header class="head">
+  <div class="brand"><span class="brand-icon" aria-hidden="true">▦</span><div><h1>CSV 数据表</h1><p class="sub">导入、检查、筛选与导出表格</p></div></div>
+  <div class="spacer"></div>
+  <button class="btn" id="pasteBtn">粘贴</button>
+  <button class="btn" id="clearBtn">清空</button>
+  <button class="btn primary" id="parseBtn">解析表格</button>
+ </header>
+ <div class="workspace">
+  <aside class="sidebar">
+   <div class="section">
+    <div class="section-title"><span>导入文件</span><span class="hint">CSV / TSV / TXT / JSON</span></div>
+    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="选择或拖入表格文件">
+     <strong>拖入文件到这里</strong><span class="hint">也可以点击选择文件，最大 10 MB</span>
+     <div class="file-line" id="fileName">尚未选择文件</div>
     </div>
-    <div class="table-col">
-      <div class="table-bar">
-        <span class="lab">点击表头排序</span>
-        <div class="spacer" style="flex:1"></div>
-        <span class="lab" id="sortInfo"></span>
-      </div>
-      <div class="table-wrap" id="tableWrap">
-        <div class="empty-state">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>
-          <span>粘贴 CSV 数据后点击「解析表格」</span>
-        </div>
-      </div>
-      <div class="stats"><span id="statRows">0 行</span><span id="statCols">0 列</span><span id="statBytes">0 字符</span></div>
-    </div>
-  </div>
+    <input id="fileInput" type="file" accept=".csv,.tsv,.txt,.json,text/csv,text/tab-separated-values,application/json" hidden>
+    <div class="field"><label for="encoding">编码</label><select id="encoding"><option value="utf-8">UTF-8</option><option value="gb18030">GB18030 / GBK</option></select></div>
+    <div class="field"><label for="delimiter">分隔符</label><select id="delimiter"><option value="auto">自动识别</option><option value=",">逗号 ,</option><option value="tab">制表符 Tab</option><option value=";">分号 ;</option><option value="|">竖线 |</option></select></div>
+   </div>
+   <div class="source-label">源数据 <span class="hint">可直接编辑后重新解析</span></div>
+   <textarea id="csvInput" spellcheck="false" placeholder="姓名,年龄,城市&#10;张三,28,北京&#10;李四,34,上海"></textarea>
+   <div class="sidebar-bottom"><button class="btn primary" id="sideParseBtn">解析并预览</button></div>
+  </aside>
+  <section class="main">
+   <div class="toolbar">
+    <input type="search" id="searchInput" placeholder="搜索所有列" aria-label="搜索所有列">
+    <select id="pageSize" class="mini" aria-label="每页行数"><option value="50">每页 50 行</option><option value="100">每页 100 行</option><option value="200">每页 200 行</option></select>
+    <span class="spacer"></span>
+    <button class="btn" id="copyBtn">复制结果</button>
+    <button class="btn" id="csvBtn">导出 CSV</button>
+    <button class="btn" id="jsonBtn">导出 JSON</button>
+   </div>
+   <div class="quality" id="quality">导入文件或粘贴数据后点击“解析表格”</div>
+   <div class="table-wrap" id="tableWrap"><div class="empty"><strong>开始处理表格</strong><span>选择文件、拖入文件，或粘贴 CSV 数据</span></div></div>
+   <footer class="footer"><span id="stats">0 行 · 0 列</span><span class="spacer"></span><button class="btn" id="prevBtn">上一页</button><span id="pageInfo">第 0 / 0 页</span><button class="btn" id="nextBtn">下一页</button></footer>
+  </section>
+ </div>
 </main>
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status"></div>
+<script src="csv-core.js"></script>
 <script>
-const api=window.pluginAPI;const $=s=>document.querySelector(s);
-let sortCol=null,sortDir=1;
-$('#pasteBtn').onclick=async()=>{const t=api.readClipboardText();if(t){$('#csvInput').value=t;updateStats();toast('已粘贴剪贴板内容');}};
-$('#csvInput').addEventListener('input',updateStats);
-$('#runBtn').onclick=()=>parseTable();
-$('#sortBtn').onclick=()=>exportSorted();
-function updateStats(){const v=$('#csvInput').value;$('#statBytes').textContent=v.length+' 字符';}
-function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1600);}
-function getDelim(){const v=$('#delimiter').value;return v==='\\t'?'\t':v;}
-async function parseTable(){
-  const input=$('#csvInput').value;if(!input.trim()){toast('请先输入 CSV');return;}
-  const delim=getDelim();
-  // parse locally for table preview (faster, no IPC for preview)
-  const rows=parseCsvLocal(input,delim);
-  renderTable(rows);
-  $('#statRows').textContent=(rows.length-1)+' 行数据';
-  $('#statCols').textContent=(rows[0]?.length||0)+' 列';
+const api=window.pluginAPI, core=window.CsvCore, $=selector=>document.querySelector(selector);
+const state={rows:[],sortColumn:null,sortDirection:1,page:1,file:null,fileType:'csv',delimiter:',',ready:false};
+const MAX_SIZE=10*1024*1024;
+function toast(message){const node=$('#toast');node.textContent=message;node.classList.add('show');clearTimeout(node.timer);node.timer=setTimeout(()=>node.classList.remove('show'),2200);}
+function selectedDelimiter(){const selected=$('#delimiter').value;return selected==='tab'?'\t':selected==='auto'?core.detectDelimiter($('#csvInput').value):selected;}
+function chooseFile(){ $('#fileInput').click(); }
+$('#dropzone').onclick=chooseFile;
+$('#dropzone').onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();chooseFile();}};
+$('#fileInput').onchange=event=>{if(event.target.files[0])importFile(event.target.files[0]);event.target.value='';};
+for(const eventName of ['dragenter','dragover'])document.addEventListener(eventName,event=>{event.preventDefault();$('#dropzone').classList.add('active');});
+for(const eventName of ['dragleave','drop'])document.addEventListener(eventName,event=>{event.preventDefault();if(eventName==='drop')$('#dropzone').classList.remove('active');});
+document.addEventListener('drop',event=>{const file=event.dataTransfer?.files?.[0];if(file)importFile(file);});
+async function importFile(file){
+ const ext=(file.name.match(/\.([^.]+)$/)?.[1]||'').toLowerCase();
+ if(!['csv','tsv','txt','json'].includes(ext)){toast('仅支持 CSV、TSV、TXT 和 JSON 文件');return;}
+ if(file.size>MAX_SIZE){toast('文件不能超过 10 MB');return;}
+ try{
+  const bytes=await file.arrayBuffer();const decoder=new TextDecoder($('#encoding').value,{fatal:true});
+  const text=decoder.decode(bytes);state.file=file;state.fileType=ext;
+  $('#fileName').textContent=`${file.name} · ${(file.size/1024).toFixed(1)} KB`;
+  $('#csvInput').value=text;
+  $('#searchInput').value='';
+  if(ext==='tsv')$('#delimiter').value='tab';
+  else if(ext!=='json')$('#delimiter').value='auto';
+  parseTable();
+ }catch(error){toast('读取失败：'+error.message);}
 }
-function parseCsvLocal(text,delim){
-  const rows=[];let row=[],field='',quoted=false;
-  for(let i=0;i<text.length;i++){const c=text[i];
-    if(c==='"'){if(quoted&&text[i+1]==='"'){field+='"';i++;}else quoted=!quoted;}
-    else if(c===delim&&!quoted){row.push(field);field='';}
-    else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&text[i+1]==='\n')i++;row.push(field);rows.push(row);row=[];field='';}
-    else field+=c;}
-  if(field||row.length){row.push(field);rows.push(row);}
-  return rows.filter(r=>r.length&&!(r.length===1&&r[0]===''));
+$('#encoding').onchange=()=>{if(state.file)importFile(state.file);};
+$('#pasteBtn').onclick=()=>{const text=api.readClipboardText();if(!text){toast('剪贴板没有文本');return;}state.file=null;state.fileType='csv';$('#fileName').textContent='来自剪贴板';$('#csvInput').value=text;parseTable();};
+$('#clearBtn').onclick=()=>{state.rows=[];state.ready=false;state.file=null;state.fileType='csv';state.sortColumn=null;$('#csvInput').value='';$('#searchInput').value='';$('#fileName').textContent='尚未选择文件';$('#quality').textContent='导入文件或粘贴数据后点击“解析表格”';render();};
+$('#csvInput').oninput=()=>{state.ready=false;$('#quality').textContent='源数据已更改，请重新解析';$('#quality').classList.remove('warn');render();};
+$('#parseBtn').onclick=parseTable;$('#sideParseBtn').onclick=parseTable;$('#delimiter').onchange=()=>{if($('#csvInput').value.trim())parseTable();};
+$('#searchInput').oninput=()=>{state.page=1;render();};$('#pageSize').onchange=()=>{state.page=1;render();};
+$('#prevBtn').onclick=()=>{state.page--;render();};$('#nextBtn').onclick=()=>{state.page++;render();};
+function parseTable(){
+ const text=$('#csvInput').value;if(!text.trim()){toast('请先导入或输入数据');return;}
+ try{
+  const json=state.fileType==='json';
+  const delimiter=json?',':selectedDelimiter();
+  const rows=json?core.fromJson(text):core.parse(text,delimiter);
+  const report=core.inspect(rows);
+  state.rows=rows;state.delimiter=delimiter;state.ready=true;state.page=1;state.sortColumn=null;
+  const issues=[];
+  if(report.irregularRows)issues.push(`${report.irregularRows} 行列数与表头不一致`);
+  if(report.blankHeaders)issues.push(`${report.blankHeaders} 个空表头`);
+  if(report.duplicateHeaders)issues.push(`${report.duplicateHeaders} 个重复表头`);
+  const quality=$('#quality');quality.textContent=issues.length?'数据检查：'+issues.join('；'):'数据检查通过 · '+(json?'JSON 输入':`分隔符：${delimiter==='\t'?'Tab':delimiter}`);
+  quality.classList.toggle('warn',issues.length>0);
+  render();
+ }catch(error){state.ready=false;state.rows=[];$('#quality').textContent='解析失败：'+error.message;$('#quality').classList.add('warn');render();toast(error.message);}
 }
-function renderTable(rows){
-  if(!rows.length){$('#tableWrap').innerHTML='<div class="empty-state"><span>无有效数据</span></div>';return;}
-  const [headers,...data]=rows;
-  let html='<table class="csv"><thead><tr>';
-  headers.forEach((h,i)=>{const arr=sortCol===i?(sortDir>0?'▲':'▼'):'';html+=`<th data-col="${i}">${escapeHtml(h)}<span class="arr">${arr}</span></th>`;});
-  html+='</tr></thead><tbody>';
-  data.forEach(r=>{html+='<tr>';headers.forEach((_,i)=>{const v=r[i]??'';const isNum=/^-?\d+(\.\d+)?$/.test(v.trim());html+=`<td${isNum?' class="num"':''}>${escapeHtml(v)}</td>`;});html+='</tr>';});
-  html+='</tbody></table>';
-  $('#tableWrap').innerHTML=html;
-  $$('#tableWrap th').forEach(th=>th.onclick=()=>{
-    const c=+th.dataset.col;if(sortCol===c)sortDir*=-1;else{sortCol=c;sortDir=1;}
-    parseTable();$('#sortInfo').textContent=`按第 ${c+1} 列 ${sortDir>0?'升序':'降序'}`;
-  });
+function currentRows(){return core.view(state.rows,$('#searchInput').value,state.sortColumn,state.sortDirection);}
+function render(){
+ const wrap=$('#tableWrap');wrap.replaceChildren();
+ if(!state.ready){wrap.innerHTML='<div class="empty"><strong>等待解析</strong><span>选择文件、拖入文件，或粘贴 CSV 数据</span></div>';$('#stats').textContent='0 行 · 0 列';$('#pageInfo').textContent='第 0 / 0 页';$('#prevBtn').disabled=$('#nextBtn').disabled=true;return;}
+ const rows=currentRows(),headers=rows[0],total=rows.length-1,size=Number($('#pageSize').value),pages=Math.max(1,Math.ceil(total/size));
+ state.page=Math.min(Math.max(1,state.page),pages);
+ const table=document.createElement('table');table.className='csv';
+ const thead=document.createElement('thead'),headerRow=document.createElement('tr');
+ headers.forEach((header,index)=>{const th=document.createElement('th');th.textContent=header||`第 ${index+1} 列`;th.title='点击排序：'+(header||`第 ${index+1} 列`);
+  if(state.sortColumn===index)th.textContent+=state.sortDirection===1?' ▲':' ▼';
+  th.onclick=()=>{state.sortDirection=state.sortColumn===index?-state.sortDirection:1;state.sortColumn=index;state.page=1;render();};headerRow.append(th);});
+ thead.append(headerRow);table.append(thead);
+ const tbody=document.createElement('tbody');
+ rows.slice(1+(state.page-1)*size,1+state.page*size).forEach(row=>{const tr=document.createElement('tr');headers.forEach((_,index)=>{const td=document.createElement('td'),value=row[index]??'';td.textContent=value;td.title=value;if(/^-?\d+(\.\d+)?$/.test(value.trim()))td.className='numeric';tr.append(td);});tbody.append(tr);});
+ table.append(tbody);wrap.append(table);
+ if(!total){const empty=document.createElement('div');empty.className='empty';empty.style.height='160px';empty.textContent='没有符合搜索条件的行';wrap.append(empty);}
+ $('#stats').textContent=`${total} / ${state.rows.length-1} 行 · ${headers.length} 列`;
+ $('#pageInfo').textContent=`第 ${state.page} / ${pages} 页`;
+ $('#prevBtn').disabled=state.page<=1;$('#nextBtn').disabled=state.page>=pages;
 }
-function $$(s,r=document){return r.querySelectorAll(s);}
-function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
-async function exportSorted(){
-  const input=$('#csvInput').value;if(!input.trim()){toast('请先输入 CSV');return;}
-  const delim=getDelim();const col=sortCol;
-  const options={action:'json',delimiter:delim};
-  if(col!=null)options.sortColumn=String(col);
-  const res=await api.runTask({toolId:'csv-table',input,options,execute:false});
-  if(res.ok){const text=typeof res.result==='string'?res.result:JSON.stringify(res.result,null,2);
-    const saved=api.saveResult({title:'保存 JSON',defaultPath:'csv-result.json',filters:[{name:'JSON',extensions:['json']}],text});if(!saved.cancelled)toast('已导出 JSON');}
-  else toast('导出失败：'+res.error);
+function output(format){
+ if(!state.ready){toast('请先解析表格');return null;}
+ try{return format==='json'?core.toJson(currentRows()):core.toCsv(currentRows(),state.delimiter);}
+ catch(error){toast(error.message);return null;}
 }
-window.addEventListener('plugin-enter',e=>{
-  const text=e.detail?.action?.payload||e.detail?.action?.clipboardText||e.detail?.payload||e.detail?.clipboardText||'';
-  if(text){$('#csvInput').value=text;updateStats();parseTable();}
-});
-updateStats();
+$('#copyBtn').onclick=()=>{const text=output('csv');if(text===null)return;api.copyText(text);toast('已复制当前筛选和排序结果');};
+function save(format){
+ const text=output(format);if(text===null)return;
+ try{
+  const ext=format==='json'?'json':state.delimiter==='\t'?'tsv':'csv';
+  const name=(state.file?.name||'csv-result').replace(/\.[^.]+$/,'')+'-processed.'+ext;
+  const result=api.saveResult({title:'导出'+ext.toUpperCase(),defaultPath:name,filters:[{name:ext.toUpperCase(),extensions:[ext]}],text:format==='csv'?'\uFEFF'+text:text});
+  if(!result.cancelled)toast('已保存：'+result.path);
+ }catch(error){toast('保存失败：'+error.message);}
+}
+$('#csvBtn').onclick=()=>save('csv');$('#jsonBtn').onclick=()=>save('json');
+window.addEventListener('plugin-enter',event=>{const action=event.detail?.action||event.detail||{};const text=action.payload||action.clipboardText||'';if(text){state.file=null;state.fileType='csv';$('#csvInput').value=text;$('#fileName').textContent='来自插件入口';parseTable();}});
+render();
 </script>
-</body></html>
+</body>
+</html>

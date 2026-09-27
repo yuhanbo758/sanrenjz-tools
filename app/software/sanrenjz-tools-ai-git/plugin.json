@@ -1,7 +1,7 @@
 {
   "pluginName": "AI Git 助手",
-  "description": "读取本地 Diff/Log，生成提交说明、变更日志和 Release Notes。",
-  "version": "1.0.0",
+  "description": "拖入本地 Git 项目，读取 Diff/Log，生成提交说明、变更日志、Release Notes、PR 描述并分析变更风险。",
+  "version": "1.1.0",
   "author": "三人聚智",
   "category": "AI 工具",
   "main": "index.html",
@@ -11,12 +11,10 @@
     {
       "code": "plugin-market-ai-git",
       "explain": "提交助手",
-      "description": "读取本地 Diff/Log，生成提交说明、变更日志和 Release Notes。",
+      "description": "拖入 Git 项目，按范围读取变更并生成提交说明、变更日志、Release Notes、PR 描述或风险分析。",
       "cmds": [
         "AI Git 助手",
         "提交说明",
-        "变更日志",
-        "Release Notes",
         {
           "type": "over",
           "label": "用AI Git 助手处理",
@@ -35,6 +33,38 @@
       "category": "AI 工具",
       "priority": 22,
       "useClipboardText": true
+    },
+    {
+      "code": "plugin-market-ai-git-changelog",
+      "explain": "变更日志",
+      "description": "按 Git 提交记录生成 CHANGELOG。",
+      "cmds": ["Git 变更日志", "CHANGELOG"],
+      "icon": "logo.ico", "platform": ["win32", "darwin", "linux"],
+      "mode": "none", "superPanel": true, "category": "AI 工具", "priority": 22
+    },
+    {
+      "code": "plugin-market-ai-git-release",
+      "explain": "发布说明",
+      "description": "按 Git 提交记录生成 Release Notes。",
+      "cmds": ["Release Notes", "Git 发布说明"],
+      "icon": "logo.ico", "platform": ["win32", "darwin", "linux"],
+      "mode": "none", "superPanel": true, "category": "AI 工具", "priority": 22
+    },
+    {
+      "code": "plugin-market-ai-git-pr",
+      "explain": "PR 描述",
+      "description": "按 Git Diff 生成 PR 描述。",
+      "cmds": ["PR 描述", "Pull Request 描述"],
+      "icon": "logo.ico", "platform": ["win32", "darwin", "linux"],
+      "mode": "none", "superPanel": true, "category": "AI 工具", "priority": 22
+    },
+    {
+      "code": "plugin-market-ai-git-risk",
+      "explain": "变更风险",
+      "description": "检查 Git Diff 中的风险并建议验证方法。",
+      "cmds": ["Git 变更风险", "Git 风险分析"],
+      "icon": "logo.ico", "platform": ["win32", "darwin", "linux"],
+      "mode": "none", "superPanel": true, "category": "AI 工具", "priority": 22
     }
   ],
   "pluginSetting": {

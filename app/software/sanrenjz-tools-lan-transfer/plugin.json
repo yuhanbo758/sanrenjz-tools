@@ -1,7 +1,7 @@
 {
   "pluginName": "局域网快传",
-  "description": "创建临时局域网接收站，传输文字与文件。",
-  "version": "2.0.0",
+  "description": "通过临时链接在电脑和手机间互传文字、文件，支持二维码与多文件发送。",
+  "version": "2.1.0",
   "author": "三人聚智",
   "category": "效率工具",
   "main": "index.html",
@@ -10,8 +10,8 @@
   "features": [
     {
       "code": "plugin-market-lan-transfer",
-      "explain": "LAN传输",
-      "description": "创建临时局域网接收站，传输文字与文件。",
+      "explain": "局域网快传",
+      "description": "通过临时链接在电脑和手机间互传文字、文件，支持二维码与多文件发送。",
       "cmds": [
         "局域网传输",
         "文件快传",

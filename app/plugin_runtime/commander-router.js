@@ -52,6 +52,12 @@
         return EXPLICIT_AI_PATTERNS.some(pattern => pattern.test(text));
     }
 
+    function isExplanationRequest(message) {
+        const text = normalizeText(message);
+        const action = /(?:调用|打开|启动|运行|帮我|替我|请把|给我处理)/.test(text);
+        return !action && /(?:什么是|是什么意思|介绍一下|解释一下|工作原理|如何使用|怎么使用|能做什么|支持什么|为什么|有什么区别|是否需要)/.test(text);
+    }
+
     function findAiTarget(message, targets, installedPlugins) {
         const text = normalizeText(message);
         let best = null;
@@ -154,6 +160,8 @@
     function detectCommanderRoute(message, installedPlugins, aiTargets = DEFAULT_AI_TARGETS) {
         const text = normalizeText(message);
         if (!text) return null;
+        // 问插件原理或能力不是执行任务；即使提到插件名，也应由助手解释。
+        if (isExplanationRequest(text)) return null;
         const explicitAi = isExplicitAiRequest(text);
         const aiFeatureCodes = new Set(aiTargets.map(target => target.feature));
 
@@ -182,6 +190,7 @@
         findAiTarget,
         findLocalTool,
         isExplicitAiRequest,
+        isExplanationRequest,
         normalizeText,
         scoreLocalFeature
     };

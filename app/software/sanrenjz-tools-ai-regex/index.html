@@ -20,6 +20,8 @@
 .input-area{flex:1;border:0;outline:0;resize:none;padding:14px;font:13px/1.7 var(--mono);background:var(--sf);min-height:0}.input-area::placeholder{color:var(--ft)}
 .result-area{flex:1;overflow:auto;padding:14px;font:14px/1.7 var(--mono);white-space:pre-wrap;word-break:break-word}
 .result-area.empty{display:flex;align-items:center;justify-content:center;color:var(--ft);font-style:italic}
+.result-area{font:13px/1.65 var(--sans);white-space:normal}.result-area p{margin:0 0 10px}.result-area h3{font-size:13px;margin:12px 0 6px;color:var(--a)}.result-area pre{white-space:pre-wrap;word-break:break-all;background:var(--bg);padding:10px;border-radius:7px;font:12px/1.6 var(--mono)}.result-area li{margin:3px 0}.result-area ul{padding-left:20px}
+.workbench{border-top:1px solid var(--bd);padding:10px 16px;display:grid;gap:8px;max-height:48%;overflow:auto}.workbench label{font-size:12px;font-weight:600;color:var(--mt)}.workbench .row{display:flex;gap:8px;align-items:center}.workbench input,.workbench textarea{border:1px solid var(--bd);border-radius:6px;padding:7px 9px;font:12px/1.5 var(--mono);outline:none;min-width:0}.workbench input:focus,.workbench textarea:focus{border-color:var(--a)}.workbench textarea{width:100%;resize:vertical;min-height:55px}.workbench .pattern{flex:1}.workbench .flags{width:82px}.workbench .status{font-size:12px;color:var(--mt)}.workbench .status.error{color:var(--err)}.match-preview{white-space:pre-wrap;word-break:break-word;background:var(--bg);border-radius:6px;padding:8px;min-height:32px;max-height:90px;overflow:auto;font:12px/1.5 var(--mono)}.match-preview mark{background:#ddc5ff;border-radius:2px}.match-list{font:12px/1.5 var(--mono);max-height:92px;overflow:auto;color:var(--mt)}.match-list div{padding:2px 0}.test-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.test-grid textarea{min-height:44px}.check-results{font-size:12px;color:var(--mt)}
 .test-row{display:flex;gap:8px;padding:10px 16px;border-top:1px solid var(--bd);align-items:center;flex:none}
 .test-row .label{font:600 11px var(--mono);color:var(--mt)}
 .test-input{flex:1;border:1px solid var(--bd);border-radius:6px;padding:6px 10px;font:13px var(--mono);outline:none}.test-input:focus{border-color:var(--al)}
@@ -45,7 +47,7 @@
     <div class="spacer"></div>
     <button class="gear" onclick="toggleDrawer()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 1-.1 1.2l2 1.5-2 3.4-2.3-1a7 7 0 0 1-2 1.2l-.4 2.5H9l-.4-2.5a7 7 0 0 1-2-1.2l-2.3 1-2-3.4 2-1.5A7 7 0 0 1 4 12a7 7 0 0 1 .1-1.2l-2-1.5 2-3.4 2.3 1a7 7 0 0 1 2-1.2L9 1h4l.4 2.5a7 7 0 0 1 2 1.2l2.3-1 2 3.4-2 1.5A7 7 0 0 1 19 12z"/></svg>供应商设置</button>
   </div>
-  <div class="modes">
+  <div class="modes" id="modes">
     <button class="mode active" data-mode="生成">生成正则</button>
     <button class="mode" data-mode="解释">解释正则</button>
     <button class="mode" data-mode="修复">修复正则</button>
@@ -58,14 +60,22 @@
     <div class="card">
       <div class="card-h">AI 结果 <span style="font-size:10px;color:var(--ft)" id="resStat">等待</span></div>
       <div class="result-area empty" id="result">结果将显示在这里</div>
-      <div class="test-row"><span class="label">本地测试</span><input class="test-input" id="testInput" placeholder="输入测试文本"><span class="test-result" id="testRes">-</span></div>
+      <section class="workbench" aria-label="正则实验台">
+        <label for="patternInput">可编辑正则 · AI 结果会自动提取到这里，也可手动输入</label>
+        <div class="row"><input class="pattern" id="patternInput" placeholder="例如：\\d+"><span>/</span><input class="flags" id="flagsInput" placeholder="标志 g i m…" title="支持 d g i m s u y"></div>
+        <div class="status" id="regexStatus">输入正则后可在本地测试</div>
+        <label for="testInput">本地测试文本</label><textarea id="testInput" placeholder="输入或粘贴多行文本，查看所有匹配及捕获组"></textarea>
+        <div class="status" id="testRes">尚未测试</div><div class="match-preview" id="matchPreview"></div><div class="match-list" id="matchList"></div>
+        <label for="replaceInput">替换预览（支持 $1、$&amp;、$&lt;名称&gt;）</label><input id="replaceInput" placeholder="输入替换内容"><div class="match-preview" id="replacePreview"></div>
+        <label>样本校验（每行一个样本）</label><div class="test-grid"><textarea id="positiveInput" placeholder="应匹配的样本"></textarea><textarea id="negativeInput" placeholder="不应匹配的样本"></textarea></div><div class="check-results" id="checkResults"></div>
+      </section>
     </div>
   </div>
   <div class="act-bar">
     <button class="btn primary" id="genBtn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span id="genLabel">生成正则</span></button>
     <button class="btn" id="stopBtn" disabled>取消</button>
     <div class="spacer"></div>
-    <button class="btn" id="copyBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>复制</button>
+    <button class="btn" id="copyRegexBtn">复制正则</button><button class="btn" id="copyBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>复制 AI 结果</button>
   </div>
 </main>
 <div class="overlay" id="overlay" onclick="toggleDrawer()"></div>
@@ -78,31 +88,74 @@
 </aside>
 <div class="toast" id="toast"></div>
 <script src="../../plugin_runtime/ai-provider-manager.js"></script>
+<script src="regex-core.js"></script>
 <script>
 const api=window.aiAPI;const $=s=>document.querySelector(s);const $$=s=>document.querySelectorAll(s);
-let mode='生成';let requestId='';let lastRegex='';
+let mode='生成',requestId='',resultText='',worker=null,workerTimer=null,testTimer=null,testSequence=0;
 const providerManager=AIProviderManager.create(api,{capability:'text',notify:toast});
-function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1600);}
+function toast(message){const box=$('#toast');box.textContent=message;box.classList.add('show');clearTimeout(box._t);box._t=setTimeout(()=>box.classList.remove('show'),1800);}
 function toggleDrawer(){$('#drawer').classList.toggle('open');$('#overlay').classList.toggle('show');}
 const hints={'生成':'用自然语言描述你要匹配的模式','解释':'粘贴需要解释的正则表达式','修复':'粘贴有问题的正则和期望匹配的样本'};
-$$('#modes .mode').forEach(b=>b.onclick=()=>{$$('#modes .mode').forEach(x=>x.classList.remove('active'));b.classList.add('active');mode=b.textContent;$('#modeHint').textContent=hints[mode];$('#genLabel').textContent=mode+'正则';});
-api.onChunk(chunk=>{if(chunk.requestId===requestId){$('#result').classList.remove('empty');$('#result').textContent=chunk.text;extractAndTest(chunk.text);}});
-function extractAndTest(text){const m=text.match(/\/(.*?)\/([gimsuy]*)/);if(m){lastRegex=m[0];try{const re=new RegExp(m[1],m[2]||'');window._re=re;runTest();}catch(e){}}else{const m2=text.match(/```(?:regex)?\s*\n(.*?)\n```/s);if(m2){lastRegex=m2[1].trim();try{const re=new RegExp(m2[1].trim());window._re=re;runTest();}catch(e){}}}}
-$('#testInput').addEventListener('input',runTest);
-function runTest(){if(!window._re||!$('#testInput').value)return;const r=$('#testRes');const m=$('#testInput').value.match(window._re);r.textContent=m?'匹配 ✓':'不匹配';r.className='test-result '+(m?'ok':'fail');}
+function setMode(next){mode=next;$$('#modes .mode').forEach(button=>button.classList.toggle('active',button.dataset.mode===mode));$('#modeHint').textContent=hints[mode];$('#genLabel').textContent=mode+'正则';$('#input').placeholder=mode==='生成'?'例如：匹配一个合法的邮箱地址':mode==='解释'?'粘贴 /正则/flags，或在下方直接编辑正则':'粘贴有问题的正则，并说明期望匹配与不匹配的样本';}
+$$('#modes .mode').forEach(button=>button.addEventListener('click',()=>setMode(button.dataset.mode)));
+function renderResult(text){
+  const target=$('#result');target.replaceChildren();target.classList.toggle('empty',!text);
+  if(!text){target.textContent='结果将显示在这里';return;}
+  let list=null,fence=null;
+  for(const line of text.split(/\r?\n/)){
+    if(/^```/.test(line.trim())){if(fence){fence=null;}else{fence=document.createElement('pre');target.append(fence);}list=null;continue;}
+    if(fence){fence.textContent+=(fence.textContent?'\n':'')+line;continue;}
+    if(!line.trim()){list=null;continue;}
+    const heading=line.match(/^#{1,4}\s+(.+)/);
+    if(heading){const h=document.createElement('h3');h.textContent=heading[1];target.append(h);list=null;continue;}
+    const item=line.match(/^\s*(?:[-*]|\d+[.)])\s+(.+)/);
+    if(item){if(!list){list=document.createElement('ul');target.append(list);}const li=document.createElement('li');li.textContent=item[1];list.append(li);continue;}
+    const p=document.createElement('p');p.textContent=line;target.append(p);list=null;
+  }
+}
+function extractResult(text){const parsed=RegexWorkbench.extract(text);if(!parsed)return;$('#patternInput').value=parsed.source;$('#flagsInput').value=parsed.flags;scheduleTest();}
+function clearWorker(){if(worker){worker.terminate();worker=null;}clearTimeout(workerTimer);}
+function scheduleTest(){clearTimeout(testTimer);testTimer=setTimeout(runTest,180);}
+function lines(selector){return $(selector).value.split(/\r?\n/).map(line=>line.trim()).filter(Boolean).slice(0,50);}
+function runTest(){
+  const sequence=++testSequence;clearWorker();
+  const source=$('#patternInput').value,flags=$('#flagsInput').value.trim();
+  const status=$('#regexStatus');status.classList.remove('error');
+  $('#matchPreview').replaceChildren();$('#matchList').replaceChildren();$('#replacePreview').textContent='';$('#checkResults').textContent='';$('#testRes').textContent='尚未测试';
+  if(!source){status.textContent='输入正则后可在本地测试';$('#testRes').textContent='尚未测试';$('#matchPreview').replaceChildren();$('#matchList').replaceChildren();$('#replacePreview').textContent='';$('#checkResults').textContent='';return;}
+  if(source.length>2000||$('#testInput').value.length>20000){status.textContent='正则或样本文本过长';status.classList.add('error');return;}
+  status.textContent='测试中…';
+  worker=new Worker('regex-worker.js');
+  worker.onmessage=({data})=>{if(sequence!==testSequence)return;clearWorker();if(data.error){status.textContent=data.error;status.classList.add('error');$('#testRes').textContent='无法测试';return;}status.textContent='正则有效 · JavaScript 正则引擎';renderTest(data);};
+  worker.onerror=()=>{if(sequence===testSequence){clearWorker();status.textContent='本地测试失败';status.classList.add('error');}};
+  worker.postMessage({source,flags,sample:$('#testInput').value,replacement:$('#replaceInput').value,positive:lines('#positiveInput'),negative:lines('#negativeInput')});
+  // 不可信表达式可能产生灾难性回溯，超时后销毁独立 Worker。
+  workerTimer=setTimeout(()=>{if(sequence===testSequence){clearWorker();status.textContent='测试超时，请简化正则或缩短样本';status.classList.add('error');$('#testRes').textContent='已停止';}},700);
+}
+function renderTest(data){
+  const sample=$('#testInput').value;$('#testRes').textContent=`${data.matches.length} 处匹配${data.capped?'（只展示前 200 处）':''}`;
+  const preview=$('#matchPreview');preview.replaceChildren();let cursor=0;
+  for(const match of data.matches){if(match.index<cursor)continue;preview.append(document.createTextNode(sample.slice(cursor,match.index)));const mark=document.createElement('mark');mark.textContent=match.text||'∅';preview.append(mark);cursor=match.index+match.text.length;}
+  preview.append(document.createTextNode(sample.slice(cursor)));
+  const list=$('#matchList');list.replaceChildren();for(const [i,match] of data.matches.entries()){const row=document.createElement('div');const groups=match.groups.map((value,n)=>`$${n+1}=${JSON.stringify(value)}`).join(' ');const named=Object.entries(match.named).map(([name,value])=>`${name}=${JSON.stringify(value)}`).join(' ');row.textContent=`${i+1}. 位置 ${match.index}: ${JSON.stringify(match.text)} ${groups} ${named}`;list.append(row);}
+  $('#replacePreview').textContent=data.preview;
+  const checks=[...data.positive,...data.negative];$('#checkResults').textContent=checks.length?`样本校验：${checks.filter(item=>item.passed).length}/${checks.length} 通过${checks.filter(item=>!item.passed).length?'；未通过：'+checks.filter(item=>!item.passed).map(item=>item.text).join('、'):''}`:'填写正反样本可检查边界情况';
+}
+['#patternInput','#flagsInput','#testInput','#replaceInput','#positiveInput','#negativeInput'].forEach(selector=>$(selector).addEventListener('input',scheduleTest));
+api.onChunk(chunk=>{if(chunk.requestId===requestId){resultText=chunk.text;renderResult(resultText);}});
 $('#genBtn').onclick=async()=>{
-  const input=$('#input').value.trim();if(!input){toast('请输入内容');return;}
-  requestId=crypto.randomUUID();$('#genBtn').disabled=true;$('#stopBtn').disabled=false;$('#resStat').textContent='生成中…';
-  $('#result').classList.remove('empty');$('#result').textContent='';
-  const prompts={'生成':'请根据以下需求生成一个正则表达式，并解释其含义。输出格式：正则表达式、说明。\n需求：','解释':'请详细解释以下正则表达式的每个部分的含义，并给出匹配示例：\n','修复':'请修复以下正则表达式的问题，并说明修复原因。如果附带样本，请确保修复后能正确匹配。\n'};
-  try{const r=await api.complete({requestId,capability:'text',selection:await providerManager.getSelection(),stream:true,messages:[{role:'user',content:prompts[mode]+input}]});$('#result').textContent=r.text;$('#resStat').textContent='已完成';extractAndTest(r.text);}
-  catch(e){$('#result').textContent=e.message;$('#resStat').textContent=e.message==='请求已取消'?'已取消':'失败';}
-  finally{$('#genBtn').disabled=false;$('#stopBtn').disabled=true;}
+  const input=$('#input').value.trim()||((mode!=='生成'&&$('#patternInput').value)?`/${$('#patternInput').value}/${$('#flagsInput').value.trim()}`:'');
+  if(!input){toast('请输入内容或正则');return;}
+  const currentId=crypto.randomUUID();requestId=currentId;$('#genBtn').disabled=true;$('#stopBtn').disabled=false;$('#resStat').textContent='生成中…';resultText='';renderResult('');
+  const prompts={'生成':'请为 JavaScript RegExp 根据需求生成正则。先单独输出 ```regex 代码块，内容为 /表达式/标志；再用中文说明作用、边界和正反样本。需求：\n','解释':'请解释以下 JavaScript 正则的结构、标志、捕获组、匹配与不匹配示例。先保留原表达式于 ```regex 代码块：\n','修复':'请修复以下 JavaScript 正则，先在 ```regex 代码块中给出修复后的 /表达式/标志，再说明错误原因、修改点和正反样本：\n'};
+  try{const response=await api.complete({requestId:currentId,capability:'text',selection:await providerManager.getSelection(),stream:true,messages:[{role:'user',content:prompts[mode]+input}]});if(requestId!==currentId)return;resultText=response.text;renderResult(resultText);$('#resStat').textContent='已完成';extractResult(resultText);}
+  catch(error){if(requestId!==currentId)return;resultText='';renderResult(error.message);$('#resStat').textContent=error.message==='请求已取消'?'已取消':'失败';}
+  finally{if(requestId===currentId){$('#genBtn').disabled=false;$('#stopBtn').disabled=true;}}
 };
-$('#stopBtn').onclick=()=>{if(requestId){api.cancel(requestId);$('#genBtn').disabled=false;$('#stopBtn').disabled=true;$('#resStat').textContent='已取消';}};
-$('#copyBtn').onclick=()=>{const t=$('#result').textContent;if(t&&t!=='结果将显示在这里'){navigator.clipboard.writeText(t);toast('已复制');}else toast('暂无结果');};
-window.addEventListener('plugin-enter',e=>{const text=e.detail?.payload||e.detail?.clipboardText||'';if(text)$('#input').value=text;});
-// 总指挥模式：收到 featureArgs.autoRun 时自动开始生成
-window.addEventListener('plugin-enter',e=>{const text=e.detail?.payload||e.detail?.clipboardText||'';if(e.detail?.featureArgs?.autoRun&&text)setTimeout(()=>{const b=$('#genBtn');if(b&&!b.disabled)b.click()},150);});
+$('#stopBtn').onclick=()=>{if(requestId){api.cancel(requestId);requestId='';$('#genBtn').disabled=false;$('#stopBtn').disabled=true;$('#resStat').textContent='已取消';}};
+function copyText(text){if(!text){toast('暂无可复制内容');return;}try{api.copyText(text);toast('已复制');}catch(error){toast('复制失败：'+error.message);}}
+$('#copyBtn').onclick=()=>copyText(resultText);
+$('#copyRegexBtn').onclick=()=>copyText($('#patternInput').value?RegexWorkbench.formatLiteral($('#patternInput').value,$('#flagsInput').value.trim()):'');
+window.addEventListener('plugin-enter',event=>{const detail=event.detail||{};const text=detail.payload||detail.clipboardText||'';if(text)$('#input').value=text;const command=String(detail.featureArgs?.mode||'');if(hints[command])setMode(command);if(detail.featureArgs?.autoRun&&text)setTimeout(()=>{if(!$('#genBtn').disabled)$('#genBtn').click();},150);});
 </script>
 </body></html>

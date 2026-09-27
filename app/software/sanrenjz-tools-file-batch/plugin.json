@@ -1,7 +1,7 @@
 {
   "pluginName": "文件批处理中心",
-  "description": "先预览命名和校验清单，再执行文件修改。",
-  "version": "2.0.0",
+  "description": "拖入文件或目录，预览并安全批量改名，计算与导出 SHA-256 校验清单。",
+  "version": "2.1.0",
   "author": "三人聚智",
   "category": "效率工具",
   "main": "index.html",
@@ -11,7 +11,7 @@
     {
       "code": "plugin-market-batch-renamer",
       "explain": "批量改名",
-      "description": "先预览命名和校验清单，再执行文件修改。",
+      "description": "拖入文件或目录，按规则筛选、预览并安全批量改名。",
       "cmds": [
         "批量重命名",
         "文件改名",
@@ -38,7 +38,7 @@
     {
       "code": "plugin-market-file-checksum",
       "explain": "文件校验",
-      "description": "先预览命名和校验清单，再执行文件修改。",
+      "description": "计算与比对文件 SHA-256，导出 CSV 校验清单。",
       "cmds": [
         "文件校验",
         "checksum",

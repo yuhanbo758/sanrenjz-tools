@@ -15,6 +15,7 @@ ipcMain.on('plugin-storage-get',(event,name,key)=>{event.returnValue=memory.get(
 ipcMain.on('plugin-storage-set',(event,name,key,value)=>{memory.set(`${name}:${key}`,value);event.returnValue=true});
 ipcMain.handle('plugin-storage-get-async',(_e,name,key)=>memory.get(`${name}:${key}`)??null);
 ipcMain.handle('plugin-storage-set-async',(_e,name,key,value)=>{memory.set(`${name}:${key}`,value);return true});
+ipcMain.handle('plugin-storage-remove-async',(_e,name,key)=>{memory.delete(`${name}:${key}`);return true});
 ipcMain.handle('plugin-secret-get',()=> 'mock-key');ipcMain.handle('plugin-secret-set',()=>true);ipcMain.handle('plugin-secret-remove',()=>true);
 ipcMain.handle('ai-opencode-list-models',()=>[{id:'openai',name:'OpenAI',transport:'opencode',source:'opencode',managed:true,baseUrl:'opencode://openai',models:[{id:'gpt-codex',label:'GPT Codex',capabilities:['text','vision']}]}]);
 ipcMain.handle('register-plugin-features',()=>true);
@@ -74,6 +75,142 @@ async function inspectCommanderDelegation(){
   assert.ok(uiState.status.includes('未重复调用模型'));
 }
 
+async function inspectAssistantHistory(){
+  const directory=path.join(__dirname,'..','app','software','sanrenjz.tools-ai');
+  const win=new BrowserWindow({show:false,x:-32000,y:-32000,width:1180,height:760,webPreferences:{preload:path.join(directory,'preload.js'),nodeIntegration:true,contextIsolation:false,webSecurity:false}});
+  const errors=[];
+  win.webContents.on('console-message',(_event,level,message)=>{if(level>=3)errors.push(message)});
+  await win.loadFile(path.join(directory,'index.html'));
+  await new Promise(resolve=>setTimeout(resolve,150));
+  const state=await win.webContents.executeJavaScript(`(async()=>{
+    window.services.callAPI=async()=>new ReadableStream({start(controller){controller.enqueue('测试回复');controller.close()}});
+    document.getElementById('promptInput').value='测试一个不会触发插件的普通问题';
+    await sendMessage(true);
+    const actions=[...document.querySelectorAll('.message')].map(node=>[...node.querySelectorAll('.message-actions button')].map(button=>({label:button.getAttribute('aria-label'),text:button.textContent,icon:Boolean(button.querySelector('svg'))})));
+    const saved=window.services.getConversations();
+    newChat();
+    await showChatHistory();
+    const historyRows=document.querySelectorAll('#historyList .history-item').length;
+    document.querySelector('#historyList .history-open').click();
+    const restored=document.querySelectorAll('.message').length;
+    document.querySelector('.ai-message .withdraw-button').click();
+    const afterWithdraw=window.services.getConversations().find(item=>item.id===saved.at(-1).id)?.messages.length;
+    return{actions,savedCount:saved.at(-1)?.messages.length,historyRows,restored,afterWithdraw};
+  })()`);
+  win.destroy();
+  assert.deepStrictEqual(errors,[],'助手聊天和历史页面不应有渲染错误');
+  assert.deepStrictEqual(state.actions,Array(2).fill([{label:'复制消息',text:'',icon:true},{label:'撤回消息',text:'',icon:true}]));
+  assert.strictEqual(state.savedCount,2,'发送后应自动保存用户消息和回复');
+  assert.ok(state.historyRows>=1,'历史记录应显示自动保存的会话');
+  assert.strictEqual(state.restored,2,'点击历史记录应恢复聊天气泡');
+  assert.strictEqual(state.afterWithdraw,1,'撤回应同步更新保存的上下文');
+  const reopened=new BrowserWindow({show:false,x:-32000,y:-32000,width:1180,height:760,webPreferences:{preload:path.join(directory,'preload.js'),nodeIntegration:true,contextIsolation:false,webSecurity:false}});
+  await reopened.loadFile(path.join(directory,'index.html'));
+  await new Promise(resolve=>setTimeout(resolve,150));
+  const reopenedState=await reopened.webContents.executeJavaScript(`(async()=>{await showChatHistory();const row=document.querySelector('#historyList .history-open');row?.click();return{rows:document.querySelectorAll('#historyList .history-item').length,messages:document.querySelectorAll('.message').length}})()`);
+  reopened.destroy();
+  assert.ok(reopenedState.rows>=1,'重开窗口后仍应看到已保存记录');
+  assert.strictEqual(reopenedState.messages,1,'重开后应读取撤回后的记录');
+}
+
+async function inspectAssistantHistoryManagement(){
+  const directory=path.join(__dirname,'..','app','software','sanrenjz.tools-ai');
+  const exportDir=fs.mkdtempSync(path.join(os.tmpdir(),'sanrenjz-ai-history-'));
+  memory.set('余汉波AI助手:conversations-v1',[]);
+  let win;
+  try{
+    win=new BrowserWindow({show:false,x:-32000,y:-32000,width:900,height:650,webPreferences:{preload:path.join(directory,'preload.js'),nodeIntegration:true,contextIsolation:false,webSecurity:false}});
+    await win.loadFile(path.join(directory,'index.html'));
+    const state=await win.webContents.executeJavaScript(`(async()=>{
+      // 冒烟测试仍验证真实导出文件，但不向用户桌面发送系统通知。
+      const notifications=[];
+      window.services.showNotification=message=>notifications.push(message);
+      const settings=window.services.getSettings();settings.savePath=${JSON.stringify(exportDir)};window.services.saveSettings(settings);
+      addMessage('第一条项目会议',true);addMessage('总结完成',false);
+      newChat();addMessage('第二条预算讨论',true);addMessage('预算回复',false);
+      const currentId=currentConversationId;
+      const unsavedExports=await window.services.getChatHistory();
+      await saveChatToFile();
+      await showChatHistory();
+      const initialRows=document.querySelectorAll('#historyList .history-item').length;
+      const modalRect=document.querySelector('#historyModal .modal-content').getBoundingClientRect();
+      const modalFits=modalRect.top>=0&&modalRect.bottom<=innerHeight&&modalRect.left>=0&&modalRect.right<=innerWidth;
+      document.getElementById('historySearch').value='总结完成';renderHistoryList();
+      const bodySearchRows=document.querySelectorAll('#historyList .history-item').length;
+      document.getElementById('historySearch').value='预算';renderHistoryList();
+      const selectedId=document.querySelector('#historyList .history-item')?.dataset.conversationId;
+      window.confirm=()=>false;
+      await document.querySelector('#historyList .history-delete').onclick();
+      const afterCancel=window.services.getConversations().length;
+      window.confirm=()=>true;
+      await document.querySelector('#historyList .history-delete').onclick();
+      const afterDelete=window.services.getConversations().length;
+      const currentMessages=document.querySelectorAll('.message').length;
+      document.getElementById('historySearch').value='第一条';renderHistoryList();
+      const remainingRows=document.querySelectorAll('#historyList .history-item').length;
+      await clearAllHistory();
+      await showChatHistory();
+      const emptyRows=document.querySelectorAll('#historyList .history-item').length;
+      const exported=await window.services.getChatHistory();
+      window.services.chooseChatExport=()=>exported[0].path;
+      await importExportedChat();
+      return{initialRows,modalFits,bodySearchRows,selectedId,currentId,unsavedExportCount:unsavedExports.length,afterCancel,afterDelete,currentMessages,
+        remainingRows,afterClear:window.services.getConversations().length,
+        emptyRows,exportedCount:exported.length,importedMessages:document.querySelectorAll('.message').length,notifications};
+    })()`);
+    assert.strictEqual(state.initialRows,2,'历史记录只显示插件缓存，不混入 Markdown 导出');
+    assert.strictEqual(state.unsavedExportCount,0,'未点击保存对话时即使配置了导出目录也不应生成 Markdown');
+    assert.ok(state.modalFits,'900×650 窗口内历史管理弹窗应完整可见');
+    assert.strictEqual(state.bodySearchRows,1,'搜索应匹配回复正文');
+    assert.strictEqual(state.selectedId,state.currentId,'搜索应命中当前对话');
+    assert.strictEqual(state.afterCancel,2,'取消删除不应修改缓存');
+    assert.strictEqual(state.afterDelete,1,'单条删除应从插件缓存移除对话');
+    assert.strictEqual(state.currentMessages,0,'删除当前对话后不应保留可被再次自动保存的气泡');
+    assert.strictEqual(state.remainingRows,1,'删除后搜索结果应立即更新');
+    assert.strictEqual(state.afterClear,0,'清空应移除全部缓存记录');
+    assert.strictEqual(state.emptyRows,0,'清空后重开历史列表也不应显示导出文件');
+    assert.strictEqual(state.exportedCount,1,'删除和清空缓存不应删除 Markdown 导出文件');
+    assert.strictEqual(state.importedMessages,2,'导出文件应仍可通过独立入口打开');
+    assert.strictEqual(state.notifications.length,1,'手动导出测试应仅产生一次被拦截的通知');
+    assert.ok(state.notifications[0].startsWith('对话已手动导出为 Markdown:'),'导出通知文案应正确');
+    assert.strictEqual(fs.readdirSync(exportDir).filter(name=>name.endsWith('.md')).length,1);
+  }finally{
+    win?.destroy();
+    const resolved=path.resolve(exportDir),tempRoot=path.resolve(os.tmpdir())+path.sep;
+    if(resolved.startsWith(tempRoot)&&path.basename(resolved).startsWith('sanrenjz-ai-history-'))fs.rmSync(resolved,{recursive:true,force:true});
+  }
+}
+
+async function inspectJevEveryQuestion(){
+  const directory=path.join(__dirname,'..','app','software','sanrenjz.tools-ai');
+  const win=new BrowserWindow({show:false,x:-32000,y:-32000,width:1180,height:760,webPreferences:{preload:path.join(directory,'preload.js'),nodeIntegration:true,contextIsolation:false,webSecurity:false}});
+  await win.loadFile(path.join(directory,'index.html'));
+  await new Promise(resolve=>setTimeout(resolve,150));
+  commanderDispatches.length=0;
+  const state=await win.webContents.executeJavaScript(`(async()=>{
+    const settings=window.services.getSettings();settings.commanderEnabled=false;settings.jevProvider='typesafe';window.services.saveSettings(settings);
+    const calls=[];let llmCalls=0;
+    window.services.decideCommanderRoute=async(message,plugins)=>{
+      calls.push({message,plugins:plugins.length});
+      if(message.includes('ico'))return{kind:'local',name:'图片优化器',folder:'sanrenjz-tools-image-optimizer',feature:'plugin-market-image-converter',autoRun:false};
+      return null;
+    };
+    window.services.callAPI=async()=>{llmCalls++;return new ReadableStream({start(controller){controller.enqueue('测试回复');controller.close()}})};
+    const input=document.getElementById('promptInput');
+    input.value='我需要将图片改成ico，调用插件';await sendMessage();
+    input.value='写首诗';await sendMessage();
+    input.value='打开图片生成插件';await sendMessage();
+    return{calls,llmCalls,notices:[...document.querySelectorAll('.delegate-card')].map(x=>x.textContent)};
+  })()`);
+  win.destroy();
+  assert.strictEqual(state.calls.length,3,'启用 Jev 后每条文本问题都必须先经过 Jev，即使旧的本地查找开关为关闭状态');
+  assert.ok(state.calls.every(item=>item.plugins>=30),'Jev 应读取当前已安装插件目录');
+  assert.strictEqual(commanderDispatches.length,1,'只有 Jev 选中的真实插件才应打开');
+  assert.strictEqual(commanderDispatches[0].action.feature.args.autoRun,false);
+  assert.strictEqual(state.llmCalls,2,'写诗和无匹配图片生成插件应交给当前 LLM');
+  assert.ok(state.notices.some(text=>text.includes('未选出可打开的已安装插件')),'无匹配插件时应明确提示而非假称打开');
+}
+
 async function inspectOpenCodeImport(){
   const plugin=catalog.find(item=>item.type==='ai');
   const directory=path.join(__dirname,'..','app','software',plugin.folder);
@@ -114,4 +251,4 @@ async function inspectPersistentPluginLayout(){
   }
 }
 
-app.whenReady().then(async()=>{try{for(const plugin of catalog){for(const [w,h] of [[900,650],[1180,760],[1440,900]])await inspect(plugin,w,h)}await inspectCommanderDelegation();await inspectOpenCodeImport();await inspectPersistentPluginLayout();console.log(`Electron smoke passed: ${catalog.length} plugins x 3 window sizes + commander delegation + OpenCode import + persistent plugin layout`);app.exit(0)}catch(error){console.error(error);app.exit(1)}});
+app.whenReady().then(async()=>{try{for(const plugin of catalog){for(const [w,h] of [[900,650],[1180,760],[1440,900]])await inspect(plugin,w,h)}await inspectCommanderDelegation();await inspectAssistantHistory();await inspectAssistantHistoryManagement();await inspectJevEveryQuestion();await inspectOpenCodeImport();await inspectPersistentPluginLayout();console.log(`Electron smoke passed: ${catalog.length} plugins x 3 window sizes + commander delegation + assistant history management + Jev every question + OpenCode import + persistent plugin layout`);app.exit(0)}catch(error){console.error(error);app.exit(1)}});

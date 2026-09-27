@@ -21,6 +21,8 @@
 .img-stage img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}
 .img-stage .empty-img{display:flex;flex-direction:column;align-items:center;gap:10px}.img-stage .empty-img svg{width:56px;height:56px;opacity:.3}
 .img-ctrl{display:flex;gap:8px;flex:none}
+.img-info{color:var(--mt);font-size:12px;min-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prompt-field{padding:8px 24px;background:var(--sf);border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px;flex:none}.prompt-field label{font-size:12px;color:var(--mt);white-space:nowrap}.prompt-field input{flex:1;min-width:0;border:1px solid var(--bd);border-radius:8px;padding:7px 10px;font:13px var(--sans);outline:none}.prompt-field input:focus{border-color:var(--a)}
 .result-side{display:flex;flex-direction:column;min-height:0}
 .res-card{flex:1;min-height:0;background:var(--sf);border:1px solid var(--bd);border-radius:12px;display:flex;flex-direction:column;overflow:hidden}
 .res-h{padding:10px 16px;border-bottom:1px solid var(--bd);font:600 14px var(--sans);flex:none;display:flex;justify-content:space-between;align-items:center}
@@ -50,11 +52,15 @@
   </div>
   <div class="modes">
     <button class="mode active" data-mode="描述">图片描述</button>
+    <button class="mode" data-mode="标题">标题</button>
     <button class="mode" data-mode="标签">标签</button>
     <button class="mode" data-mode="无障碍">无障碍文本</button>
+    <button class="mode" data-mode="文字提取">文字提取</button>
+    <button class="mode" data-mode="问答">图片问答</button>
     <button class="mode" data-mode="分析">分析</button>
     <button class="mode" data-mode="反向">反向提示词</button>
   </div>
+  <div class="prompt-field"><label for="extraPrompt">补充要求</label><input id="extraPrompt" maxlength="500" placeholder="例如：用于小红书封面；问答模式请输入具体问题"></div>
   <div class="body">
     <div class="img-side">
       <div class="img-stage" id="imgStage" onclick="pickImage()">
@@ -63,7 +69,9 @@
       <div class="img-ctrl">
         <button class="btn" onclick="pickImage()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/></svg>选择图片</button>
         <button class="btn" onclick="pasteImage()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M5 5h14a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg>从剪贴板</button>
+        <button class="btn" id="clearBtn" disabled>清除图片</button>
       </div>
+      <div class="img-info" id="imgInfo">支持 PNG、JPG、WebP、BMP、GIF；粘贴或拖入也可加载</div>
     </div>
     <div class="result-side">
       <div class="res-card">
@@ -78,6 +86,7 @@
     <button class="btn" id="stopBtn" disabled>取消</button>
     <div class="spacer"></div>
     <button class="btn" id="copyBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>复制</button>
+    <button class="btn" id="saveBtn">保存结果</button>
   </div>
 </main>
 <div class="overlay" id="overlay" onclick="toggleDrawer()"></div>
@@ -92,28 +101,44 @@
 <script src="../../plugin_runtime/ai-provider-manager.js"></script>
 <script>
 const api=window.aiAPI;const $=s=>document.querySelector(s);const $$=s=>document.querySelectorAll(s);
-let mode='描述';let requestId='';let imageDataUrl='';
+let mode='描述';let requestId='';let imageDataUrl='';let resultText='';let imageName='';let imageLoadVersion=0;
 const providerManager=AIProviderManager.create(api,{capability:'vision',notify:toast});
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1600);}
 function toggleDrawer(){$('#drawer').classList.toggle('open');$('#overlay').classList.toggle('show');}
-$$('.modes .mode').forEach(b=>b.onclick=()=>{$$('.modes .mode').forEach(x=>x.classList.remove('active'));b.classList.add('active');mode=b.dataset.mode;$('#genLabel').textContent='生成'+mode;});
-function pickImage(){const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.onchange=e=>{const f=e.target.files[0];if(f){const r=new FileReader();r.onload=()=>setImage(r.result);r.readAsDataURL(f);}};inp.click();}
-function pasteImage(){const dataUrl=api.readClipboardImage();if(dataUrl)setImage(dataUrl);else toast('剪贴板无图片');}
-function setImage(dataUrl){imageDataUrl=dataUrl;$('#imgStage').innerHTML=`<img src="${dataUrl}">`;$('#imgStage').onclick=pickImage;}
-api.onChunk(chunk=>{if(chunk.requestId===requestId){$('#result').classList.remove('empty');$('#result').textContent=chunk.text;if(mode==='标签')renderTags(chunk.text);}});
+function resetResult(message='选择图片并点击生成') {resultText='';$('#result').textContent=message;$('#result').classList.add('empty');$('#resStat').textContent='等待';$('#tagsArea').style.display='none';}
+function cancelRequest(){if(requestId){const old=requestId;requestId='';api.cancel(old);}$('#genBtn').disabled=false;$('#stopBtn').disabled=true;}
+$$('.modes .mode').forEach(b=>b.onclick=()=>{cancelRequest();$$('.modes .mode').forEach(x=>x.classList.remove('active'));b.classList.add('active');mode=b.dataset.mode;$('#genLabel').textContent=mode==='问答'?'回答问题':'生成'+mode;$('#extraPrompt').placeholder=mode==='问答'?'请输入关于图片的具体问题':'例如：用于小红书封面、要求简短';resetResult();});
+function loadFile(file){if(!file||!/^image\/(png|jpeg|webp|bmp|gif)$/i.test(file.type)){toast('仅支持 PNG、JPG、WebP、BMP、GIF 图片');return;}const reader=new FileReader();reader.onload=()=>setImage(reader.result,file.name);reader.onerror=()=>toast('图片读取失败');reader.readAsDataURL(file);}
+function pickImage(){const inp=document.createElement('input');inp.type='file';inp.accept='image/png,image/jpeg,image/webp,image/bmp,image/gif';inp.onchange=e=>loadFile(e.target.files[0]);inp.click();}
+function pasteImage(){const dataUrl=api.readClipboardImage();if(dataUrl)setImage(dataUrl,'剪贴板图片');else toast('剪贴板无图片');}
+function setImage(dataUrl,name='图片'){if(!/^data:image\/(png|jpeg|webp|bmp|gif);base64,/i.test(dataUrl)){toast('不支持的图片数据');return;}cancelRequest();const version=++imageLoadVersion;const img=new Image();img.onload=()=>{if(version!==imageLoadVersion)return;try{const scale=Math.min(1,2048/Math.max(img.naturalWidth,img.naturalHeight));const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);imageDataUrl=canvas.toDataURL('image/png');imageName=name;$('#imgStage').replaceChildren(img);$('#imgStage').onclick=pickImage;$('#imgInfo').textContent=`${name} · ${img.naturalWidth} × ${img.naturalHeight}`+(scale<1?' · 分析时缩至 2048px':'');$('#clearBtn').disabled=false;resetResult();}catch(e){toast(`图片处理失败：${e.message}`);}};img.onerror=()=>{if(version===imageLoadVersion)toast('图片解码失败');};img.src=dataUrl;}
+$('#clearBtn').onclick=()=>{imageLoadVersion++;cancelRequest();imageDataUrl='';imageName='';$('#imgStage').innerHTML='<div class="empty-img">点击或拖放选择图片</div>';$('#imgInfo').textContent='支持 PNG、JPG、WebP、BMP、GIF；粘贴或拖入也可加载';$('#clearBtn').disabled=true;resetResult();};
+api.onChunk(chunk=>{if(chunk.requestId===requestId){resultText=chunk.text;$('#result').classList.remove('empty');$('#result').textContent=chunk.text;}});
 function renderTags(text){const tags=text.split(/[,，\n]/).map(t=>t.trim()).filter(Boolean);const area=$('#tagsArea');area.innerHTML='';area.style.display=tags.length?'flex':'none';tags.forEach(text=>{const tag=document.createElement('span');tag.className='tag';tag.textContent=text;tag.onclick=()=>navigator.clipboard.writeText(text);area.appendChild(tag);});}
-function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+const prompts={
+  '描述':'客观描述图片中的主体、动作、环境及重要细节；看不清的部分不要猜测。',
+  '标题':'根据图片生成 5 个适合发布的中文标题，每行一个，风格各有侧重；标题要准确、简洁，不编造图片外的事实。',
+  '标签':'生成 5 到 10 个与画面直接相关的中文标签，仅用逗号分隔，不添加解释。',
+  '无障碍':'生成简洁、准确的中文替代文本，用于屏幕阅读器；突出关键信息，不推测身份或背景。',
+  '文字提取':'按阅读顺序逐行转写图片中能辨认的文字，保留换行；看不清处标记[无法辨认]，不要补写或翻译；若无文字只回答“未识别到文字”。',
+  '问答':'根据图片回答用户的问题，只依据可见内容；无法确定时明确说明。',
+  '分析':'分析图片的色彩、构图、风格和可能的用途；事实与推测分别说明。',
+  '反向':'根据可见画面生成一段适用于 AI 绘画的中文提示词，包含主体、构图、光线和风格；不要臆造不可见细节。'
+};
 $('#genBtn').onclick=async()=>{
   if(!imageDataUrl){toast('请先选择图片');return;}
-  requestId=crypto.randomUUID();$('#genBtn').disabled=true;$('#stopBtn').disabled=false;$('#resStat').textContent='分析中…';
+  const extra=$('#extraPrompt').value.trim();if(mode==='问答'&&!extra){toast('请输入关于图片的问题');$('#extraPrompt').focus();return;}
+  const currentId=crypto.randomUUID(),currentMode=mode;requestId=currentId;resultText='';$('#genBtn').disabled=true;$('#stopBtn').disabled=false;$('#resStat').textContent='分析中…';
   $('#result').classList.remove('empty');$('#result').textContent='';$('#tagsArea').style.display='none';
-  const prompts={'描述':'请详细描述这张图片的内容、场景和细节：','标签':'请为这张图片生成 5-10 个描述标签，用逗号分隔：','无障碍':'请为这张图片生成简洁的无障碍文本（alt text），用于屏幕阅读器：','分析':'请分析这张图片的色彩、构图、风格和可能的用途：','反向':'请根据这张图片生成一段可以用于 AI 绘画的反向提示词（reverse prompt）：'};
-  try{const r=await api.complete({requestId,capability:'vision',selection:await providerManager.getSelection(),stream:true,messages:[{role:'user',content:[{type:'text',text:prompts[mode]},{type:'image_url',image_url:{url:imageDataUrl}}]}]});$('#result').textContent=r.text;$('#resStat').textContent='已完成';if(mode==='标签')renderTags(r.text);}
-  catch(e){$('#result').textContent=e.message;$('#resStat').textContent=e.message==='请求已取消'?'已取消':'失败';}
-  finally{$('#genBtn').disabled=false;$('#stopBtn').disabled=true;}
+  // 请求使用当前模式和图片快照，取消或更换图片后旧响应不得覆盖新结果。
+  const prompt=prompts[currentMode]+(extra?'\n用户补充要求：'+extra:'');const currentImage=imageDataUrl;
+  try{const selection=await providerManager.getSelection();if(requestId!==currentId)return;const r=await api.complete({requestId:currentId,capability:'vision',selection,stream:true,messages:[{role:'user',content:[{type:'text',text:prompt},{type:'image_url',image_url:{url:currentImage}}]}]});if(requestId!==currentId)return;resultText=r.text||'';$('#result').textContent=resultText||'模型未返回内容';$('#resStat').textContent=resultText?'已完成':'空结果';if(currentMode==='标签')renderTags(resultText);}
+  catch(e){if(requestId!==currentId)return;resultText='';$('#result').textContent=e.message;$('#resStat').textContent=e.message==='请求已取消'?'已取消':'失败';}
+  finally{if(requestId===currentId){requestId='';$('#genBtn').disabled=false;$('#stopBtn').disabled=true;}}
 };
-$('#stopBtn').onclick=()=>{if(requestId){api.cancel(requestId);$('#genBtn').disabled=false;$('#stopBtn').disabled=true;$('#resStat').textContent='已取消';}};
-$('#copyBtn').onclick=()=>{const t=$('#result').textContent;if(t&&t!=='选择图片并点击生成'){navigator.clipboard.writeText(t);toast('已复制');}else toast('暂无结果');};
+$('#stopBtn').onclick=()=>{if(requestId){cancelRequest();$('#resStat').textContent='已取消';}};
+$('#copyBtn').onclick=()=>{if(resultText){api.copyText(resultText);toast('已复制');}else toast('暂无结果');};
+$('#saveBtn').onclick=()=>{if(!resultText){toast('暂无结果');return;}try{const body=`# AI 图片理解 · ${mode}\n\n图片：${imageName}\n\n${resultText}\n`;if(api.saveResult(body))toast('已保存');}catch(e){toast(`保存失败：${e.message}`);}};
 // 超级面板进入：优先识别本地图片路径，其次读取剪贴板图片（覆盖选中图片与截图场景）
 window.addEventListener('plugin-enter',e=>{
   const payload=String(e.detail?.payload||e.detail?.clipboardText||e.detail?.action?.payload||'').trim();
@@ -129,7 +154,7 @@ window.addEventListener('drop',e=>{
   const dt=e.dataTransfer;
   if(dt.files&&dt.files.length){
     const file=[...dt.files].find(f=>f.type.startsWith('image/'));
-    if(file){const r=new FileReader();r.onload=()=>setImage(r.result);r.readAsDataURL(file);}
+    if(file)loadFile(file);
     else toast('仅支持图片文件');return;
   }
   const url=String(dt.getData('text/uri-list')||dt.getData('text/plain')||'').trim();

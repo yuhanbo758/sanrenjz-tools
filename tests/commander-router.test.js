@@ -20,6 +20,10 @@ const {
     assert.strictEqual(icoRoute.feature, 'plugin-market-image-converter');
     assert.strictEqual(icoRoute.autoRun, false);
 
+    const browserRoute = detectCommanderRoute('打开浏览器：我爱你', installedPlugins);
+    assert.strictEqual(browserRoute.folder, 'obsidian-surfing');
+    assert.strictEqual(browserRoute.feature, 'main-feature');
+
     const cropRoute = detectCommanderRoute('把这张图片裁剪成封面，调用插件', installedPlugins);
     assert.strictEqual(cropRoute.folder, 'sanrenjz-tools-cut_image');
     assert.strictEqual(cropRoute.feature, 'image-crop');
@@ -47,6 +51,8 @@ const {
 
     // 只有“图片”这种宽泛描述时不应在多个图片插件之间武断选择。
     assert.strictEqual(detectCommanderRoute('处理一下图片，调用插件', installedPlugins), null);
+    assert.strictEqual(detectCommanderRoute('图片优化器插件的工作原理是什么？', installedPlugins), null);
+    assert.strictEqual(detectCommanderRoute('什么是 AI 会议纪要？', installedPlugins), null);
 
     console.log('Commander router tests passed: local-first, AI fallback, explicit AI, ambiguity guard');
 })().catch(error => {

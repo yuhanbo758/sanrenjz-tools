@@ -1,7 +1,7 @@
 {
   "pluginName": "时间与计算中心",
-  "description": "把时间、日期、单位和逐行计算放到同一张工作桌。",
-  "version": "2.0.0",
+  "description": "时间戳、世界时钟、日期和工作日、NTP 校时检测、单位换算与计算草稿。",
+  "version": "2.1.0",
   "author": "三人聚智",
   "category": "效率工具",
   "main": "index.html",
