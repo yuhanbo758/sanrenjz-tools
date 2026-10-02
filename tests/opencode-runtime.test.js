@@ -101,7 +101,7 @@ async function main() {
     assert.strictEqual(result.text, 'done');
     assert.deepStrictEqual(createdBody.permission, [{ permission: '*', pattern: '*', action: 'deny' }]);
     assert.deepStrictEqual(promptBody.model, { providerID: 'openai', modelID: 'gpt-codex' });
-    assert.deepStrictEqual(promptBody.tools, {});
+    assert.deepStrictEqual(promptBody.tools, { '*': false });
     const retried = await runtime.complete({
       requestId: 'retry', providerId: 'openai', modelId: 'gpt-codex',
       messages: [{ role: 'user', content: 'retry' }]

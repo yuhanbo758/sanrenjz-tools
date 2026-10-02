@@ -17,6 +17,9 @@ const { initializePluginStore, normalizePluginIdentity, syncBundledPluginRuntime
 const { detectTextContextTypes } = require(app.isPackaged
     ? path.join(process.resourcesPath, 'app', 'super_panel_context.js')
     : './app/super_panel_context');
+const { hookOutputSource } = require(app.isPackaged
+    ? path.join(process.resourcesPath, 'app', 'plugin_runtime', 'windows-hook-output.js')
+    : './app/plugin_runtime/windows-hook-output');
 
 let autoUpdater = null;
 let autoUpdaterLoadError = '';
@@ -69,7 +72,7 @@ const pluginPinnedMap = new Map();
 let lastActiveWindow = null; // 记录最后活动的窗口句柄
 let isSuperPanelFocusListenerRegistered = false;
 let superPanelChildWindows = new Set();
-const openCodeRuntime = new OpenCodeRuntime();
+const openCodeRuntime = new OpenCodeRuntime({ runtimeDirectory: path.join(app.getPath('userData'), 'opencode-runtime') });
 
 const SHOP_BASE_URL = process.env.SANRENJZ_TOOLS_SHOP_BASE_URL || 'https://shop.sanrenjz.com';
 const SHOP_MEMBER_CENTER_URL = `${SHOP_BASE_URL}/member-center`;
@@ -1166,21 +1169,24 @@ function getIconPath() {
 
 // 鼠标监控进程
 let mouseMonitorProcess = null;
+let mouseMonitorRestartTimer = null;
+let panelSelectionPending = false;
 
 // 启动鼠标监控（右键长按）
 function startMouseMonitor() {
-    if (mouseMonitorProcess || process.platform !== 'win32') return;
+    if (mouseMonitorProcess || app.isQuiting || process.platform !== 'win32') return;
 
     const settings = loadSettings();
     if (!settings.enableRightClickPanel) return;
 
     const scriptPath = path.join(app.getPath('userData'), 'mouse-monitor.ps1');
-    const delay = settings.rightClickDelay || 350;
+    const configuredDelay = Number(settings.rightClickDelay);
+    const delay = Number.isFinite(configuredDelay) ? Math.max(100, Math.min(5000, configuredDelay)) : 350;
 
     // 使用 WH_MOUSE_LL 低层钩子区分短按、长按和右键拖动。
     // 短按在释放时回放正常右键；长按整段吞掉，因此不会再与系统菜单争抢。
     const psScript = `
-$ErrorActionPreference = "SilentlyContinue"
+$ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $threshold = ${delay}
 $source = @'
@@ -1189,6 +1195,9 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
+using System.Collections.Concurrent;
+
+${hookOutputSource}
 
 public static class SanrenjzMouseHook {
     private const int WH_MOUSE_LL = 14;
@@ -1201,18 +1210,26 @@ public static class SanrenjzMouseHook {
     private static IntPtr hook = IntPtr.Zero;
     private static HookProc callback = HookCallback;
     private static bool tracking;
-    private static long pressedAt;
+    private static bool dragging;
+    private static uint pressedAt;
     private static int startX;
     private static int startY;
     private static int threshold;
+    private static readonly ConcurrentQueue<uint[]> replayQueue = new ConcurrentQueue<uint[]>();
+    private static readonly AutoResetEvent replayReady = new AutoResetEvent(false);
 
     public static void Start(int longPressThreshold) {
         threshold = Math.Max(100, longPressThreshold);
+        SanrenjzHookOutput.Start();
+        var replayThread = new Thread(ReplayLoop);
+        replayThread.IsBackground = true;
+        replayThread.Start();
         using (Process process = Process.GetCurrentProcess())
         using (ProcessModule module = process.MainModule) {
             hook = SetWindowsHookEx(WH_MOUSE_LL, callback, GetModuleHandle(module.ModuleName), 0);
         }
         if (hook == IntPtr.Zero) throw new InvalidOperationException("SetWindowsHookEx failed");
+        SanrenjzHookOutput.TryWrite("HOOK_READY");
         try { Application.Run(); }
         finally { UnhookWindowsHookEx(hook); }
     }
@@ -1224,20 +1241,28 @@ public static class SanrenjzMouseHook {
         int message = wParam.ToInt32();
         if (message == WM_RBUTTONDOWN) {
             tracking = true;
-            pressedAt = Environment.TickCount;
+            pressedAt = data.time;
             startX = data.pt.x;
             startY = data.pt.y;
             return new IntPtr(1);
         }
         if (message == WM_MOUSEMOVE && tracking && (Math.Abs(data.pt.x - startX) > 8 || Math.Abs(data.pt.y - startY) > 8)) {
             tracking = false;
-            mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, UIntPtr.Zero);
+            dragging = true;
+            // 回放会再次经过钩子，禁止在钩子线程中同步注入输入。
+            QueueReplay(MOUSEEVENTF_RIGHTDOWN);
             return CallNextHookEx(hook, nCode, wParam, lParam);
+        }
+        if (message == WM_RBUTTONUP && dragging) {
+            dragging = false;
+            // 松开也排入同一队列，防止真实 UP 先于异步 DOWN 而留下按住状态。
+            QueueReplay(MOUSEEVENTF_RIGHTUP);
+            return new IntPtr(1);
         }
         if (message == WM_RBUTTONUP && tracking) {
             tracking = false;
-            long elapsed = unchecked(Environment.TickCount - pressedAt);
-            if (elapsed >= threshold) Console.WriteLine("RBUTTON_LONG_PRESS_RELEASE");
+            uint elapsed = unchecked(data.time - pressedAt);
+            if (elapsed >= threshold) SanrenjzHookOutput.TryWrite("RBUTTON_LONG_PRESS_RELEASE");
             else ReplayRightClick();
             return new IntPtr(1);
         }
@@ -1245,10 +1270,25 @@ public static class SanrenjzMouseHook {
     }
 
     private static void ReplayRightClick() {
-        ThreadPool.QueueUserWorkItem(_ => {
-            mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, UIntPtr.Zero);
-            mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, UIntPtr.Zero);
-        });
+        QueueReplay(MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP);
+    }
+
+    private static void QueueReplay(params uint[] flags) {
+        replayQueue.Enqueue(flags);
+        replayReady.Set();
+    }
+
+    private static void ReplayLoop() {
+        while (true) {
+            replayReady.WaitOne();
+            uint[] flags;
+            while (replayQueue.TryDequeue(out flags)) {
+                var inputs = new INPUT[flags.Length];
+                for (int i = 0; i < flags.Length; i++) inputs[i].mi.dwFlags = flags[i];
+                // 同次短按的 DOWN/UP 原子提交；不同点击和拖动按入队顺序回放。
+                SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT)));
+            }
+        }
     }
 
     private delegate IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam);
@@ -1258,7 +1298,9 @@ public static class SanrenjzMouseHook {
     [DllImport("user32.dll")] private static extern bool UnhookWindowsHookEx(IntPtr hook);
     [DllImport("user32.dll")] private static extern IntPtr CallNextHookEx(IntPtr hook, int nCode, IntPtr wParam, IntPtr lParam);
     [DllImport("kernel32.dll", CharSet = CharSet.Auto)] private static extern IntPtr GetModuleHandle(string moduleName);
-    [DllImport("user32.dll")] private static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
+    [StructLayout(LayoutKind.Sequential)] private struct MOUSEINPUT { public int dx; public int dy; public uint mouseData; public uint dwFlags; public uint time; public UIntPtr dwExtraInfo; }
+    [StructLayout(LayoutKind.Sequential)] private struct INPUT { public uint type; public MOUSEINPUT mi; }
+    [DllImport("user32.dll", SetLastError = true)] private static extern uint SendInput(uint count, INPUT[] inputs, int size);
 }
 '@
 Add-Type -TypeDefinition $source -ReferencedAssemblies System.Windows.Forms
@@ -1266,21 +1308,29 @@ Add-Type -TypeDefinition $source -ReferencedAssemblies System.Windows.Forms
 `;
 
     try {
-        fs.writeFileSync(scriptPath, psScript);
+        // Windows PowerShell 5.1 需 BOM 才能正确读取脚本中的 UTF-8 中文注释。
+        fs.writeFileSync(scriptPath, '\uFEFF' + psScript, 'utf8');
         
         console.log('启动鼠标监控进程...');
-        mouseMonitorProcess = spawn('powershell', [
+        const monitor = spawn('powershell', [
             '-ExecutionPolicy', 'Bypass',
             '-NoProfile',
             '-WindowStyle', 'Hidden',
             '-File', scriptPath
         ], {
-            stdio: ['ignore', 'pipe', 'ignore'],
+            stdio: ['pipe', 'pipe', 'pipe'],
             windowsHide: true
+        });
+        mouseMonitorProcess = monitor;
+        monitor.stderr.on('data', data => console.warn('鼠标监听错误:', data.toString().trim()));
+        monitor.on('error', error => {
+            console.warn('鼠标监听启动失败:', error.message);
+            if (mouseMonitorProcess === monitor) mouseMonitorProcess = null;
         });
 
         let stdoutBuf = '';
-        mouseMonitorProcess.stdout.on('data', (data) => {
+        monitor.stdout.on('data', (data) => {
+            if (mouseMonitorProcess !== monitor || app.isQuiting) return;
             stdoutBuf += data.toString();
             const lines = stdoutBuf.split(/\r?\n/);
             stdoutBuf = lines.pop() || '';
@@ -1290,21 +1340,29 @@ Add-Type -TypeDefinition $source -ReferencedAssemblies System.Windows.Forms
                 if (!line) continue;
 
                 if (line === 'RBUTTON_LONG_PRESS_RELEASE') {
+                    if (panelSelectionPending) continue;
+                    panelSelectionPending = true;
                     console.log('检测到右键长按释放，采集选区后打开超级面板');
-                    captureSelectedTextForPanel().then(context => showSuperPanel({ context }));
+                    captureSelectedTextForPanel()
+                        .then(context => { if (mouseMonitorProcess === monitor && !app.isQuiting) showSuperPanel({ context }); })
+                        .catch(error => console.warn('采集超级面板选区失败:', error.message))
+                        .finally(() => { panelSelectionPending = false; });
                     continue;
                 }
             }
         });
 
-        mouseMonitorProcess.on('exit', (code) => {
+        monitor.on('exit', (code) => {
             console.log(`鼠标监控进程退出，代码: ${code}`);
+            // 旧进程退出不能清空刚启动的新进程，否则会产生重复全局钩子。
+            if (mouseMonitorProcess !== monitor) return;
             mouseMonitorProcess = null;
             
             // 异常退出自动重启
-            if (code !== 0 && code !== null) {
-                 setTimeout(() => {
-                    if (!mouseMonitorProcess) startMouseMonitor();
+            if (code !== 0 && code !== null && !app.isQuiting) {
+                 mouseMonitorRestartTimer = setTimeout(() => {
+                    mouseMonitorRestartTimer = null;
+                    startMouseMonitor();
                  }, 5000);
             }
         });
@@ -1316,16 +1374,28 @@ Add-Type -TypeDefinition $source -ReferencedAssemblies System.Windows.Forms
 
 // 停止鼠标监控
 function stopMouseMonitor() {
+    clearTimeout(mouseMonitorRestartTimer);
+    mouseMonitorRestartTimer = null;
     if (mouseMonitorProcess) {
         console.log('停止鼠标监控进程');
-        mouseMonitorProcess.kill();
+        const monitor = mouseMonitorProcess;
         mouseMonitorProcess = null;
+        monitor.stdin.end();
+        monitor.kill();
     }
 }
 
 async function copySelectedTextToClipboard() {
     if (process.platform !== 'win32') return false;
     return new Promise((resolve) => {
+        let timer;
+        let finished = false;
+        const finish = result => {
+            if (finished) return;
+            finished = true;
+            clearTimeout(timer);
+            resolve(result);
+        };
         try {
             const psScript = "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^c')";
             const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
@@ -1339,10 +1409,11 @@ async function copySelectedTextToClipboard() {
                 stdio: ['ignore', 'ignore', 'ignore']
             });
 
-            proc.on('error', () => resolve(false));
-            proc.on('exit', (code) => resolve(code === 0));
+            timer = setTimeout(() => { proc.kill(); finish(false); }, 3000);
+            proc.on('error', () => finish(false));
+            proc.on('exit', (code) => finish(code === 0));
         } catch (e) {
-            resolve(false);
+            finish(false);
         }
     });
 }

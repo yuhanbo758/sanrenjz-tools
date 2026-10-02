@@ -1,7 +1,7 @@
 {
   "pluginName": "AI语音输入法",
   "description": "多供应商语音输入，支持共享 GPT 等模型处理转写文字、直连音频模型、结果检查、场景快捷键与局域网同步",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "author": "余汉波",
   "main": "index.html",
   "logo": "logo.ico",

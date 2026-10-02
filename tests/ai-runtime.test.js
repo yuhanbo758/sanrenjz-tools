@@ -97,7 +97,8 @@ async function main() {
     result = await api.complete({ requestId: 'opencode', selection: { providerId: 'opencode:openai', modelId: 'gpt-codex' }, messages: [{ role: 'user', content: 'CODEX' }] });
     assert.strictEqual(result.text, 'opencode-result');
     assert.strictEqual(openCodeRequests[0].providerId, 'openai');
-    assert.strictEqual(openCodeRequests[0].modelId, 'gpt-codex');
+      assert.strictEqual(openCodeRequests[0].modelId, 'gpt-codex');
+      assert.strictEqual(openCodeRequests[0].timeoutMs, config.timeoutMs, '共享配置中的超时必须传给主进程 OpenCode Runtime');
     assert.strictEqual(secretGetCount, secretsBeforeOpenCode, 'OpenCode 路由不得读取或要求 API Key');
     const normalized = await api.getConfig();
     assert.strictEqual(normalized.providers.find(provider => provider.id === 'opencode:openai').transport, 'opencode');

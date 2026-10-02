@@ -8,7 +8,9 @@ childProcess.spawn = () => {
     process.stderr = new EventEmitter();
     process.stdout.setEncoding = () => {};
     process.stderr.setEncoding = () => {};
+    process.stdin = { end() {} };
     process.kill = () => process.emit('exit', 0);
+    if (window.__speechTest) window.__speechTest.hook = process;
     return process;
 };
 
