@@ -320,6 +320,7 @@ async function complete(request = {}, onChunk) {
       const result = await ipcRenderer.invoke('ai-opencode-complete', {
         ...request,
         requestId,
+        timeoutMs: Number(request.timeoutMs || config.timeoutMs || 60000),
         providerId: openCodeProviderId(provider),
         modelId: model.sourceModelId || model.id
       });

@@ -1281,8 +1281,10 @@ window.addEventListener('beforeunload', () => {
             mediaRecorder.stop();
         }
         if (keyboardHookProcess) {
-            keyboardHookProcess.kill();
+            const hookProcess = keyboardHookProcess;
             keyboardHookProcess = null;
+            if (hookProcess.stdin) hookProcess.stdin.end();
+            hookProcess.kill();
         }
     } catch (_) {
     }
@@ -1324,6 +1326,9 @@ function startRightCtrlHook() {
 
     try {
         const { spawn } = require('child_process');
+        const { hookOutputSource } = require(require('path').join(
+            require('path').dirname(require('url').fileURLToPath(location.href)),
+            '../../plugin_runtime/windows-hook-output'));
 
         const psScript = `
 Add-Type -TypeDefinition @"
@@ -1331,6 +1336,8 @@ using System;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
 using System.Windows.Forms;
+
+${hookOutputSource}
 
 public class KeyboardHook {
     public delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
@@ -1353,8 +1360,11 @@ public class KeyboardHook {
     private static int _lastHotkeyTick = 0;
 
     public static void Start() {
+        SanrenjzHookOutput.Start();
         _hookID = SetHook(_proc);
-        Application.Run();
+        if (_hookID == IntPtr.Zero) throw new InvalidOperationException("SetWindowsHookEx failed");
+        try { Application.Run(); }
+        finally { Stop(); }
     }
 
     public static void Stop() {
@@ -1377,6 +1387,8 @@ public class KeyboardHook {
             int msg = wParam.ToInt32();
             if (msg == WM_KEYDOWN || msg == WM_KEYUP || msg == WM_SYSKEYDOWN || msg == WM_SYSKEYUP) {
                 KBDLLHOOKSTRUCT kb = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(KBDLLHOOKSTRUCT));
+                // 本程序的模拟复制/粘贴不应再次触发语音快捷键。
+                if ((kb.flags & 0x10) != 0) return CallNextHookEx(_hookID, nCode, wParam, lParam);
                 bool down = msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN;
                 bool modifier = kb.vkCode == VK_MENU || kb.vkCode == VK_CONTROL || kb.vkCode == VK_SHIFT
                     || kb.vkCode == VK_LWIN || kb.vkCode == VK_RWIN || kb.vkCode == VK_RCONTROL;
@@ -1391,17 +1403,14 @@ public class KeyboardHook {
                         if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0) hotkey += "Shift+";
                         if ((GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0) hotkey += "Meta+";
                         hotkey += ((Keys)kb.vkCode).ToString();
-                        Console.WriteLine("HOTKEY:" + hotkey);
-                        Console.Out.Flush();
+                        SanrenjzHookOutput.TryWrite("HOTKEY:" + hotkey);
                     }
                 }
                 if (kb.vkCode == VK_RCONTROL) {
                     if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN) {
-                        Console.WriteLine("RCTRL_DOWN");
-                        Console.Out.Flush();
+                        SanrenjzHookOutput.TryWrite("RCTRL_DOWN");
                     } else {
-                        Console.WriteLine("RCTRL_UP");
-                        Console.Out.Flush();
+                        SanrenjzHookOutput.TryWrite("RCTRL_UP");
                     }
                 }
             }
@@ -1442,21 +1451,28 @@ public class KeyboardHook {
 
         const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
 
-        keyboardHookProcess = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Sta', '-EncodedCommand', encoded], {
+        const hookProcess = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Sta', '-EncodedCommand', encoded], {
             windowsHide: true,
-            stdio: ['ignore', 'pipe', 'pipe']
+            stdio: ['pipe', 'pipe', 'pipe']
         });
+        keyboardHookProcess = hookProcess;
 
-        keyboardHookProcess.stdout.setEncoding('utf8');
+        hookProcess.stdout.setEncoding('utf8');
 
         let buf = '';
-        keyboardHookProcess.stdout.on('data', (chunk) => {
+        hookProcess.stdout.on('data', (chunk) => {
+            if (keyboardHookProcess !== hookProcess) return;
             buf += chunk;
             const lines = buf.split(/\r?\n/);
             buf = lines.pop() || '';
             for (const line of lines) {
                 const s = (line || '').trim();
                 if (!s) continue;
+                if (s === 'HOOK_OUTPUT_OVERFLOW') {
+                    isRightCtrlDown = false;
+                    if (isRecording) workspace.cancel.click();
+                    continue;
+                }
                 if (s === 'RCTRL_DOWN') {
                     onRightCtrlDown();
                 } else if (s === 'RCTRL_UP') {
@@ -1467,13 +1483,21 @@ public class KeyboardHook {
             }
         });
 
-        keyboardHookProcess.stderr.setEncoding('utf8');
-        keyboardHookProcess.stderr.on('data', (chunk) => {
+        hookProcess.stderr.setEncoding('utf8');
+        hookProcess.stderr.on('data', (chunk) => {
             console.warn('keyboard hook stderr:', chunk);
         });
 
-        keyboardHookProcess.on('exit', () => {
-            keyboardHookProcess = null;
+        hookProcess.on('error', error => {
+            console.warn('全局按键监听失败:', error.message);
+            if (keyboardHookProcess === hookProcess) keyboardHookProcess = null;
+        });
+        hookProcess.on('exit', () => {
+            if (keyboardHookProcess === hookProcess) {
+                keyboardHookProcess = null;
+                isRightCtrlDown = false;
+                if (isRecording) workspace.cancel.click();
+            }
         });
     } catch (e) {
         console.error('startRightCtrlHook failed:', e);

@@ -3,6 +3,7 @@ const fs = require('fs');
 const net = require('net');
 const os = require('os');
 const path = require('path');
+const { createCompletionProfile } = require('./opencode-profile');
 
 const START_TIMEOUT_MS = 20000;
 const MAX_ERROR_LENGTH = 600;
@@ -156,61 +157,121 @@ class OpenCodeRuntime {
     this.child = null;
     this.starting = null;
     this.active = new Map();
+    this.pendingRequests = 0;
+    this.runtimeDirectory = options.runtimeDirectory || path.join(os.tmpdir(), 'sanrenjz-tools-opencode-runtime');
+    this.environment = options.env || process.env;
+    this.homeDirectory = options.homeDirectory || os.homedir();
+    this.idleTimeoutMs = options.idleTimeoutMs ?? 120000;
+    this.cleanupTimeoutMs = options.cleanupTimeoutMs ?? 1500;
+    this.startTimeoutMs = options.startTimeoutMs ?? START_TIMEOUT_MS;
+    this.requestTimeoutMs = options.requestTimeoutMs ?? 60000;
+    this.idleTimer = null;
+    this.startController = null;
+    this.generation = 0;
   }
 
   async start() {
     if (this.serverUrl) return this.serverUrl;
     if (this.starting) return this.starting;
-    this.starting = this._start();
+    const starting = this._start();
+    this.starting = starting;
     try {
-      return await this.starting;
+      return await starting;
     } finally {
-      this.starting = null;
+      if (this.starting === starting) this.starting = null;
     }
   }
 
   async _start() {
     if (typeof this.fetch !== 'function') throw new Error('当前运行环境不支持访问 OpenCode Server');
-    const port = await getFreePort();
-    const executable = resolveExecutable();
-    const url = `http://127.0.0.1:${port}`;
-    const child = this.spawn(executable, ['serve', '--hostname', '127.0.0.1', '--port', String(port), '--log-level', 'ERROR'], {
-      cwd: os.homedir(),
-      windowsHide: true,
-      shell: false,
-      stdio: ['ignore', 'pipe', 'pipe']
-    });
-    this.child = child;
-    let launchError = '';
-    child.once('error', error => { launchError = error.message; });
-    child.once('exit', code => {
-      if (this.child === child) {
-        this.child = null;
-        if (this.serverUrl === url) this.serverUrl = '';
-      }
-      if (!this.serverUrl && !launchError) launchError = `OpenCode Server 已退出（${code ?? 'unknown'}）`;
-    });
-    const deadline = Date.now() + START_TIMEOUT_MS;
-    while (Date.now() < deadline) {
-      if (launchError) throw new Error(`无法启动 OpenCode：${launchError}`);
-      try {
-        const response = await this.fetch(`${url}/provider`, { headers: { Accept: 'application/json' } });
-        if (response.ok) {
-          if (this.child !== child) throw new Error(launchError || 'OpenCode Server 已退出');
-          this.serverUrl = url;
-          return url;
+    const generation = this.generation;
+    const controller = new AbortController();
+    this.startController = controller;
+    let child;
+    let url;
+    try {
+      const port = await getFreePort();
+      if (controller.signal.aborted || generation !== this.generation) throw new Error('OpenCode 启动已取消');
+      const executable = resolveExecutable();
+      url = `http://127.0.0.1:${port}`;
+      const profile = createCompletionProfile(this.runtimeDirectory, this.environment, this.homeDirectory);
+      child = this.spawn(executable, ['serve', '--hostname', '127.0.0.1', '--port', String(port), '--log-level', 'ERROR'], {
+        cwd: profile.cwd,
+        env: profile.env,
+        windowsHide: true,
+        shell: false,
+        // 未消费的 pipe 会塞满并阻塞子进程；模型调用通过 HTTP 返回，无需收集 CLI 输出。
+        stdio: ['ignore', 'ignore', 'ignore']
+      });
+      this.child = child;
+      let launchError = '';
+      child.once('error', error => { launchError = error.message; });
+      child.once('exit', code => {
+        if (this.child === child) {
+          this.child = null;
+          if (this.serverUrl === url) this.serverUrl = '';
         }
-      } catch (_) {}
-      await delay(150);
+        if (!this.serverUrl && !launchError) launchError = `OpenCode Server 已退出（${code ?? 'unknown'}）`;
+      });
+      const deadline = Date.now() + this.startTimeoutMs;
+      while (Date.now() < deadline && !controller.signal.aborted) {
+        if (launchError) throw new Error(`无法启动 OpenCode：${launchError}`);
+        try {
+          await this._requestAt(url, '/provider', { headers: { Accept: 'application/json' }, signal: controller.signal }, Math.min(1500, deadline - Date.now()));
+          if (this.child === child && generation === this.generation && !controller.signal.aborted) {
+            this.serverUrl = url;
+            this._scheduleIdleStop();
+            return url;
+          }
+        } catch (_) {
+          if (launchError || controller.signal.aborted) break;
+        }
+        await delay(Math.min(150, Math.max(0, deadline - Date.now())));
+      }
+      throw new Error(controller.signal.aborted ? 'OpenCode 启动已取消' : launchError || '启动 OpenCode Server 超时');
+    } catch (error) {
+      if (this.child === child) this.child = null;
+      if (child && !child.killed) child.kill();
+      throw error;
+    } finally {
+      if (this.startController === controller) this.startController = null;
     }
-    this.stop();
-    throw new Error('启动 OpenCode Server 超时');
+  }
+
+  async _requestAt(baseUrl, pathname, options = {}, timeoutMs = this.requestTimeoutMs) {
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    if (options.signal?.aborted) abort();
+    else options.signal?.addEventListener('abort', abort, { once: true });
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; abort(); }, timeoutMs);
+    try {
+      const response = await this.fetch(`${baseUrl}${pathname}`, { ...options, signal: controller.signal });
+      return await readJson(response);
+    } catch (error) {
+      if (timedOut && !options.signal?.aborted) throw new Error('OpenCode 请求超时');
+      throw error;
+    } finally {
+      clearTimeout(timer);
+      options.signal?.removeEventListener('abort', abort);
+    }
+  }
+
+  _scheduleIdleStop() {
+    clearTimeout(this.idleTimer);
+    this.idleTimer = null;
+    if (this.active.size || this.pendingRequests || !this.child || this.idleTimeoutMs <= 0) return;
+    this.idleTimer = setTimeout(() => { if (!this.active.size && !this.pendingRequests) this.stop(); }, this.idleTimeoutMs);
+    this.idleTimer.unref?.();
   }
 
   async request(pathname, options = {}) {
-    const baseUrl = await this.start();
-    const response = await this.fetch(`${baseUrl}${pathname}`, options);
-    return readJson(response);
+    this.pendingRequests += 1;
+    try {
+      const baseUrl = await this.start();
+      clearTimeout(this.idleTimer);
+      return await this._requestAt(baseUrl, pathname, options);
+    } finally { this.pendingRequests -= 1; this._scheduleIdleStop(); }
   }
 
   async listModels() {
@@ -221,13 +282,21 @@ class OpenCodeRuntime {
     const requestId = String(request.requestId || `${Date.now()}-${Math.random()}`);
     if (this.active.has(requestId)) throw new Error('OpenCode 请求标识正在使用');
     const controller = new AbortController();
-    this.active.set(requestId, { controller, sessionId: '' });
+    const active = { controller, sessionId: '', baseUrl: '' };
+    this.active.set(requestId, active);
+    clearTimeout(this.idleTimer);
+    let timedOut = false;
+    const requestedTimeout = Number(request.timeoutMs || this.requestTimeoutMs);
+    const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, Number.isFinite(requestedTimeout) ? Math.max(50, requestedTimeout) : 60000);
     try {
+      const baseUrl = await this.start();
+      active.baseUrl = baseUrl;
+      if (controller.signal.aborted) throw Object.assign(new Error('请求已取消'), { name: 'AbortError' });
       const prompt = buildPrompt(request.messages);
       for (let attempt = 0; attempt < TRANSIENT_RETRY_ATTEMPTS; attempt += 1) {
         let sessionId = '';
         try {
-          const session = await this.request('/session', {
+          const session = await this._requestAt(baseUrl, '/session', {
             method: 'POST', signal: controller.signal,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -238,13 +307,13 @@ class OpenCodeRuntime {
           });
           sessionId = String(session?.id || '');
           if (!sessionId) throw new Error('OpenCode 未返回会话 ID');
-          this.active.get(requestId).sessionId = sessionId;
-          const result = await this.request(`/session/${encodeURIComponent(sessionId)}/message`, {
+          active.sessionId = sessionId;
+          const result = await this._requestAt(baseUrl, `/session/${encodeURIComponent(sessionId)}/message`, {
             method: 'POST', signal: controller.signal,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               model: { providerID: String(request.providerId || ''), modelID: String(request.modelId || '') },
-              tools: {},
+              tools: { '*': false },
               system: prompt.system,
               parts: prompt.parts
             })
@@ -265,34 +334,45 @@ class OpenCodeRuntime {
           // OpenCode 偶发在首个上游连接上返回临时证书错误；保留 TLS 校验并用新会话短暂重试。
           await delay(300 * (attempt + 1));
         } finally {
-          if (this.active.has(requestId)) this.active.get(requestId).sessionId = '';
+          active.sessionId = '';
           if (sessionId) {
-            this.request(`/session/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }).catch(() => {});
+            // 清理只能访问原服务；stop 后不能经 request/start 意外重启一个新服务。
+            if (controller.signal.aborted) {
+              await this._requestAt(baseUrl, `/session/${encodeURIComponent(sessionId)}/abort`, { method: 'POST' }, this.cleanupTimeoutMs).catch(() => {});
+            }
+            await this._requestAt(baseUrl, `/session/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }, this.cleanupTimeoutMs).catch(() => {});
           }
         }
       }
       throw new Error('OpenCode 模型调用失败');
     } catch (error) {
-      if (error?.name === 'AbortError') throw new Error('请求已取消');
+      if (error?.name === 'AbortError' || controller.signal.aborted) throw new Error(timedOut ? 'OpenCode 请求超时，请稍后重试' : '请求已取消');
       throw error;
     } finally {
-      this.active.delete(requestId);
+      clearTimeout(timeout);
+      if (this.active.get(requestId) === active) this.active.delete(requestId);
+      this._scheduleIdleStop();
     }
   }
 
   cancel(requestId) {
     const active = this.active.get(String(requestId || ''));
     if (!active) return false;
-    if (active.sessionId && this.serverUrl) {
-      this.fetch(`${this.serverUrl}/session/${encodeURIComponent(active.sessionId)}/abort`, { method: 'POST' }).catch(() => {});
+    if (active.sessionId && active.baseUrl) {
+      this._requestAt(active.baseUrl, `/session/${encodeURIComponent(active.sessionId)}/abort`, { method: 'POST' }, this.cleanupTimeoutMs).catch(() => {});
     }
     active.controller.abort();
     return true;
   }
 
   stop() {
+    this.generation += 1;
+    this.startController?.abort();
+    this.startController = null;
+    this.starting = null;
+    clearTimeout(this.idleTimer);
+    this.idleTimer = null;
     for (const active of this.active.values()) active.controller.abort();
-    this.active.clear();
     const child = this.child;
     this.child = null;
     this.serverUrl = '';

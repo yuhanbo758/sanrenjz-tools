@@ -30,6 +30,7 @@
 - 模型能力白名单支持 `text`、`vision`、`audio` 三种；`parseModels/serializeModels` 可往返保留多模态组合；视觉插件按 `includes('vision')` 过滤可选模型，含 `audio` 仅作附加元信息标记，运行时目前不消费音频输入构建。
 - AI 语音输入法 1.4.1 从共享目录读取模型：共享 GPT-6 等文本模型可复用 Runtime（含 OpenCode 托管认证）处理现有语音服务转写后的文字；真正声明 `audio` 能力且采用 OpenAI 兼容直连接口的模型才进入直接语音识别列表，专用转写模型走 `/audio/transcriptions`。本机共享目录的 GPT-6 系列标记为 `text,vision`，OpenAI GPT-6 Luna 官方模型页也注明音频不支持；OpenCode 当前不把音频附件送进模型请求，所以语音流程须先转写再用 GPT-6 处理。旧“共享音频模型”无可用音频模型时迁移到该两步流程（2026-09-27 本机模型元数据、模拟接口与 Electron 工作台测试已验证；真实付费模型及安装版待验收）。
 - 共享供应商设置支持从本机 OpenCode 动态导入全部“已连接”供应商与模型；主进程按需启动仅监听 `127.0.0.1` 的 OpenCode Server，由 OpenCode 继续持有并刷新 API Key/OAuth（含 OpenAI Codex 认证），渲染层只接收不含凭据的模型目录。模型采样禁用 OpenCode 工具权限并在完成或失败后删除临时会话（2026-09-20 已通过目录实测、逻辑测试和 Electron 三尺寸冒烟；未执行真实计费模型采样）。
+- OpenCode 纯模型采样必须隔离全局配置目录、会话数据库（`OPENCODE_DB`）和锁状态，只继承供应商/模型字段并复用原认证目录；禁止工具权限不能阻止自动加载的全局插件或 MCP。托管服务不使用未消费的 stdout/stderr pipe，请求/启动/清理均有期限，会话清理不走可重启服务的入口，空闲 2 分钟退出自有服务。2026-10-02 本机 OpenCode 1.18.32 实测保留 8 个连接供应商，加载的外部插件和 MCP 为 0，独立数据库中的测试会话删除成功；安装版 2.24.0 的余汉波AI助手经真实 preload → 共享 Runtime → 主进程 IPC 调用 `openai/gpt-6-luna` 成功。同步采样 Obsidian REST 响应未超时；长时间共存卡死的唯一根因仍未确认。
 - OpenCode 1.18.31 的 `/provider` 当前把 OpenAI OAuth 模型输入能力放在 `model.capabilities.input` 对象中，旧目录则可能使用 `model.modalities.input` 数组；导入器必须兼容两种结构，否则 GPT-5.6 Luna/Luna Fast 会被误标为纯文本并从视觉模型下拉消失（2026-09-20 已通过真实本机目录读取确认两者为 `text,vision`，未发起计费模型调用）。
 - `app/software/sanrenjz-tools-account-manager/` 是由 Python/Tkinter 账号管理器迁移的新插件，运行时不需要 Python；使用 `better-sqlite3` 直接读写 SQLite，并根据 `pragma_table_xinfo` 动态生成不同表的列头、查询字段和新增/修改表单。查询支持指定列和 `__all__` 整表跨列策略；修改与单行删除使用单/复合主键或未被真实列遮蔽的 rowid 定位，并以原始行快照拒绝外部改动后的过期操作；操作在事务内要求恰好影响一行，否则回滚（普通 SQLite 表的可空复合主键可能无法唯一定位）；删除需确认且不在确认框展示敏感字段（2026-09-25 已通过主键、复合主键、无主键 rowid、过期快照、非唯一主键回滚和 Electron 三尺寸测试）。
 - 余汉波AI助手总指挥会在每次发送前动态扫描当前安装目录的 `plugin.json`：普通本地工具有可靠匹配时优先打开并传 `autoRun:false`；无可靠本地能力时才匹配 AI 插件，用户明确说“用 AI/交给 AI”时跳过普通工具。路由包含同分歧义保护，示例“将图片改成 ICO，调用插件”会打开“图片优化器”的格式转换（2026-09-21 已通过真实插件目录单测和 Electron IPC 冒烟）。
@@ -82,6 +83,7 @@
 
 ## 已知陷阱与可靠处理方式
 
+- 2026-10-02 排查 Obsidian 共存问题时确认主程序右键钩子存在同步输入回放，语音输入法键盘钩子存在同步 Console 写入/Flush；修复后 `npm run test:hooks` 在人为阻塞输出时验证 4,000 次真实回调在 1 秒内完成，并验证短按/拖动事件配对和父管道关闭后的监听退出。安装版 2.24.0 已局部同步修复并启动，语音插件为 1.4.2；这证明输入监听风险已处理，尚不能证明用户长时间使用 Obsidian 后卡死的唯一根因。
 - 不能只检查插件源码是否存在；新增插件完成后必须运行 Electron 冒烟测试，验证真实 BrowserWindow 加载和三种窗口尺寸。
 - `tests/electron-plugin-smoke.js` 的 AI 助手历史测试会在临时目录主动调用 `saveChatToFile()`；未拦截 `showNotification` 时，测试进程会向用户桌面弹出“对话已手动导出”通知，易误判为插件自动导出。2026-09-27 已在测试窗口内拦截通知，仍断言手动导出文件生成；正式插件的历史自动缓存与手动 Markdown 导出逻辑未变。
 - 插件 preload 中裸调用 `contextBridge.exposeInMainWorld` 在 `contextIsolation: false` 的插件窗口必然抛错并记录 "Unable to load preload script"；必须 try/catch 并回退挂载到 `window`（2026-08-15 已在余汉波AI助手修复，老插件末尾遗留一处裸调用是历史报错根因）。
@@ -106,6 +108,8 @@
 
 | 日期 | 新增/修订内容 | 依据 |
 |------|---------------|------|
+| 2026-10-02 | 隔离 OpenCode 纯模型采样的插件/MCP、会话数据库与锁状态，补齐有界请求和退出清理 | 新增 profile/lifecycle 回归、`npm run test:plugins`、真实模型/安装版 AI 助手调用、Obsidian 响应采样 |
+| 2026-10-02 | 记录全局输入监听的阻塞风险、回归验证与 Obsidian 长时共存的验收边界 | `tests/windows-hook-runtime.test.js`、源/安装版语音插件 Electron 测试、安装版启动检查 |
 | 2026-07-16 | 确认插件市场重组与共享 AI 多供应商运行时已合并到 `main` | `npm run test:plugins`、`npm run test:plugins:electron`、Git 合并结果 |
 | 2026-07-15 | 记录 AI 多供应商目录、文本/视觉模型筛选和显式请求选择 | AI Runtime/组件测试、30 插件三尺寸 Electron 冒烟与界面图库 |
 | 2026-07-15 | 更新 30 个插件界面验证日期，并记录保存对话框与工具权限陷阱 | `npm run test:plugins`、`npm run test:plugins:electron`、界面图库与运行时审计 |

@@ -8,7 +8,7 @@ app.on('window-all-closed', () => {});
 app.whenReady().then(async () => {
     let window;
     try {
-        const plugin = path.join(__dirname, '..', 'app', 'software', 'sanrenjz-tools-speech_input');
+        const plugin = process.env.SPEECH_INPUT_PLUGIN_DIR || path.join(__dirname, '..', 'app', 'software', 'sanrenjz-tools-speech_input');
         window = new BrowserWindow({
             show: false, width: 800, height: 720,
             webPreferences: { preload: path.join(__dirname, 'speech-input-electron-preload.js'), nodeIntegration: true, contextIsolation: false, webSecurity: false }
@@ -81,18 +81,33 @@ app.whenReady().then(async () => {
             await refreshSharedModels(obsolete);
             const migrated = __speechTest.storage.get('settings').model === 'shared-model'
                 && __speechTest.storage.get('settings').sharedSpeechSelection.modelId === 'gpt-6-sol';
+            const beforeOverflowCalls = __speechTest.sharedCalls.length;
+            onRightCtrlDown();
+            for (let i = 0; i < 30 && !isRecording; i++) await new Promise(resolve => setTimeout(resolve, 10));
+            __speechTest.hook.stdout.emit('data', 'HOOK_OUTPUT_OVERFLOW\\n');
+            const overflowCancelled = !isRecording && !isRightCtrlDown && recordingCancelled
+                && __speechTest.sharedCalls.length === beforeOverflowCalls;
+            const oldHook = __speechTest.hook;
+            keyboardHookProcess = null;
+            startRightCtrlHook();
+            const newHook = __speechTest.hook;
+            oldHook.emit('exit', 0);
+            const staleExitSafe = keyboardHookProcess === newHook;
             const bg = getComputedStyle(document.body).backgroundColor;
             return { started, cancelled, manual, noAutoInsert, edited, imported, cleared, optionSaved, hotkeyInserted,
-                sharedVisible, sharedPanelVisible, sharedSaved, sharedResult, sharedTextOnly, migrated, sharedCount: sharedModels.length, bg };
+                sharedVisible, sharedPanelVisible, sharedSaved, sharedResult, sharedTextOnly, migrated, overflowCancelled, staleExitSafe,
+                sharedCount: sharedModels.length, bg };
         })()`);
         assert(result.started && result.cancelled && result.noAutoInsert && result.edited && result.cleared && result.optionSaved && result.hotkeyInserted
-            && result.sharedVisible && result.sharedPanelVisible && result.sharedSaved && result.sharedTextOnly && result.migrated, JSON.stringify(result));
+            && result.sharedVisible && result.sharedPanelVisible && result.sharedSaved && result.sharedTextOnly && result.migrated
+            && result.overflowCancelled && result.staleExitSafe, JSON.stringify(result));
         assert.strictEqual(result.manual, '测试转写文本');
         assert.strictEqual(result.imported, '测试转写文本');
         assert.strictEqual(result.sharedResult, '共享处理：测试转写文本');
         assert.strictEqual(result.bg, 'rgb(255, 255, 255)');
         for (const width of [800, 620]) {
             window.setSize(width, 720);
+            await new Promise(resolve => setTimeout(resolve, 50));
             const overflow = await window.webContents.executeJavaScript('document.documentElement.scrollWidth - document.documentElement.clientWidth');
             assert.ok(overflow <= 1, `${width}px 窗口横向溢出 ${overflow}px`);
         }
