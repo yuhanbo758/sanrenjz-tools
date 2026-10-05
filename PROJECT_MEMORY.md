@@ -11,6 +11,14 @@
 
 ## 已确认的技术事实
 
+- 本地导入原先由 `index.html` 按旧路径猜测插件目录，且未失效快捷搜索缓存；同周期的刷新间隔与防抖还会反复取消加载。2026-10-05 已改为主进程 `import-local-plugins` 使用 `getPluginInstallDir()`，本地导入、小店安装和设置中的手动刷新共用 `refreshPluginCatalog()`；只同步目录及入口，不重启现有窗口，同名本地导入保留原文件。`tests/plugin-refresh-electron.test.js` 已验证真实按钮、导入后立即启动、ZIP 安装、直接增删/更新文件夹、缓存并发和失败恢复；正式安装版仍未验收。
+
+- `app/software/sanrenjz-tools-video-parser/` 1.1.0 的 yt-dlp 路径使用固定提交的 Python 源码 ZIP，需要 Python 3.10+；爱奇艺选集与播放使用插件内原站公开接口，不依赖 Python。爱奇艺目录先以视频 ID 查询 `video/video/baseinfo`，再按同一 albumId 分页读取 `albums/album/avlistinfo` 正片列表；不要求输入集可播放，不混入预告/花絮，不生成缺失地址，并校验每集 URL 与视频 ID。解析与媒体代理在插件独立 Node 任务进程，父 IPC 断开后退出并结束 Python；固定 hls.js 1.7.3 的非加密 HLS 清单与分片均经公网校验代理，未修改主程序或新增根目录 npm 依赖。2026-10-05 已验证《择天记》26 集目录与第 1/2/3 集实际播放、另一样本 221 集目录；此前 B 站 23 P、腾讯单集及优酷/土豆单集播放已验证。腾讯目录样本仅回退单集，优酷/土豆完整目录及芒果未验收，红果未接入直链，长时观看和会员视频未验收。1.1.0 的 23 个插件文件已备份后同步至本机安装目录，源码/ZIP/安装文件逐一一致；隔离 Electron 从安装目录加载通过不能等同于当前正式客户端窗口已重载。
+- 视频插件记录/收藏使用已有异步存储 IPC 的 `library-v1`，与 `settings-v1` 分离。保存最近 50 项目录、每集进度和最多 100 项收藏；只保存原站稳定页面及元信息，不保存随机选集 ID、媒体签名或分享追踪参数。爱奇艺按 albumId 归组；续播重新获取目录和媒体链接，部分目录回退不删除原有进度；清空记录清除进度但保留收藏，取消收藏保留记录。2026-10-05 已通过 22 项逻辑测试及真实 PluginManager 临时 JSON 落盘、窗口关闭重开、MP4 续播、未播放收藏、下一未看集、保存失败重试和三尺寸交互；源码及安装目录均以真实爱奇艺第 3 集验证收藏、保存到 12 秒并关闭重开后重新解析和续播，实际画面/音轨解码通过。约 5 秒保存一次进度，暂停/拖动/切集/正常关闭补存；异常退出可能丢失末尾几秒，原站浏览器进度无法回传。
+
+- Windows tools 会员更新走 `xz.sanrenjz.com/Download/tools/` 的 generic feed，包含同版本安装包、`.exe.blockmap` 和 `latest.yml`；客户端按登录及 tools 权限选择该源，否则选择 GitHub。2026-10-04 已用现有 `electron-updater` 实测 2.25.0 版本识别、96,352,962 字节安装包下载、SHA-512 校验及安装分派，未执行真实安装；路由测试覆盖会员、非会员和未登录三种状态，真实本机会员登录态未验收。
+- 会员下载域名接入 EdgeOne；2026-10-04 普通 Python HTTP 安装包请求返回 567，而正常 Electron 更新器成功下载。以后验收此源应使用实际客户端传输，不能仅据通用 HTTP 探测失败判定会员下载不可用，也不应为此关闭安全防护。
+
 - `app/software/sanrenjz-tools-task-habit/` 版本 2.2.0 保留 `todos` 与 `habits` 存储键，并以 `pomodoro-v1` 独立保存番茄计时和记录；任务支持 TXT/Markdown 导入、搜索筛选排序、编辑、预计番茄数和一键专注，习惯支持每周目标和历史周打卡。旧 `weeks` 记录兼容读取，新打卡写入本地日期 `days`；2026-09-27 已通过核心逻辑、Electron 拖入与计时重载交互及插件协议校验，已安装客户端尚未验收。
 
 - 项目使用 Electron 25、原生 HTML/CSS/JavaScript，不使用前端构建框架；主进程入口为 `main.js`，插件生命周期由 `app/software_manager.js` 管理。
@@ -108,6 +116,10 @@
 
 | 日期 | 新增/修订内容 | 依据 |
 |------|---------------|------|
+| 2026-10-05 | 修复本地导入路径和刷新触发，统一主界面、搜索与超级面板目录更新 | `tests/plugin-refresh-electron.test.js`、插件目录/窗口就绪/主程序逻辑回归 |
+| 2026-10-05 | 视频插件 1.0.2 接入爱奇艺正片目录分页，验证《择天记》26 集目录与第 1/2/3 集播放、另一样本 221 集目录及安装目录文件一致性；保留其他平台验收边界 | `tests/video-parser*.js`、`dist/video-parser-validation/*report.json` |
+| 2026-10-05 | 视频插件 1.1.0 增加记录、收藏和按集续播，验证真实存储落盘及关闭重开、未播放内容、删除边界、写入失败重试与原站 HLS 恢复 | `tests/video-parser-library*.js`、`dist/video-parser-validation/library-report.json`、`live-iqiyi-report.json` |
+| 2026-10-04 | 确认 Windows 会员更新资产组合与客户端传输验收边界 | GitHub 资产摘要、COS 回读、Electron 更新器下载/安装分派与三类账号路由测试 |
 | 2026-10-02 | 隔离 OpenCode 纯模型采样的插件/MCP、会话数据库与锁状态，补齐有界请求和退出清理 | 新增 profile/lifecycle 回归、`npm run test:plugins`、真实模型/安装版 AI 助手调用、Obsidian 响应采样 |
 | 2026-10-02 | 记录全局输入监听的阻塞风险、回归验证与 Obsidian 长时共存的验收边界 | `tests/windows-hook-runtime.test.js`、源/安装版语音插件 Electron 测试、安装版启动检查 |
 | 2026-07-16 | 确认插件市场重组与共享 AI 多供应商运行时已合并到 `main` | `npm run test:plugins`、`npm run test:plugins:electron`、Git 合并结果 |

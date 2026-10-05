@@ -1307,7 +1307,18 @@
                                 <div class="path-input-group">
                                     <button id="open-plugin-install-folder-btn">打开本地插件文件夹</button>
                                 </div>
-                                <div class="setting-description">插件安装目录，开发环境为 app/software，打包后为 resources/app/software</div>
+                                <div class="setting-description">开发环境为 app/software，安装版为程序安装目录下的 plugins 文件夹</div>
+                            </div>
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="setting-label">插件刷新：</div>
+                            <div class="setting-control">
+                                <div class="setting-control-row">
+                                    <button id="refresh-plugins-btn" type="button">手动刷新</button>
+                                    <span id="plugin-refresh-status" role="status" aria-live="polite"></span>
+                                </div>
+                                <div class="setting-description">直接向本地插件文件夹添加、更新或移除插件后，点击刷新即可同步插件列表、快捷搜索和超级面板，无需重新打开主程序</div>
                             </div>
                         </div>
                     </div>
@@ -1601,7 +1612,6 @@
         document.head.appendChild(link);
 
         let currentSearchText = ''; // 保存当前搜索文本
-        let pluginsLoadTimeout = null; // 用于防抖的定时器
 
         // 应用搜索过滤
         function applySearch() {
@@ -1616,21 +1626,24 @@
         let cachedPlugins = null;
         let lastLoadTime = 0;
         const CACHE_DURATION = 5000; // 5秒缓存
+        let pluginsLoadVersion = 0;
 
-        async function loadPlugins(force = false) {
+        async function loadPlugins(force = false, updatedPlugins = null) {
             try {
                 const now = Date.now();
                 // 如果有缓存且未过期，直接使用缓存
                 if (!force && cachedPlugins && (now - lastLoadTime < CACHE_DURATION)) {
-                    return;
+                    return cachedPlugins;
                 }
 
-                const plugins = await ipcRenderer.invoke('get-plugin-list');
+                const requestVersion = ++pluginsLoadVersion;
+                const plugins = updatedPlugins || await ipcRenderer.invoke('get-plugin-list');
+                if (requestVersion !== pluginsLoadVersion) return cachedPlugins;
                 lastLoadTime = now;
                 
                 // 比较新旧数据，如果相同则不更新UI
-                if (cachedPlugins && JSON.stringify(plugins) === JSON.stringify(cachedPlugins)) {
-                    return;
+                if (!force && cachedPlugins && JSON.stringify(plugins) === JSON.stringify(cachedPlugins)) {
+                    return cachedPlugins;
                 }
                 
                 cachedPlugins = plugins;
@@ -1689,6 +1702,7 @@
                 if (currentSearchText) {
                     applySearch();
                 }
+                return plugins;
             } catch (error) {
                 console.error('加载插件列表失败:', error);
             }
@@ -1739,108 +1753,33 @@
 
         // 本地插件按钮点击事件
         document.getElementById('local-file-btn').addEventListener('click', async () => {
-            // 先让用户选择要添加文件还是文件夹
-            const { response } = await ipcRenderer.invoke('show-message-box', {
-                type: 'question',
-                buttons: ['添加插件文件夹', '添加单个插件', '取消'],
-                defaultId: 0,
-                title: '选择添加类型',
-                message: '请选择要添加的插件类型',
-                detail: '添加插件文件夹：选择一个完整的插件文件夹\n添加单个插件：选择包含plugin.json的插件目录'
-            });
-
-            if (response === 2) { // 用户点击取消
-                return;
-            }
-
-            // 根据用户选择显示不同的文件选择对话框
-            const result = await ipcRenderer.invoke('show-open-dialog', {
-                properties: ['openDirectory', 'multiSelections'],
-                title: '选择插件文件夹'
-            });
-
-            if (!result.canceled && result.filePaths.length > 0) {
-                // 获取插件目录路径
-                const appRoot = path.dirname(__dirname);
-                let pluginDir;
-                
-                // 判断当前环境
-                if (process.env.NODE_ENV === 'development') {
-                    pluginDir = path.join(__dirname, 'app', 'software');
+            const button = document.getElementById('local-file-btn');
+            if (button.disabled) return;
+            button.disabled = true;
+            button.textContent = '加载中…';
+            try {
+                const result = await ipcRenderer.invoke('import-local-plugins');
+                if (result.canceled) return;
+                if (result.plugins) await updatePluginViews(result.plugins);
+                const errors = (result.errors || []).map(item => `${path.basename(item.path)}：${item.error}`);
+                if (result.error) errors.push(result.error);
+                if (errors.length) {
+                    showNotification('插件加载提示', `已添加 ${result.installed?.length || 0} 个插件。${errors.join('；')}`, 'error');
                 } else {
-                    // 生产环境下尝试不同的路径
-                    const possiblePaths = [
-                        path.join(__dirname, 'software'),
-                        path.join(__dirname, 'app', 'software'),
-                        path.join(appRoot, 'app', 'software'),
-                        path.join(appRoot, 'resources', 'app', 'software')
-                    ];
-                    
-                    // 使用第一个存在的路径
-                    pluginDir = possiblePaths.find(p => fs.existsSync(p)) || path.join(__dirname, 'app', 'software');
+                    const skippedCount = result.skipped?.length || 0;
+                    showNotification('插件已刷新', `已添加 ${result.installed?.length || 0} 个插件${skippedCount ? `，${skippedCount} 个已存在的插件保留原文件` : ''}`, 'success');
                 }
-                
-                // 确保目录存在
-                if (!fs.existsSync(pluginDir)) {
-                    fs.mkdirSync(pluginDir, { recursive: true });
-                }
-
-                // 处理选中的插件文件夹
-                for (const srcPath of result.filePaths) {
-                    const stats = fs.statSync(srcPath);
-                    
-                    if (stats.isDirectory()) {
-                        // 检查是否包含plugin.json
-                        const pluginJsonPath = path.join(srcPath, 'plugin.json');
-                        if (fs.existsSync(pluginJsonPath)) {
-                            // 如果是插件文件夹，复制整个文件夹
-                            const folderName = path.basename(srcPath);
-                            const targetDir = path.join(pluginDir, folderName);
-                            
-                            // 如果目标文件夹已存在，添加数字后缀
-                            let finalTargetDir = targetDir;
-                            let counter = 1;
-                            while (fs.existsSync(finalTargetDir)) {
-                                finalTargetDir = `${targetDir}_${counter}`;
-                                counter++;
-                            }
-                            
-                            // 递归复制文件夹
-                            copyFolderRecursive(srcPath, finalTargetDir);
-                        } else {
-                            alert(`选择的文件夹 ${path.basename(srcPath)} 不是有效的插件文件夹（缺少plugin.json）`);
-                        }
-                    }
-                }
-
-                // 刷新插件列表
-                loadPlugins(true);
+            } catch (error) {
+                showNotification('插件加载失败', error.message, 'error');
+            } finally {
+                button.disabled = false;
+                button.textContent = '本地插件';
             }
         });
 
-        // 递归复制文件夹的函数
-        function copyFolderRecursive(src, dest) {
-            // 创建目标文件夹
-            if (!fs.existsSync(dest)) {
-                fs.mkdirSync(dest, { recursive: true });
-            }
-
-            // 读取源文件夹内容
-            const entries = fs.readdirSync(src, { withFileTypes: true });
-
-            // 遍历所有文件和子文件夹
-            for (const entry of entries) {
-                const srcPath = path.join(src, entry.name);
-                const destPath = path.join(dest, entry.name);
-
-                if (entry.isDirectory()) {
-                    // 递归复制子文件夹
-                    copyFolderRecursive(srcPath, destPath);
-                } else if (entry.isFile()) {
-                    // 复制文件
-                    fs.copyFileSync(srcPath, destPath);
-                }
-            }
+        async function updatePluginViews(plugins) {
+            await loadPlugins(true, plugins);
+            if (settingsModal.classList.contains('show')) await loadPluginManagementList();
         }
 
         // 插件商店按钮点击事件
@@ -1925,14 +1864,13 @@
                     ? payload.installed.map(item => item.name).join('、')
                     : '插件';
                 showNotification('插件已安装', `${names} 已解压到本地插件文件夹`, 'success');
-                loadPlugins(true);
             } else if (payload?.type === 'error') {
                 showNotification('插件安装失败', payload.message || '下载或安装插件失败', 'error');
             }
         });
 
-        ipcRenderer.on('plugins:changed', () => {
-            loadPlugins(true);
+        ipcRenderer.on('plugins:changed', (_event, payload) => {
+            updatePluginViews(payload?.plugins);
         });
 
         // H5工具按钮点击事件
@@ -2447,6 +2385,27 @@
             }
         });
 
+        document.getElementById('refresh-plugins-btn').addEventListener('click', async () => {
+            const button = document.getElementById('refresh-plugins-btn');
+            const status = document.getElementById('plugin-refresh-status');
+            if (button.disabled) return;
+            button.disabled = true;
+            button.textContent = '刷新中…';
+            status.textContent = '正在扫描本地插件…';
+            try {
+                const result = await ipcRenderer.invoke('refresh-plugins');
+                if (!result?.success) throw new Error(result?.error || '刷新失败');
+                await updatePluginViews(result.plugins);
+                status.textContent = `刷新完成，共 ${result.count} 个插件`;
+            } catch (error) {
+                status.textContent = `刷新失败：${error.message}`;
+                showNotification('插件刷新失败', error.message, 'error');
+            } finally {
+                button.disabled = false;
+                button.textContent = '手动刷新';
+            }
+        });
+
         // 重置插件数据存储路径
         document.getElementById('reset-plugin-data-path-btn').addEventListener('click', async () => {
             try {
@@ -2525,13 +2484,8 @@
         loadPlugins(true);
         loadAccount();
 
-        // 定期刷新插件列表（改为10秒一次，并添加防抖）
-        setInterval(() => {
-            if (pluginsLoadTimeout) {
-                clearTimeout(pluginsLoadTimeout);
-            }
-            pluginsLoadTimeout = setTimeout(() => loadPlugins(), 10000);
-        }, 10000);
+        // 每轮直接刷新，避免同周期防抖不断取消上一轮加载。
+        setInterval(() => loadPlugins(), 10000);
 
         // 显示通知函数
         function showNotification(title, message, type = 'info') {
