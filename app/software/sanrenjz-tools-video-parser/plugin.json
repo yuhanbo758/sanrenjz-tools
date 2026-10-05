@@ -1,0 +1,25 @@
+{
+  "pluginName": "视频解析播放",
+  "description": "解析视频、加载选集，保存播放记录、观看进度和收藏；支持 B 站分 P、爱奇艺剧集及腾讯、优酷、土豆可用单集。红果暂仅原站播放。",
+  "version": "1.1.0",
+  "updateDate": "2026-10-05",
+  "author": "三人聚智",
+  "category": "影音工具",
+  "main": "index.html",
+  "preload": "preload.js",
+  "logo": "logo.ico",
+  "features": [{
+    "code": "video-parser-play",
+    "explain": "视频解析",
+    "description": "解析公开视频、加载选集并播放；不能解析时打开原站。",
+    "cmds": ["视频解析", "视频播放", "B站视频", "腾讯视频", "选集播放", {"type":"over","label":"视频解析","minLength":10,"maxLength":5000}],
+    "icon": "logo.ico",
+    "platform": ["win32", "darwin", "linux"],
+    "mode": "none",
+    "superPanel": true,
+    "useClipboardText": true,
+    "category": "影音工具",
+    "priority": 15
+  }],
+  "pluginSetting": {"width":1180,"height":760,"minWidth":900,"minHeight":650,"single":true,"autoHideMenuBar":true,"menuBarVisible":false}
+}

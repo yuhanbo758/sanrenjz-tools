@@ -370,8 +370,8 @@ function bindBuiltinSessionEvents() {
             }
             try {
                 const installed = await installDownloadedPlugin(savePath);
+                await refreshPluginCatalog('store-install');
                 sendPluginDownloadEvent({ type: 'completed', fileName: path.basename(savePath), installed });
-                sendRendererEvent('plugins:changed', { installed });
             } catch (error) {
                 sendPluginDownloadEvent({ type: 'error', fileName: path.basename(savePath), message: error.message || String(error) });
             }
@@ -2392,6 +2392,109 @@ function invalidateSearchCatalog(reason = 'unknown') {
     }
 }
 
+let pluginCatalogRefresh = null;
+
+// 导入和手动刷新共用实际插件目录，同步所有入口而不重启正在运行的插件。
+async function refreshPluginCatalog(reason = 'manual') {
+    const previousRefresh = pluginCatalogRefresh || Promise.resolve();
+    // 串行扫描，保证导入完成后的刷新不会复用导入前尚未结束的扫描结果。
+    const refresh = previousRefresh.catch(() => {}).then(async () => {
+        if (!pluginManager) throw new Error('插件管理器未初始化');
+        await fs.promises.readdir(getPluginInstallDir());
+        const plugins = await pluginManager.getPluginList();
+        const installedNames = new Set(plugins.map(plugin => plugin.name));
+        for (const name of superPanelRegistry.keys()) {
+            if (!installedNames.has(name)) superPanelRegistry.delete(name);
+        }
+        for (const name of pluginManager.dynamicFeatures.keys()) {
+            if (!installedNames.has(name)) pluginManager.dynamicFeatures.delete(name);
+        }
+        for (const plugin of plugins) {
+            const config = JSON.parse(await fs.promises.readFile(path.join(plugin.path, 'plugin.json'), 'utf8'));
+            // 只替换清单生成的动作，保留运行中插件动态注册的动作。
+            const actions = superPanelRegistry.get(plugin.name) || [];
+            superPanelRegistry.set(plugin.name, actions.filter(action =>
+                !(action.feature && action.id?.startsWith(`plugin-${plugin.name}-`))));
+            autoRegisterPluginSuperPanelActions(plugin.name, config, plugin.path, false);
+        }
+        invalidateSearchCatalog(reason);
+        notifySuperPanelUpdate();
+        sendRendererEvent('plugins:changed', { plugins, reason });
+        return { success: true, count: plugins.length, plugins };
+    });
+    pluginCatalogRefresh = refresh;
+    try {
+        return await refresh;
+    } finally {
+        if (pluginCatalogRefresh === refresh) pluginCatalogRefresh = null;
+    }
+}
+
+ipcMain.handle('refresh-plugins', async () => {
+    try {
+        return await refreshPluginCatalog();
+    } catch (error) {
+        console.error('刷新插件失败:', error);
+        return { success: false, error: error.message };
+    }
+});
+
+let localPluginImportBusy = false;
+
+ipcMain.handle('import-local-plugins', async () => {
+    if (localPluginImportBusy) return { success: false, error: '正在加载本地插件，请稍候' };
+    localPluginImportBusy = true;
+    try {
+        if (!pluginManager) throw new Error('插件管理器未初始化');
+        const selection = await dialog.showOpenDialog(mainWindow, {
+            properties: ['openDirectory', 'multiSelections'],
+            title: '选择包含 plugin.json 的插件文件夹'
+        });
+        if (selection.canceled || !selection.filePaths.length) return { canceled: true };
+
+        const installDir = getPluginInstallDir();
+        const installed = [];
+        const skipped = [];
+        const errors = [];
+        for (const sourceDir of selection.filePaths) {
+            let stagingDir;
+            try {
+                const config = JSON.parse(await fs.promises.readFile(path.join(sourceDir, 'plugin.json'), 'utf8'));
+                if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('plugin.json 必须是有效的插件配置对象');
+                if (config.pluginName && typeof config.pluginName !== 'string') throw new Error('插件名称必须是文本');
+                const name = config.pluginName || path.basename(sourceDir);
+                const existingPath = findInstalledPluginPath(installDir, name);
+                if (existingPath) {
+                    skipped.push({ name, path: existingPath });
+                    continue;
+                }
+                const folderName = path.basename(sourceDir);
+                if (!folderName) throw new Error('请选择插件文件夹，不能选择磁盘根目录');
+                const targetDir = uniquePath(path.join(installDir, folderName));
+                const stagingRoot = path.join(installDir, '.downloads');
+                await fs.promises.mkdir(stagingRoot, { recursive: true });
+                stagingDir = await fs.promises.mkdtemp(path.join(stagingRoot, 'local-import-'));
+                const stagedPlugin = path.join(stagingDir, 'plugin');
+                // 复制完成后才放入扫描目录，避免刷新时读到半个插件。
+                await fs.promises.cp(sourceDir, stagedPlugin, { recursive: true, errorOnExist: true, force: false });
+                await fs.promises.rename(stagedPlugin, targetDir);
+                installed.push({ name, path: targetDir });
+            } catch (error) {
+                errors.push({ path: sourceDir, error: error.message });
+            } finally {
+                if (stagingDir) await fs.promises.rm(stagingDir, { recursive: true, force: true });
+            }
+        }
+        const refreshed = await refreshPluginCatalog('local-import');
+        return { ...refreshed, success: installed.length > 0 || skipped.length > 0, installed, skipped, errors };
+    } catch (error) {
+        console.error('加载本地插件失败:', error);
+        return { success: false, error: error.message };
+    } finally {
+        localPluginImportBusy = false;
+    }
+});
+
 /**
  * 采集当前选区并恢复用户原剪贴板。
  * 先写入唯一标记可以区分“没有选区”和“选中的文本恰好与旧剪贴板相同”。
@@ -2479,12 +2582,18 @@ async function buildSearchCatalog() {
 ipcMain.handle('search-catalog-get', async (event, options = {}) => {
     if (!searchCatalogCache.dirty && searchCatalogCache.data && !options.force) return searchCatalogCache.data;
     if (searchCatalogCache.loading) return searchCatalogCache.loading;
-    searchCatalogCache.loading = buildSearchCatalog()
-        .then(data => {
+    searchCatalogCache.loading = (async () => {
+        // 构建期间若又有插件变更，重新构建，不能把旧目录标记成最新缓存。
+        while (true) {
+            const version = searchCatalogCache.version;
+            const data = await buildSearchCatalog();
+            if (version !== searchCatalogCache.version) continue;
+            data.version = version;
             searchCatalogCache.data = data;
             searchCatalogCache.dirty = false;
             return data;
-        })
+        }
+    })()
         .finally(() => { searchCatalogCache.loading = null; });
     return searchCatalogCache.loading;
 });
@@ -3966,7 +4075,7 @@ function notifySuperPanelUpdate() {
 }
 
 // 插件管理器接口：当插件启动时自动注册其超级面板功能
-function autoRegisterPluginSuperPanelActions(pluginName, pluginConfig, pluginPath = null) {
+function autoRegisterPluginSuperPanelActions(pluginName, pluginConfig, pluginPath = null, notify = true) {
     try {
         if (!pluginConfig || !pluginConfig.features) return;
 
@@ -4128,7 +4237,7 @@ function autoRegisterPluginSuperPanelActions(pluginName, pluginConfig, pluginPat
         console.log(`插件 ${pluginName} 共注册了 ${registeredCount} 个超级面板功能`);
 
         // 通知更新
-        notifySuperPanelUpdate();
+        if (notify) notifySuperPanelUpdate();
 
     } catch (error) {
         console.error('自动注册插件超级面板功能失败:', error);

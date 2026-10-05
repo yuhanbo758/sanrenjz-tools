@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; media-src http://127.0.0.1:* blob:; connect-src http://127.0.0.1:*; img-src 'self' data:; frame-src 'none'; object-src 'none'; base-uri 'none'">
+<title>视频解析播放</title>
+<style>
+/* 标题栏由宿主注入，单独指定按钮文字颜色，避免继承播放器深色主题的浅色文字。 */
+.custom-title-bar .window-control-button{color:#24292e;font-size:16px;padding:0;border-radius:0;opacity:1}.custom-title-bar .window-control-button.close:hover{color:#fff}
+:root{color-scheme:dark;--bg:#101722;--panel:#192333;--line:#304057;--text:#e6edf7;--muted:#9dacc1;--accent:#5bd1b5}*{box-sizing:border-box}html,body{height:100%;overflow:hidden;margin:0}body{padding-top:32px;background:var(--bg);color:var(--text);font:14px "Microsoft YaHei",sans-serif}button,input,select{font:inherit;color:inherit;-webkit-app-region:no-drag}button{border:1px solid var(--line);border-radius:7px;background:#25334a;padding:9px 13px;cursor:pointer}button:hover{border-color:var(--accent)}button:disabled{opacity:.5;cursor:default}.primary{background:var(--accent);border-color:var(--accent);color:#09231e;font-weight:600}input[type=text]{background:#101a29;border:1px solid var(--line);border-radius:7px;padding:10px;min-width:0}input:focus,button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.app{height:100%;display:flex;flex-direction:column;padding:15px;gap:12px}.toolbar{display:flex;gap:8px}.toolbar input{flex:1}.statusbar{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:27px;color:var(--muted);font-size:12px}#status{flex:1;overflow-wrap:anywhere}.error{color:#ffbaac!important}.workspace{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:13px}.watch{display:flex;flex-direction:column;min-height:0;gap:11px}.screen{position:relative;flex:1;min-height:210px;background:#070c12;border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center}video{width:100%;height:100%;max-height:100%;object-fit:contain;outline:none}#empty{position:absolute;padding:28px;max-width:580px;color:var(--muted);line-height:1.9;pointer-events:none}#empty strong{display:block;color:var(--text);font-size:19px;margin-bottom:10px}#empty p{margin:7px 0}.control{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.control select{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px}#nowTitle{flex:1;min-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.muted{color:var(--muted);font-size:12px}.notice{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 13px;font-size:12px;line-height:1.8;color:var(--muted)}.episodes{background:var(--panel);border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;min-height:0;padding:13px;gap:10px}.episodes h2{font-size:14px;line-height:1.6;margin:0;overflow-wrap:anywhere;max-height:66px;overflow:hidden}.listhead{display:flex;justify-content:space-between;gap:8px;align-items:center}.episodes input[type=text]{width:100%}#episodeList{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:7px}.episode{text-align:left;padding:10px;line-height:1.6;overflow-wrap:anywhere;flex-shrink:0}.episode.active{border-color:var(--accent);background:#204237;color:#a1f0d9}.episode small{display:block;color:var(--muted)}.auto{display:flex;align-items:center;gap:7px;font-size:12px}.settings{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 12px}.settings summary{cursor:pointer;font-size:12px;color:var(--muted)}.settings-row{display:flex;align-items:center;gap:8px;margin-top:10px}.settings-row input{flex:1}.settings-row span{font-size:12px}#cancelBtn[hidden],#empty[hidden]{display:none}@media(max-width:1000px){.workspace{grid-template-columns:minmax(0,1fr) 235px}.app{padding:12px}.toolbar button{padding:9px}.notice{font-size:11px}.screen{min-height:190px}}
+</style>
+<style>
+.side-tabs{display:flex;gap:5px}.side-tabs button{flex:1;padding:7px 4px;font-size:12px}.side-tabs button.active{border-color:var(--accent);color:var(--accent)}.side-view{display:flex;flex-direction:column;gap:10px;flex:1;min-height:0}.side-view[hidden]{display:none}.library-list{display:flex;flex-direction:column;gap:10px;overflow:auto;flex:1;min-height:0}.library-card{border:1px solid var(--line);border-radius:7px;padding:10px;display:flex;flex-direction:column;gap:7px;flex-shrink:0}.library-title{font-size:13px;line-height:1.6;overflow-wrap:anywhere}.library-actions{display:flex;flex-wrap:wrap;gap:6px}.library-actions button{padding:5px 8px;font-size:12px}.library-meta{font-size:11px;color:var(--muted);line-height:1.7;overflow-wrap:anywhere}.library-status{font-size:11px;line-height:1.6;overflow-wrap:anywhere}.library-status:empty{display:none}#retryLibraryBtn[hidden]{display:none}#favoriteBtn{padding:6px 8px;font-size:12px}#favoriteBtn.saved{color:var(--accent);border-color:var(--accent)}#clearHistoryBtn{padding:5px 7px;font-size:11px}
+</style>
+</head>
+<body>
+<main class="app" data-layout="video-parser-player">
+  <div class="toolbar">
+    <input id="sourceInput" type="text" placeholder="粘贴视频、分 P 或整部剧集的原站地址" aria-label="视频网页地址">
+    <button id="pasteBtn">粘贴</button>
+    <button id="loadBtn" class="primary">加载选集</button>
+    <button id="cancelBtn" hidden>取消</button>
+    <button id="originalBtn">原站播放 ↗</button>
+  </div>
+  <div class="statusbar"><span id="status" role="status" aria-live="polite">正在检查解析环境…</span><span id="engineStatus">yt-dlp · 固定源码版本</span></div>
+  <div class="workspace">
+    <section class="watch">
+      <div class="screen">
+        <video id="player" controls playsinline preload="metadata" hidden></video>
+        <audio id="audioTrack" preload="metadata"></audio>
+        <div id="empty"><strong>粘贴一次，选择分集观看</strong><p>B 站支持多 P；爱奇艺粘贴任意一集地址，加载原站剧集目录后点击右侧选集，或使用上一集、下一集。</p><p>腾讯、优酷、土豆已验证单集样本，选集以实际返回为准。登录、会员、DRM 或解析失败时，使用上方“原站播放”。</p><p>红果直链解析尚未实现，当前仅提供原站入口。</p></div>
+      </div>
+      <div class="control"><button id="prevBtn" disabled>上一集</button><button id="nextBtn" disabled>下一集</button><span id="nowTitle">未选择视频</span><label class="muted">倍速 <select id="speed"><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label></div>
+      <div class="notice">B 站支持多 P，爱奇艺支持读取原站剧集选集。目录中的会员/付费标记来自原站，能否播放由原站权限及实际返回决定。腾讯、优酷、土豆已验证单集播放；芒果未验收，红果未实现直链解析。</div>
+    </section>
+    <aside class="episodes">
+      <nav class="side-tabs" aria-label="视频目录与资料"><button id="episodesTab" class="active" aria-pressed="true">选集</button><button id="historyTab" aria-pressed="false">记录</button><button id="favoritesTab" aria-pressed="false">收藏</button></nav>
+      <div id="collectionView" class="side-view">
+        <div class="listhead"><h2 id="collectionTitle">选集目录</h2><button id="favoriteBtn" disabled aria-pressed="false">☆ 收藏</button></div>
+        <div class="listhead"><span id="episodeCount" class="muted">还未加载</span><label class="auto"><input id="autoNext" type="checkbox">连续播放</label></div>
+        <input id="episodeFilter" type="text" placeholder="筛选集数或标题" aria-label="筛选选集">
+        <div id="episodeList"><p class="muted">选集目录会显示在这里。无法取到目录时会明确提示。</p></div>
+      </div>
+      <div id="historyView" class="side-view" hidden>
+        <div class="listhead"><h2>播放记录</h2><button id="clearHistoryBtn">清空记录</button></div>
+        <p class="muted" style="margin:0">保存最近 50 项选集及观看进度。</p>
+        <div id="historyList" class="library-list"></div>
+      </div>
+      <div id="favoritesView" class="side-view" hidden>
+        <h2>我的收藏</h2><p class="muted" style="margin:0">收藏整部选集，下次可继续观看或选择未看的集数。</p>
+        <div id="favoritesList" class="library-list"></div>
+      </div>
+      <span id="libraryStatus" class="library-status muted" role="status" aria-live="polite"></span><button id="retryLibraryBtn" hidden>重试保存记录</button>
+    </aside>
+  </div>
+  <details class="settings"><summary>解析环境设置 · Python 3.10+</summary><div class="settings-row"><span>解释器</span><input id="pythonPath" type="text" readonly placeholder="自动检测 python / python3 / py"><button id="pickPythonBtn">选择 Python</button><button id="resetPythonBtn">自动检测</button></div></details>
+</main>
+<script src="vendor/hls.light.min.js"></script>
+<script src="player.js"></script>
+</body>
+</html>
