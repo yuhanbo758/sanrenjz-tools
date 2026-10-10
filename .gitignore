@@ -70,3 +70,20 @@ coverage/
 # package-lock.json
 # yarn.lock 
 security-review.md
+/PROJECT_MEMORY.md
+/scripts/mobile-deploy/
+
+# 私有视频插件在 Program_Shop 独立维护，禁止重新纳入公开仓库
+/app/software/sanrenjz-tools-video-parser/
+/tests/video-parser*.js
+/scripts/render-video-parser-icon.js
+
+# 仅在本地维护的插件及其专用开发文件，不进入公开提交
+/app/software/sanrenjz-tools-reading-learning/
+/app/software/sanrenjz-tools-cast-receiver/
+/tests/reading-learning*
+/tests/cast-*
+/scripts/*reading-learning*
+/scripts/*cast*
+/tests/remote-mirror.test.js
+/tests/remote-package-check.js

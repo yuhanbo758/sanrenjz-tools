@@ -27,7 +27,8 @@
     "test:plugins:gallery": "electron tests/electron-plugin-gallery.js",
     "test:plugins:icons": "electron tests/electron-icon-gallery.js",
     "preinstall": "echo \"检查Node.js环境...\"",
-    "postinstall": "electron-builder install-app-deps && echo \"依赖安装完成，可以运行 npm start 启动应用\""
+    "postinstall": "electron-builder install-app-deps && echo \"依赖安装完成，可以运行 npm start 启动应用\"",
+    "test:remote": "node tests/remote-protocol.test.js && node tests/remote-chat.test.js && electron tests/remote-without-cast.test.js"
   },
   "author": {
     "name": "余汉波",
@@ -59,7 +60,9 @@
     "pdfjs-dist": "^2.16.105",
     "qrcode": "^1.5.4",
     "read-excel-file": "6.0.3",
-    "word-extractor": "^1.0.4"
+    "selfsigned": "2.4.1",
+    "word-extractor": "^1.0.4",
+    "ws": "8.18.3"
   },
   "devDependencies": {
     "electron": "^25.9.8",
@@ -142,7 +145,27 @@
       "!*.temp",
       "!settings.json",
       "!plugin-data",
-      "!user-data"
+      "!user-data",
+      "node_modules/ws/**/*",
+      "node_modules/selfsigned/**/*",
+      "node_modules/node-forge/**/*",
+      "!android/**",
+      "!app/software/sanrenjz-tools-cast-receiver/**",
+      "!app/software/sanrenjz-tools-reading-learning/**",
+      "!server/**",
+      "node_modules/qrcode/**/*",
+      "node_modules/dijkstrajs/**/*",
+      "node_modules/pngjs/**/*",
+      "!scripts/mobile-deploy/**",
+      "!tests/remote-main-live.js",
+      "!tests/remote-debug-phone.js",
+      "!tests/remote-live-inspect.js",
+      "!dist/**",
+      "!build-output/**",
+      "!tests/**",
+      "!**/AGENTS.md",
+      "!**/PROJECT_MEMORY.md",
+      "!.trae/**"
     ],
     "asarUnpack": [
       "node_modules/@electron/remote/**/*",
@@ -173,7 +196,9 @@
         "from": "app",
         "to": "app",
         "filter": [
-          "**/*"
+          "**/*",
+          "!software/sanrenjz-tools-cast-receiver/**",
+          "!software/sanrenjz-tools-reading-learning/**"
         ]
       },
       {

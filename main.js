@@ -1,9 +1,29 @@
-const { app, BrowserWindow, ipcMain, globalShortcut, Menu, Tray, nativeImage, shell, dialog, session, safeStorage, desktopCapturer } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, Menu, Tray, nativeImage, shell, dialog, session, safeStorage, desktopCapturer, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { exec, spawn } = require('child_process');
 const http = require('http');
 const https = require('https');
+const mobileAcceptance = !app.isPackaged && process.env?.SANRENJZ_REMOTE_ACCEPTANCE === '1';
+if (mobileAcceptance) app.setPath('userData', path.join(__dirname, 'dist', 'mobile-remote-live', 'profile'));
+let mobileRemoteService = null;
+function initializeMobileRemote() {
+    if (mobileRemoteService) return;
+    const { RemoteService } = require(app.isPackaged
+        ? path.join(process.resourcesPath, 'app', 'remote', 'service.js')
+        : './app/remote/service');
+    mobileRemoteService = new RemoteService({
+        app, ipcMain, BrowserWindow, session, safeStorage,
+        clipboard: require('electron').clipboard, manager: pluginManager,
+        screen, hiddenCastWindow: mobileAcceptance, getCastDisplay: () => screen.getDisplayMatching(mainWindow.getBounds()),
+        loadSettings, saveSettings,
+        cancelAi: requestId => openCodeRuntime.cancel(requestId),
+        accountStatus: async () => ({ loggedIn: Boolean(cachedAccount), message: '账号登录和会员认证请在电脑完成' })
+    });
+    const { CastPluginLoader } = require(app.isPackaged ? path.join(process.resourcesPath, 'app', 'remote', 'cast-plugin-loader.js') : './app/remote/cast-plugin-loader');
+    mobileRemoteService.castPlugins = new CastPluginLoader(mobileRemoteService);
+    if (!mobileAcceptance && mobileRemoteService.settings().enabled) mobileRemoteService.start().catch(error => console.warn('手机遥控启动失败:', error.message));
+}
 // app 目录通过 extraResources 放在 ASAR 外，打包后必须从 resources 加载。
 const { waitForPluginWindowReady } = require(app.isPackaged
     ? path.join(process.resourcesPath, 'app', 'plugin_runtime', 'plugin-window-ready.js')
@@ -2163,6 +2183,7 @@ function createWindow() {
     try {
         // 调整为原来大小的三分之二
         mainWindow = new BrowserWindow({
+            show: !mobileAcceptance,
             width: 1000,  // 原来是1200
             height: 680, // 原来是800
             title: '三人聚智-效率工具',
@@ -4839,6 +4860,8 @@ ipcMain.on('plugin-auto-separate-changed', (event, { pluginName, value }) => {
 app.on('second-instance', () => {
     if (!mainWindow || mainWindow.isDestroyed()) {
         createWindow();
+
+        initializeMobileRemote();
         return;
     }
     if (!mainWindow.isVisible()) {
@@ -4882,7 +4905,13 @@ app.whenReady().then(async () => {
 
         createWindow();
 
+        initializeMobileRemote();
+
         // 注册全局快捷键
+        if (mobileAcceptance) {
+            await require('./tests/remote-main-live').run({ service: mobileRemoteService, manager: pluginManager, mainWindow });
+            return;
+        }
         const settings = loadSettings();
         // 根据你的要求，强制将全局快捷键设置为 Alt+Space（若无法注册将自动回退）
         if (settings.globalHotkey !== 'Alt+Space') {
@@ -4986,6 +5015,8 @@ app.on('activate', () => {
 
 // 应用退出前清理
 app.on('before-quit', () => {
+    mobileRemoteService?.stop().catch(() => {});
+    mobileRemoteService?.castPlugins?.close();
     console.log('应用即将退出，清理资源...');
     app.isQuiting = true;
 

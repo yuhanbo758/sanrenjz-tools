@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" aria-label="视频解析播放">
-  <rect x="8" y="8" width="240" height="240" rx="54" fill="#152333"/>
-  <rect x="40" y="52" width="176" height="116" rx="18" fill="#24453f" stroke="#5bd1b5" stroke-width="10"/>
-  <path d="M109 86L151 110L109 136Z" fill="#c5fff0"/>
-  <path d="M54 194H82M114 194H142M174 194H202" stroke="#5bd1b5" stroke-width="12" stroke-linecap="round"/>
-</svg>
